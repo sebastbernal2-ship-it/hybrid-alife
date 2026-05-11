@@ -1,0 +1,32 @@
+# Quick 20-minute ablation campaign.
+#
+# Drives `scripts/run_quick_campaign.py`. Each cell of the matrix is a single
+# (config, seed) pair. Cells are run with `scripts/run_sim.py --config <cfg>`
+# after the launcher writes a per-cell override YAML that pins seed, run_name,
+# output_dir, and (optionally) evolution.generations.
+#
+# Intended budget: small CPU box, ~20 minutes total. Tune --max-runs to bound
+# wall time; the manifest records both planned and executed cells.
+
+name: quick_20min
+description: >
+  Minimal ablation matrix for sanity checking that the integrated branches
+  still produce sensible metrics: a baseline smoke200 run plus two structural
+  ablations (no comms, no memory).
+
+base_output_dir: outputs/quick_campaign
+
+# Cells to run. Each entry references an existing config file. The launcher
+# loads it, overrides seed/run_name/output_dir/generations, and writes a
+# per-cell config into the cell's output directory.
+configs:
+  - configs/smoke200.yaml
+  - configs/ablation_no_comms.yaml
+  - configs/ablation_no_memory.yaml
+
+# Seeds to sweep across each config (cross product = configs x seeds).
+seeds: [0, 1]
+
+# Optional override applied to every cell. Comment out to keep config-native
+# generations (useful when each ablation has its own budget).
+generations: 20
