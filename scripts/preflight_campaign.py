@@ -193,7 +193,13 @@ def estimate_run_count(campaign: dict[str, Any]) -> int:
 
 
 def recommended_commands(campaign_path: Path) -> list[str]:
-    rel = campaign_path.relative_to(REPO_ROOT) if campaign_path.is_absolute() else campaign_path
+    if campaign_path.is_absolute():
+        try:
+            rel = campaign_path.relative_to(REPO_ROOT)
+        except ValueError:
+            rel = campaign_path
+    else:
+        rel = campaign_path
     return [
         f"python scripts/run_quick_campaign.py --campaign {rel} --dry-run",
         f"python scripts/run_quick_campaign.py --campaign {rel}",
