@@ -266,6 +266,15 @@ It documents the current state of the repo, what is implemented vs experimental,
 open scientific risks, exact commands to reproduce known validation numbers, the
 sprint-branch strategy, and how to recover work from unmerged sprint branches.
 
+## Running multi-hour campaigns
+
+Before launching anything that runs for more than ~10 minutes, read
+[`docs/LONG_RUN_OPERATOR_RUNBOOK.md`](docs/LONG_RUN_OPERATOR_RUNBOOK.md). It
+covers the preflight checklist, JAX cache env vars, tmux/nohup patterns,
+`--resume` vs. `--force` policy, worker selection, disk hygiene, failure
+recovery, criteria for aborting a bad campaign, artifact packaging, and
+end-to-end command recipes for 20-minute, 2-hour, and overnight runs.
+
 ## Development
 
 ```bash
