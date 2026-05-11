@@ -123,6 +123,20 @@ are present, JAX imports and reports a device, and the estimated run
 count is `len(configs) * len(seeds)`. Use `--json` for machine-readable
 output, e.g. from CI. Exit code is 0 on PASS, 1 on FAIL.
 
+## Visualizing a finished run
+
+Once a cell has finished, point the visualization helper at its run
+directory to get a static PNG gallery plus `index.html`:
+
+```bash
+python scripts/visualize_run.py outputs/runs/<run_name>
+```
+
+It consumes any subset of `metrics.jsonl`, `map_elites.npz`, and
+`novelty_archive.npz`. See
+[visualization_quickstart.md](visualization_quickstart.md) for the full
+output layout and limitations.
+
 ## Exit code
 
 Non-zero if any cell ended with status `failed` or `error`. `skipped` and
