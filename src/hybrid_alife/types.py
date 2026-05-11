@@ -69,6 +69,21 @@ class EmbodiedConfig:
     shuffle_sixth_sense: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
+    # Controller-level knobs (new): keep backwards-compatible defaults.
+    stochastic_actions: bool = False
+    action_temperature: float = 1.0
+    message_gate_threshold: float = 0.5
+    # Action cost model: every gated action consumes a fixed amount of energy
+    # in addition to the basal cost. Set scales to 0.0 for the old behavior.
+    cost_move_scale: float = 0.5
+    cost_eat: float = 0.01
+    cost_attack: float = 0.08
+    cost_reproduce: float = 0.05
+    cost_terraform: float = 0.03
+    cost_emit: float = 0.02
+    # Branch coupling: how strongly metabolites deposit / poison the world.
+    metabolite_deposit_scale: float = 1.0
+    hazard_deposit_scale: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +98,27 @@ class AvidaConfig:
     point_mutation_prob: float
     insertion_prob: float
     deletion_prob: float
+    # Extended VM knobs. All defaults preserve existing behaviour numerically.
+    min_genome_length: int = 4
+    duplication_prob: float = 0.0
+    # Merit-based CPU-cycle allocation: each organism gets cycles_per_update *
+    # (merit / merit_floor)^merit_cycle_exponent extra cycles, clamped.
+    merit_cycle_exponent: float = 0.5
+    merit_floor: float = 1.0
+    max_cycles_per_update: int = 32
+    # Per-task merit rewards (single-shot, deduplicated).
+    task_reward_not: float = 1.0
+    task_reward_nand: float = 1.0
+    task_reward_and: float = 2.0
+    task_reward_orn: float = 2.0
+    task_reward_or: float = 3.0
+    task_reward_andn: float = 3.0
+    task_reward_nor: float = 4.0
+    task_reward_xor: float = 4.0
+    task_reward_equ: float = 5.0
+    # Branch coupling: digital organisms read/produce world metabolites.
+    metabolite_uptake: float = 0.0
+    metabolite_deposit: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -188,6 +224,12 @@ class AvidaPopulationState:
     lineage_id: Array
     parent_id: Array
     lineage_depth: Array
+    # Bitfield of logic tasks completed by each organism (NOT, NAND, AND, ...).
+    # We store as an int32 with up to 9 bits set, matching the 9 reward fields.
+    tasks_completed: Array | None = None
+    # Last env IO input pair (per organism) used to detect logic-task outputs.
+    last_input_a: Array | None = None
+    last_input_b: Array | None = None
 
 
 @dataclass
