@@ -230,6 +230,11 @@ Pre-register your descriptors and minimal criterion using
 - "Sixth sense" and "language" terminology are *labels*, not biological or
   linguistic claims — see `docs/scientific_validation.md` §7 for the
   language guardrails this repo commits to.
+- Before writing up or quoting any number from this repo, consult
+  [`docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`](docs/SCIENTIFIC_INTERPRETATION_GUIDE.md).
+  It defines the evidence tiers (engineering / preliminary / strong),
+  per-metric interpretation, allowed vs disallowed claims, ablation logic,
+  replication requirements, and the failure modes to watch for.
 
 ## Continuation / Recovery
 
