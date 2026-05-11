@@ -117,7 +117,14 @@ def initialize_embodied_population(
     action_dim = embodied_action_dim(cfg)
     last_action = jnp.zeros((n, action_dim), dtype=jnp.float32)
     action_history = jnp.zeros((n, cfg.action_history_len), dtype=jnp.int32)
-    behavior_descriptor = jnp.zeros((n, 2), dtype=jnp.float32)
+    # Spread initial descriptors across [0,1]^2 so MAP-Elites bins get
+    # populated before the EMA running mean has time to differentiate
+    # agents. The EMA in apply_embodied_actions will then drag each
+    # agent toward its realised (speed, eat) signature.
+    k_pos, k_bd = jax.random.split(k_pos)
+    behavior_descriptor = jax.random.uniform(
+        k_bd, (n, 2), minval=0.05, maxval=0.95, dtype=jnp.float32
+    )
     return EmbodiedPopulationState(
         positions=positions,
         energy=energy,
