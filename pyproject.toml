@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hybrid-alife"
+version = "0.1.0"
+description = "Hybrid JAX artificial-life simulator with embodied agents, Avida-style digital organisms, and proxy microfluidic sensory fields."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "jax>=0.4.28",
+  "jaxlib>=0.4.28",
+  "flax>=0.8.4",
+  "optax>=0.2.2",
+  "chex>=0.1.86",
+  "numpy>=1.26",
+  "pyyaml>=6.0.1",
+  "rich>=13.7",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "ipykernel>=6.29",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
