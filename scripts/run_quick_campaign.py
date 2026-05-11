@@ -29,7 +29,9 @@ Examples
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import copy
+import hashlib
 import json
 import os
 import platform
@@ -70,6 +72,8 @@ class Cell:
     started_at: str | None = None
     finished_at: str | None = None
     error: str | None = None
+    config_hash: str | None = None
+    cache_hit: bool = False
 
 
 @dataclass
@@ -137,6 +141,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=sys.executable,
         help="Python interpreter to use for the subprocess invocations.",
     )
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip cells whose output dir already contains a non-empty "
+        "metrics.json/metrics.csv and whose resolved config hash matches.",
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-execute every cell, ignoring any prior outputs. "
+        "Mutually exclusive with --resume.",
+    )
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of cells to execute concurrently (default 1). "
+        "Use with care: most cells saturate JAX threads on their own.",
+    )
     return p.parse_args(argv)
 
 
@@ -197,6 +220,44 @@ def _override_config(
     return cfg
 
 
+def hash_config(cfg: dict[str, Any]) -> str:
+    """Deterministic SHA-256 over a resolved per-cell config."""
+    blob = json.dumps(cfg, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
+def _metrics_present(output_dir: Path, run_name: str) -> Path | None:
+    """Return the metrics file proving a cell completed, or None."""
+    cell_dir = output_dir / run_name
+    for name in ("metrics.json", "metrics.csv"):
+        p = cell_dir / name
+        if p.exists() and p.stat().st_size > 0:
+            return p
+    return None
+
+
+def _cached_config_hash(cell_cfg_path: Path) -> str | None:
+    """Hash of the on-disk resolved config, or None if unreadable."""
+    if not cell_cfg_path.exists():
+        return None
+    try:
+        with cell_cfg_path.open("r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+        return hash_config(raw)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def is_cache_hit(cell: Cell, expected_hash: str) -> bool:
+    """A cell is cached when metrics exist AND the on-disk config hash matches."""
+    base_out = Path(cell.output_dir)
+    metrics = _metrics_present(base_out, cell.run_name)
+    if metrics is None:
+        return False
+    on_disk = _cached_config_hash(Path(cell.cell_config_path))
+    return on_disk == expected_hash
+
+
 def plan_cells(
     campaign: Campaign,
     seeds: list[int],
@@ -236,8 +297,8 @@ def materialize_cell_config(
     cell: Cell,
     campaign: Campaign,
     generations: int | None,
-) -> None:
-    """Write the per-cell resolved YAML config to disk."""
+) -> dict[str, Any]:
+    """Write the per-cell resolved YAML config to disk and return the dict."""
     source_path = _resolve(cell.source_config)
     raw = _load_source_config(source_path)
     resolved = _override_config(
@@ -251,6 +312,8 @@ def materialize_cell_config(
     cell_cfg_path.parent.mkdir(parents=True, exist_ok=True)
     with cell_cfg_path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(resolved, f, sort_keys=False)
+    cell.config_hash = hash_config(resolved)
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +383,17 @@ def build_manifest(
             "out_dir": str(base_output_dir),
             "python": args.python,
             "run_sim": args.run_sim,
+            "resume": bool(getattr(args, "resume", False)),
+            "force": bool(getattr(args, "force", False)),
+            "workers": int(getattr(args, "workers", 1) or 1),
+        },
+        "summary": {
+            "n_cells": len(cells),
+            "n_cached": sum(1 for c in cells if c.cache_hit),
+            "n_ok": sum(1 for c in cells if c.status == "ok"),
+            "n_failed": sum(1 for c in cells if c.status in {"failed", "error"}),
+            "n_skipped": sum(1 for c in cells if c.status == "skipped"),
+            "total_duration_s": sum(c.duration_s or 0.0 for c in cells),
         },
         "environment": {
             "platform": platform.platform(),
@@ -362,13 +436,14 @@ def _render_manifest_md(m: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Cells")
     lines.append("")
-    lines.append("| # | source_config | seed | run_name | status | rc | duration_s |")
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append("| # | source_config | seed | run_name | status | rc | duration_s | cache | hash |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for cell in m["cells"]:
+        h = (cell.get("config_hash") or "")[:8]
         lines.append(
             f"| {cell['index']} | `{cell['source_config']}` | {cell['seed']} | "
             f"`{cell['run_name']}` | {cell['status']} | {cell['return_code']} | "
-            f"{cell['duration_s']} |"
+            f"{cell['duration_s']} | {cell.get('cache_hit', False)} | `{h}` |"
         )
     lines.append("")
     lines.append("## Commands")
@@ -386,6 +461,8 @@ def _render_manifest_md(m: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.resume and args.force:
+        raise SystemExit("--resume and --force are mutually exclusive")
     campaign = load_campaign(args.campaign)
 
     seeds = args.seeds if args.seeds is not None else campaign.seeds
@@ -403,23 +480,60 @@ def main(argv: list[str] | None = None) -> int:
         run_sim=str(_resolve(args.run_sim)),
     )
 
-    # Always materialize the resolved configs so the manifest references real
-    # files even on dry runs. This makes a planned campaign trivially
-    # executable later: just re-invoke without --dry-run.
+    # Materialize first so cache-hit detection can compare the on-disk hash
+    # against the freshly planned hash. This also makes dry-run plans
+    # trivially executable later.
+    expected_hashes: dict[int, str] = {}
     for cell in cells:
+        # Capture the hash that would result from a fresh write, BEFORE
+        # overwriting any cached on-disk config (so we can compare).
+        source_path = _resolve(cell.source_config)
+        raw = _load_source_config(source_path)
+        fresh = _override_config(
+            raw,
+            seed=cell.seed,
+            run_name=cell.run_name,
+            output_dir=cell.output_dir,
+            generations=generations,
+        )
+        expected_hashes[cell.index] = hash_config(fresh)
+
+        # Check cache BEFORE overwriting the on-disk cell_config.yaml, so a
+        # genuine resume detects existing identical configs.
+        if args.resume and not args.dry_run:
+            if is_cache_hit(cell, expected_hashes[cell.index]):
+                cell.status = "cached"
+                cell.cache_hit = True
+                cell.config_hash = expected_hashes[cell.index]
+                cell.duration_s = 0.0
+                continue
+
         materialize_cell_config(cell, campaign, generations)
 
     if args.dry_run:
         for cell in cells:
-            cell.status = "dry-run"
+            if cell.status != "cached":
+                cell.status = "dry-run"
     else:
-        max_runs = args.max_runs if args.max_runs is not None else len(cells)
-        for i, cell in enumerate(cells):
-            if i >= max_runs:
-                cell.status = "skipped"
-                continue
-            print(f"[{i + 1}/{min(max_runs, len(cells))}] {' '.join(cell.command)}")
-            execute_cell(cell)
+        executable = [c for c in cells if c.status != "cached"]
+        max_runs = args.max_runs if args.max_runs is not None else len(executable)
+        to_run = executable[:max_runs]
+        skipped_overflow = executable[max_runs:]
+        for c in skipped_overflow:
+            c.status = "skipped"
+
+        if args.workers and args.workers > 1 and to_run:
+            print(f"workers={args.workers} (parallel)")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+                list(pool.map(execute_cell, to_run))
+        else:
+            for i, cell in enumerate(to_run):
+                print(f"[{i + 1}/{len(to_run)}] {' '.join(cell.command)}")
+                execute_cell(cell)
+
+    cached_n = sum(1 for c in cells if c.cache_hit)
+    if cached_n:
+        print(f"cache: {cached_n}/{len(cells)} cells skipped (resume)")
 
     manifest = build_manifest(args, campaign, cells, seeds, generations, base_out)
     json_path, md_path = write_manifest(manifest, base_out)
