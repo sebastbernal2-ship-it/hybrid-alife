@@ -100,6 +100,24 @@ python scripts/run_quick_campaign.py \
 `<out>/manifest.md` is a human-readable rendering of the same data with a
 cell table and the list of commands.
 
+## Preflight check
+
+Before launching anything that will run for hours, run the preflight
+checker. It does not start any simulation; it only verifies that the
+campaign is wired up correctly and will fail fast on bad configs.
+
+```bash
+python scripts/preflight_campaign.py \
+    --campaign configs/campaigns/quick_20min.yaml --print-commands
+```
+
+The checker validates: campaign YAML parses, required fields present,
+each referenced source config exists and loads via `load_config`, the
+base output directory is writable, `run_sim.py` / `run_quick_campaign.py`
+are present, JAX imports and reports a device, and the estimated run
+count is `len(configs) * len(seeds)`. Use `--json` for machine-readable
+output, e.g. from CI. Exit code is 0 on PASS, 1 on FAIL.
+
 ## Exit code
 
 Non-zero if any cell ended with status `failed` or `error`. `skipped` and
