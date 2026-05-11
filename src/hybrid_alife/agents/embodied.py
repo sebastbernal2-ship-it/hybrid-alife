@@ -103,9 +103,11 @@ def initialize_embodied_population(
     k_pos, k_genome = jax.random.split(key)
     n = cfg.population_size
     positions = jax.random.uniform(k_pos, (n, 2), minval=0.0, maxval=1.0)
-    energy = jnp.full((n,), cfg.initial_energy, dtype=jnp.float32)
+    frac = float(getattr(cfg, "initial_alive_fraction", 1.0))
+    n_alive = max(1, int(round(frac * n)))
+    alive = jnp.arange(n) < n_alive
+    energy = jnp.where(alive, cfg.initial_energy, 0.0).astype(jnp.float32)
     age = jnp.zeros((n,), dtype=jnp.int32)
-    alive = jnp.ones((n,), dtype=bool)
     hidden = jnp.zeros((n, cfg.hidden_size), dtype=jnp.float32)
     messages = jnp.zeros((n, cfg.message_size), dtype=jnp.float32)
     genomes = initialize_embodied_genomes(cfg, world_cfg, k_genome)
@@ -413,15 +415,19 @@ def apply_reproduction(
     cfg: EmbodiedConfig,
     next_lineage_start: int,
     key: PRNGKey,
-) -> EmbodiedPopulationState:
+) -> tuple[EmbodiedPopulationState, int]:
     """Asexual reproduction into the first available dead slots.
 
-    A parent reproduces iff alive, energy >= threshold, and repro_gate > 0.5.
-    The parent loses reproduction_energy_cost. The child inherits mutated genomes.
+    A parent reproduces iff alive, energy >= threshold, and repro_gate exceeds
+    ``cfg.repro_gate_threshold``. The parent loses reproduction_energy_cost.
+    The child inherits mutated genomes. Returns (pop, num_births).
     """
     n = pop.alive.shape[0]
+    gate_thresh = float(getattr(cfg, "repro_gate_threshold", 0.5))
     can_reproduce = (
-        pop.alive & (pop.energy >= cfg.reproduce_energy_threshold) & (repro_gate > 0.5)
+        pop.alive
+        & (pop.energy >= cfg.reproduce_energy_threshold)
+        & (repro_gate > gate_thresh)
     )
 
     dead = ~pop.alive  # [N]
@@ -505,4 +511,4 @@ def apply_reproduction(
     pop.lineage_id = new_lineage_id
     pop.parent_id = new_parent_id
     pop.lineage_depth = new_lineage_depth
-    return pop
+    return pop, int(num_matches)
