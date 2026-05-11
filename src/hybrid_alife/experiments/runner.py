@@ -32,6 +32,7 @@ from hybrid_alife.evolution.selection import (
 )
 from hybrid_alife.logging.jsonl import JsonlWriter
 from hybrid_alife.metrics.core import collect_full_metrics
+from hybrid_alife.metrics.qd import archive_entropy, coverage as qd_coverage, qd_score
 from hybrid_alife.replay.checkpoint import save_checkpoint
 from hybrid_alife.types import (
     AvidaConfig,
@@ -215,6 +216,19 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                 state.rng, k_av_re = jax.random.split(state.rng)
                 state.avida = reseed_avida(state.avida, fraction=0.1, key=k_av_re)
 
+            # Per-generation QD summary (logged even when map_elites disabled
+            # so downstream tooling always sees the keys).
+            gen_record = {
+                "kind": "generation",
+                "generation": generation,
+                "step": state.step,
+                "novelty_archive_size": int(novelty.descriptors.shape[0]),
+                "map_elites_coverage": qd_coverage(map_elites),
+                "qd_score": qd_score(map_elites),
+                "archive_entropy": archive_entropy(map_elites),
+            }
+            writer.write(gen_record)
+
             if (generation + 1) % cfg.logging.checkpoint_every_generations == 0:
                 save_checkpoint(
                     output_dir / f"checkpoint_gen{generation:05d}.pkl", state, raw_config
@@ -225,7 +239,9 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                     "generation": generation,
                     "step": state.step,
                     "novelty_archive_size": int(novelty.descriptors.shape[0]),
-                    "map_elites_coverage": map_elites.coverage,
+                    "map_elites_coverage": gen_record["map_elites_coverage"],
+                    "qd_score": gen_record["qd_score"],
+                    "archive_entropy": gen_record["archive_entropy"],
                     **state.metrics,
                 }
             )
