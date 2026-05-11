@@ -107,6 +107,22 @@ On a recent CPU run of `smoke200.yaml` (200 generations, 4 steps each, pop=10):
 
 See `outputs/runs/smoke200/report.md` for the auto-generated report and plots.
 
+### Reporting
+
+- `scripts/generate_report.py <run_dir>` — auto-generated markdown report.
+  Gracefully consumes any subset of `metrics.jsonl`, `scaling_slopes.json`,
+  `transfer_matrix.json`, `map_elites.npz`, `novelty_archive.npz`, and
+  `checkpoint_final.pkl`.
+- Useful flags:
+  - `--no-plots` — skip plot generation (CI-friendly, no matplotlib)
+  - `--headline` — emit only the headline-metrics table (sweep aggregation)
+  - `--baseline <run_dir>` — add per-metric Δ vs another run
+  - `--out <filename>` — choose a non-default output filename
+- `docs/RESULTS_REPORT_TEMPLATE.md` — human-curated, continuation-safe
+  superset of the auto report. Sections: validation status, headline
+  metrics, scaling/transfer, QD/novelty, ablation comparison, scientific
+  caveats, next experiments.
+
 ## Metrics implemented
 
 Core (per-step):
