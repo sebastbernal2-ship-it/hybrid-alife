@@ -215,6 +215,14 @@ Pre-register your descriptors and minimal criterion using
   linguistic claims — see `docs/scientific_validation.md` §7 for the
   language guardrails this repo commits to.
 
+## Continuation / Recovery
+
+If you are picking this project up cold (new chat, new contributor, post-incident
+recovery), read [`docs/CONTINUATION_HANDOFF.md`](docs/CONTINUATION_HANDOFF.md) first.
+It documents the current state of the repo, what is implemented vs experimental,
+open scientific risks, exact commands to reproduce known validation numbers, the
+sprint-branch strategy, and how to recover work from unmerged sprint branches.
+
 ## Development
 
 ```bash
