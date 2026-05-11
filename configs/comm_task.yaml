@@ -1,0 +1,35 @@
+# Synthetic communication benchmark configuration.
+#
+# Used by scripts/run_comm_benchmark.py to score the four field-standard
+# communication metrics (topsim, posdis, bosdis, channel_capacity) against
+# three reference protocols and two channel ablations. See
+# docs/COMM_BENCHMARK.md for the language guardrail and how to read results.
+
+benchmark:
+  n_attr: 3          # number of meaning attributes
+  attr_vocab: 4      # cardinality of each attribute alphabet
+  msg_vocab: 16      # message symbol vocabulary (>= attr_vocab * n_attr for lossless compositional)
+  msg_len: null      # null -> defaults to n_attr
+  replicates: 4      # tile the meaning grid this many times for stable MI estimates
+  noise: 0.0         # symbol-flip noise applied to emitted messages
+  seed: 0
+
+protocols:
+  - compositional
+  - holistic
+  - random
+
+include_controls: true   # also score channel-shuffle and channel-zero ablations
+
+# Acceptance thresholds — the runner exits non-zero if any of these fail.
+# Designed to be loose enough that small estimator wiggles don't trip CI but
+# tight enough that a real regression (e.g. topsim implementation broken)
+# is caught.
+acceptance:
+  compositional_topsim_min: 0.90
+  compositional_posdis_min: 0.85
+  compositional_bosdis_min: 0.85
+  shuffle_topsim_max: 0.40
+  zero_posdis_max: 0.01
+  zero_bosdis_max: 0.01
+  zero_capacity_max: 0.001
