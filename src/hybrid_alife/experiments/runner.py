@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import yaml
 from rich.console import Console
@@ -107,12 +108,12 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
 
 def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tuple[SimState, int]:
     """Single integration step. Returns (state, new lineage_counter)."""
-    state.rng, k_obs, k_act, k_repro, k_avida = jax.random.split(state.rng, 5)
+    state.rng, k_obs, k_ctrl, k_act, k_repro, k_avida = jax.random.split(state.rng, 6)
     state = step_world(state, cfg.world)
 
     if state.embodied is not None and cfg.embodied.enabled:
         obs = observe_embodied(state.embodied, state.world, cfg.embodied, cfg.world, k_obs)
-        actions, embodied = act_embodied(state.embodied, obs, cfg.embodied)
+        actions, embodied = act_embodied(state.embodied, obs, cfg.embodied, k_ctrl)
         embodied, new_world, repro_gate = apply_embodied_actions(
             embodied, actions, state.world, cfg.embodied, cfg.world, k_act
         )
@@ -129,11 +130,19 @@ def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tu
         )
 
     if state.avida is not None and cfg.avida.enabled:
-        # If embodied agents exist, share their positions for env IO; else use random embedding
-        positions = state.embodied.positions if state.embodied is not None else None
-        avida_positions = None
-        if positions is not None and positions.shape[0] >= state.avida.alive.shape[0]:
-            avida_positions = positions[: state.avida.alive.shape[0]]
+        # Map each digital organism onto a world cell. When embodied agents
+        # exist we wrap their positions around (so each Avida slot picks up
+        # an embodied agent's local metabolite/concentration values, which
+        # is what couples the two branches). Otherwise fall back to a
+        # deterministic embedding so env IO and tasks are still well-defined.
+        n_av = state.avida.alive.shape[0]
+        if state.embodied is not None and state.embodied.positions.shape[0] > 0:
+            n_em = state.embodied.positions.shape[0]
+            wrap_idx = jnp.arange(n_av) % n_em
+            avida_positions = state.embodied.positions[wrap_idx]
+        else:
+            grid = jnp.linspace(0.05, 0.95, n_av)
+            avida_positions = jnp.stack([grid, grid[::-1]], axis=-1)
         state.avida, lineage_counter = step_avida_population(
             state.avida, state.world, cfg.avida, lineage_counter, k_avida, avida_positions
         )
