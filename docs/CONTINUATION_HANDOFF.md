@@ -2,7 +2,10 @@
 
 > Purpose: enable a brand-new Claude (or human) chat starting from zero context to
 > continue this project without re-deriving state. Read this first, then `README.md`,
-> then `docs/scientific_validation.md`.
+> then `docs/scientific_validation.md`. Before launching any multi-hour campaign,
+> also read [`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — it
+> covers preflight, env vars, sessions, resume/force policy, recovery, and the
+> exact recipes for 20-min / 2-hour / overnight runs.
 
 ## Pointers
 
@@ -172,6 +175,10 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
   they are still readable by `generate_report.py`.
 
 ### Next 2 hours
+
+For anything that will exceed ~10 minutes, follow
+[`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — preflight,
+tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 
 - Run the full smoke + ablation matrix:
   ```bash
