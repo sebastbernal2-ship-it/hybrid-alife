@@ -170,7 +170,7 @@ def test_reproduction_into_dead_slots():
     pop.alive = pop.alive.at[half:].set(False)
     pop.energy = pop.energy.at[:half].set(cfg.embodied.reproduce_energy_threshold + 5)
     repro_gate = jnp.ones((n,))
-    new_pop = apply_reproduction(pop, repro_gate, cfg.embodied, next_lineage_start=1000, key=key)
+    new_pop, _births = apply_reproduction(pop, repro_gate, cfg.embodied, next_lineage_start=1000, key=key)
     assert int(new_pop.alive.sum()) >= half
 
 
