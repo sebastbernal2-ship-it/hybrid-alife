@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from hybrid_alife.metrics.bedau import hill_number_1d, lineage_hill1d
 from hybrid_alife.types import SimState
 
 
@@ -113,6 +114,29 @@ def coordinated_behavior_index(state: SimState) -> float:
     return float(np.log(max(len(counts), 1)) - ent)
 
 
+def embodied_lineage_hill1d(state: SimState) -> float:
+    """Effective number of lineages (Hill 1D) for living embodied agents."""
+    if state.embodied is None:
+        return 0.0
+    return lineage_hill1d(state.embodied.lineage_id, state.embodied.alive)
+
+
+def avida_lineage_hill1d(state: SimState) -> float:
+    if state.avida is None:
+        return 0.0
+    return lineage_hill1d(state.avida.lineage_id, state.avida.alive)
+
+
+def avida_tasks_solved(state: SimState) -> float:
+    if state.avida is None or state.avida.tasks_completed is None:
+        return 0.0
+    alive = np.asarray(state.avida.alive).astype(bool)
+    tc = np.asarray(state.avida.tasks_completed)[alive]
+    if tc.size == 0:
+        return 0.0
+    return float(np.mean([bin(int(t)).count("1") for t in tc]))
+
+
 def mean_avida_merit(state: SimState) -> float:
     if state.avida is None:
         return 0.0
@@ -141,6 +165,9 @@ def collect_full_metrics(state: SimState) -> dict[str, float]:
         "mean_concentration": float(np.asarray(state.world.concentration).mean()),
         "mean_metabolite": float(np.asarray(state.world.metabolites).mean()),
         "mean_avida_merit": mean_avida_merit(state),
+        "embodied_lineage_hill1d": embodied_lineage_hill1d(state),
+        "avida_lineage_hill1d": avida_lineage_hill1d(state),
+        "avida_tasks_solved": avida_tasks_solved(state),
     }
 
 
