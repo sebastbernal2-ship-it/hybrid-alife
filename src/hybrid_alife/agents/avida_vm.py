@@ -209,7 +209,8 @@ def vm_cycle(
     pop.write_head = new_write_after_copy
     pop.ip = new_ip
     pop.merit = pop.merit + merit_gain * pop.alive.astype(jnp.float32)
-    pop._divide_op_mask = (op == Op.H_DIVIDE) & pop.alive  # type: ignore[attr-defined]
+    prev_mask = getattr(pop, "_divide_op_mask", jnp.zeros_like(pop.alive))
+    pop._divide_op_mask = prev_mask | ((op == Op.H_DIVIDE) & pop.alive)  # type: ignore[attr-defined]
     return pop
 
 
@@ -228,7 +229,9 @@ def apply_h_divide(
     spawn its offspring into a free slot."""
     n = pop.alive.shape[0]
     div_mask = getattr(pop, "_divide_op_mask", jnp.zeros((n,), dtype=bool))
-    can_divide = div_mask & (pop.copied_length >= cfg.genome_length // 2)
+    # Require at least a handful of copied instructions, but not the full half-genome.
+    min_copy = max(1, cfg.genome_length // 8)
+    can_divide = div_mask & (pop.copied_length >= min_copy)
 
     dead = ~pop.alive
     parent_idx = jnp.where(can_divide, jnp.arange(n), n)
@@ -330,6 +333,7 @@ def step_avida_population(
     Returns (pop, next_lineage_start_after).
     """
     cycles = cfg.cycles_per_update
+    pop._divide_op_mask = jnp.zeros_like(pop.alive)  # type: ignore[attr-defined]
     for c in range(cycles):
         key, k_cyc = jax.random.split(key)
         pop = vm_cycle(pop, world, cfg, positions, k_cyc)
