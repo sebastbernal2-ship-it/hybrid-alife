@@ -1,11 +1,16 @@
 # Continuation Handoff — hybrid-alife
 
 > Purpose: enable a brand-new Claude (or human) chat starting from zero context to
-> continue this project without re-deriving state. Read this first, then `README.md`,
-> then `docs/scientific_validation.md`. Before launching any multi-hour campaign,
-> also read [`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — it
-> covers preflight, env vars, sessions, resume/force policy, recovery, and the
-> exact recipes for 20-min / 2-hour / overnight runs.
+> continue this project without re-deriving state. For a one-page, KB-ready
+> snapshot (project identity, current main commit, validation status, exact
+> commands, artifact names, next-session first prompt, and bullet facts suitable
+> for a knowledge base), read [`KNOWLEDGE_BASE_HANDOFF.md`](KNOWLEDGE_BASE_HANDOFF.md)
+> first — it is the canonical entry point at the end of the final sprint. Then
+> read this file, then `README.md`, then `docs/scientific_validation.md`. Before
+> launching any multi-hour campaign, also read
+> [`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — it covers
+> preflight, env vars, sessions, resume/force policy, recovery, and the exact
+> recipes for 20-min / 2-hour / overnight runs.
 
 ## Pointers
 

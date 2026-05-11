@@ -261,9 +261,11 @@ Pre-register your descriptors and minimal criterion using
 ## Continuation / Recovery
 
 If you are picking this project up cold (new chat, new contributor, post-incident
-recovery), read [`docs/CONTINUATION_HANDOFF.md`](docs/CONTINUATION_HANDOFF.md) first.
-It documents the current state of the repo, what is implemented vs experimental,
-open scientific risks, exact commands to reproduce known validation numbers, the
+recovery), start with [`docs/KNOWLEDGE_BASE_HANDOFF.md`](docs/KNOWLEDGE_BASE_HANDOFF.md)
+— a single-page, KB-ready snapshot of project identity, current main commit,
+validation status, exact commands, artifact names, and the next-session first
+prompt. Then read [`docs/CONTINUATION_HANDOFF.md`](docs/CONTINUATION_HANDOFF.md)
+for the long-form narrative: implemented vs experimental, open scientific risks,
 sprint-branch strategy, and how to recover work from unmerged sprint branches.
 
 ## Running multi-hour campaigns
