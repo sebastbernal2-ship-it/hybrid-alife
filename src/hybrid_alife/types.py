@@ -92,19 +92,25 @@ class EmbodiedConfig:
     shuffle_sixth_sense: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
-    # ---- sensing uncertainty / delay modes ----
-    # If True, perception is delayed by `sense_delay_steps`. The delayed buffer
-    # is initialised to zeros so the first few steps behave like blind, after
-    # which agents see stale snapshots of the field.
+    # ---- sensing uncertainty / delay modes (from world-sixth-sense-depth) ----
     sense_delayed: bool = False
     sense_delay_steps: int = 1
-    # If > 0, draw additional heteroskedastic noise scaled per-channel by this
-    # magnitude on top of `WorldConfig.sensory_noise_std`. Specifically, every
-    # sample step multiplies channel values by (1 + noise) where noise ~ N(0, std).
     sense_multiplicative_noise_std: float = 0.0
-    # If True, occlude (zero) a random subset of channels each step. Fraction
-    # of channels dropped is in [0, 1).
     sense_dropout_frac: float = 0.0
+    # ---- controller-level knobs (from agents-vm-depth) ----
+    stochastic_actions: bool = False
+    action_temperature: float = 1.0
+    message_gate_threshold: float = 0.5
+    cost_move_scale: float = 0.5
+    cost_eat: float = 0.01
+    cost_attack: float = 0.08
+    cost_reproduce: float = 0.05
+    cost_terraform: float = 0.03
+    cost_emit: float = 0.02
+    metabolite_deposit_scale: float = 1.0
+    hazard_deposit_scale: float = 1.0
+    # Controller architecture: "gru" (default) or "mlp" for ablations.
+    controller_arch: str = "gru"
 
 
 @dataclass(frozen=True)
@@ -119,6 +125,27 @@ class AvidaConfig:
     point_mutation_prob: float
     insertion_prob: float
     deletion_prob: float
+    # Extended VM knobs. All defaults preserve existing behaviour numerically.
+    min_genome_length: int = 4
+    duplication_prob: float = 0.0
+    # Merit-based CPU-cycle allocation: each organism gets cycles_per_update *
+    # (merit / merit_floor)^merit_cycle_exponent extra cycles, clamped.
+    merit_cycle_exponent: float = 0.5
+    merit_floor: float = 1.0
+    max_cycles_per_update: int = 32
+    # Per-task merit rewards (single-shot, deduplicated).
+    task_reward_not: float = 1.0
+    task_reward_nand: float = 1.0
+    task_reward_and: float = 2.0
+    task_reward_orn: float = 2.0
+    task_reward_or: float = 3.0
+    task_reward_andn: float = 3.0
+    task_reward_nor: float = 4.0
+    task_reward_xor: float = 4.0
+    task_reward_equ: float = 5.0
+    # Branch coupling: digital organisms read/produce world metabolites.
+    metabolite_uptake: float = 0.0
+    metabolite_deposit: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -224,6 +251,12 @@ class AvidaPopulationState:
     lineage_id: Array
     parent_id: Array
     lineage_depth: Array
+    # Bitfield of logic tasks completed by each organism (NOT, NAND, AND, ...).
+    # We store as an int32 with up to 9 bits set, matching the 9 reward fields.
+    tasks_completed: Array | None = None
+    # Last env IO input pair (per organism) used to detect logic-task outputs.
+    last_input_a: Array | None = None
+    last_input_b: Array | None = None
 
 
 @dataclass

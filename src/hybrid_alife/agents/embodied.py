@@ -26,6 +26,11 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
+from hybrid_alife.agents.controller import (
+    decode_actions,
+    forward as controller_forward,
+    init_controller_params,
+)
 from hybrid_alife.types import (
     EmbodiedConfig,
     EmbodiedPopulationState,
@@ -131,24 +136,13 @@ def initialize_embodied_population(
 def initialize_embodied_genomes(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> dict[str, jax.Array]:
-    obs_dim = embodied_observation_dim(cfg, world_cfg)
-    action_dim = embodied_action_dim(cfg)
-    h = cfg.hidden_size
-    keys = jax.random.split(key, 7)
-    n = cfg.population_size
-    return {
-        # GRU-like: combined update gate
-        "w_xz": 0.1 * jax.random.normal(keys[0], (n, obs_dim, h)),
-        "w_hz": 0.1 * jax.random.normal(keys[1], (n, h, h)),
-        "b_z": jnp.zeros((n, h)),
-        # Candidate
-        "w_xh": 0.1 * jax.random.normal(keys[2], (n, obs_dim, h)),
-        "w_hh": 0.1 * jax.random.normal(keys[3], (n, h, h)),
-        "b_h": jnp.zeros((n, h)),
-        # Action head
-        "w_act": 0.1 * jax.random.normal(keys[4], (n, h, action_dim)),
-        "b_act": 0.01 * jax.random.normal(keys[5], (n, action_dim)),
-    }
+    return init_controller_params(
+        n=cfg.population_size,
+        obs_dim=embodied_observation_dim(cfg, world_cfg),
+        action_dim=embodied_action_dim(cfg),
+        hidden=cfg.hidden_size,
+        key=key,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -219,29 +213,20 @@ def observe_embodied(
 
 
 def act_embodied(
-    pop: EmbodiedPopulationState, obs: jax.Array, cfg: EmbodiedConfig
+    pop: EmbodiedPopulationState,
+    obs: jax.Array,
+    cfg: EmbodiedConfig,
+    key: PRNGKey | None = None,
 ) -> tuple[jax.Array, EmbodiedPopulationState]:
-    """GRU-like step. If cfg.use_memory is False, hidden is reset every step (MLP ablation)."""
-    g = pop.genomes
-    z = jax.nn.sigmoid(
-        jnp.einsum("no,noh->nh", obs, g["w_xz"])
-        + jnp.einsum("nh,nhk->nk", pop.hidden, g["w_hz"])
-        + g["b_z"]
-    )
-    cand = jnp.tanh(
-        jnp.einsum("no,noh->nh", obs, g["w_xh"])
-        + jnp.einsum("nh,nhk->nk", pop.hidden, g["w_hh"])
-        + g["b_h"]
-    )
-    new_hidden = (1.0 - z) * pop.hidden + z * cand
-    if not cfg.use_memory:
-        new_hidden = cand  # no recurrent carry
-    raw = jnp.einsum("nh,nha->na", new_hidden, g["w_act"]) + g["b_act"]
-    # Movement to [-1, 1]; gates to [0, 1]; message linear
-    move = jnp.tanh(raw[..., 0:2])
-    gates = jax.nn.sigmoid(raw[..., 2:8])
-    msg = raw[..., 8:]
-    actions = jnp.concatenate([move, gates, msg], axis=-1)
+    """Run controller forward + decode actions.
+
+    Backwards compatible: ``key`` is optional. When ``cfg.stochastic_actions``
+    is true a key is required for the Bernoulli sample; otherwise the decode
+    is deterministic and the key is unused.
+    """
+    raw, new_hidden = controller_forward(pop.genomes, obs, pop.hidden, cfg.use_memory)
+    sample_key = key if key is not None else jax.random.PRNGKey(0)
+    actions = decode_actions(raw, cfg, sample_key)
     pop.hidden = new_hidden
     return actions, pop
 
@@ -320,32 +305,44 @@ def apply_embodied_actions(
     )
     new_conc = scatter_add_to_grid(world.concentration, new_pos, deposit, pop.alive, h, w)
 
-    # Metabolite deposit proportional to energy expenditure
-    metab_scalar = (0.01 + 0.05 * eat) * alive_f  # [N]
+    # Metabolite deposit proportional to energy expenditure. The deposit
+    # scale gates the strength of the embodied -> digital coupling.
+    metab_scalar = embodied_cfg.metabolite_deposit_scale * (0.01 + 0.05 * eat) * alive_f
     metab = jnp.broadcast_to(metab_scalar[:, None], (metab_scalar.shape[0], world_cfg.metabolite_channels))
     new_metab = scatter_add_to_grid(world.metabolites, new_pos, metab, pop.alive, h, w)
 
     # Hazard accumulation from attacks (attack deposits hazard locally)
-    hazard_scalar = 0.02 * attack * alive_f  # [N]
+    hazard_scalar = embodied_cfg.hazard_deposit_scale * 0.02 * attack * alive_f
     hazard_dep = jnp.broadcast_to(hazard_scalar[:, None], (hazard_scalar.shape[0], world_cfg.hazard_channels))
     new_hazards = scatter_add_to_grid(world.hazards, new_pos, hazard_dep, pop.alive, h, w)
     new_hazards = jnp.clip(new_hazards, 0.0, 1.0)
 
-    # Emit messages (gated)
-    new_msg = pop.messages * 0.5 + emit[:, None] * msg_vec * alive_f[:, None]
+    # Emit messages (hard-gated by threshold so cheap noise can't keep the
+    # channel saturated). The previous behavior is recovered with threshold=0.
+    emit_hard = (emit > embodied_cfg.message_gate_threshold).astype(jnp.float32)
+    new_msg = pop.messages * 0.5 + emit_hard[:, None] * msg_vec * alive_f[:, None]
     if not embodied_cfg.use_comms:
         new_msg = jnp.zeros_like(new_msg)
 
-    # Energy update
-    move_cost = jnp.linalg.norm(move, axis=-1) * 0.5
+    # Energy update — explicit per-action cost model. Defaults reproduce the
+    # historical scaling for movement/repro and add small overheads for the
+    # other gates so behavior diversity has a tangible price.
+    move_cost = jnp.linalg.norm(move, axis=-1) * embodied_cfg.cost_move_scale
+    action_cost = (
+        embodied_cfg.cost_eat * eat
+        + embodied_cfg.cost_attack * attack
+        + embodied_cfg.cost_reproduce * repro
+        + embodied_cfg.cost_terraform * (terra_r + terra_h)
+        + embodied_cfg.cost_emit * emit_hard
+    )
     new_energy = (
         pop.energy
         + energy_gained
         - damage
         - move_cost
         - embodied_cfg.basal_metabolic_cost
-        - 0.05 * repro
-    )
+        - action_cost
+    ) * alive_f + pop.energy * (1.0 - alive_f)
 
     # Reproduction handled in apply_reproduction; here we only zero-out parents' energy cost when triggered.
 
