@@ -48,6 +48,29 @@ class WorldConfig:
     metabolite_channels: int = 2
     metabolite_decay: float = 0.95
     metabolite_diffusion: float = 0.05
+    # ---- proxy microfluidics extensions ----
+    # Curvature regime: "default" (legacy sin/cos), "straight", "spiral",
+    # "serpentine", "obstacle", "random_smooth".
+    curvature_regime: str = "default"
+    curvature_amplitude: float = 1.0
+    # Wavenumber for serpentine / spiral patterns (cycles across the domain).
+    curvature_wavenumber: float = 2.0
+    # Wall repulsion strength applied to the inertial-lift proxy near domain
+    # boundaries (only active when toroidal=False); 0 disables.
+    wall_repulsion_strength: float = 0.5
+    # Strength of Dean-like secondary flow added on top of the primary flow.
+    dean_secondary_strength: float = 0.3
+    # Coupling between flow and concentration: per-step advection coefficient
+    # in [0, 1]; 0 disables advection.
+    flow_advection_strength: float = 0.25
+    # Smooth temporal drift parameters (sinusoidal rotation + low-frequency
+    # modulation, in addition to the existing Gaussian flow_noise_std term).
+    drift_rotation_rate: float = 0.01
+    drift_modulation_freq: float = 0.02
+    # If True, occupancy pressure subtracts from the enrichment field so that
+    # crowded cells get an enrichment penalty (more biologically faithful to
+    # crowding-induced margination decline).
+    enrichment_uses_occupancy: bool = True
 
 
 @dataclass(frozen=True)
@@ -69,6 +92,19 @@ class EmbodiedConfig:
     shuffle_sixth_sense: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
+    # ---- sensing uncertainty / delay modes ----
+    # If True, perception is delayed by `sense_delay_steps`. The delayed buffer
+    # is initialised to zeros so the first few steps behave like blind, after
+    # which agents see stale snapshots of the field.
+    sense_delayed: bool = False
+    sense_delay_steps: int = 1
+    # If > 0, draw additional heteroskedastic noise scaled per-channel by this
+    # magnitude on top of `WorldConfig.sensory_noise_std`. Specifically, every
+    # sample step multiplies channel values by (1 + noise) where noise ~ N(0, std).
+    sense_multiplicative_noise_std: float = 0.0
+    # If True, occlude (zero) a random subset of channels each step. Fraction
+    # of channels dropped is in [0, 1).
+    sense_dropout_frac: float = 0.0
 
 
 @dataclass(frozen=True)
