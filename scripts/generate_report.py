@@ -69,6 +69,9 @@ def main() -> None:
         "avida_alive_frac",
         "embodied_mean_lineage_depth",
         "embodied_max_lineage_depth",
+        "embodied_lineage_hill1d",
+        "avida_lineage_hill1d",
+        "avida_tasks_solved",
         "action_entropy",
         "message_energy",
         "comm_usage_rate",
@@ -80,6 +83,23 @@ def main() -> None:
         "mean_avida_merit",
     ]:
         lines.append(f"| {key} | {avg(key):.4f} | {last.get(key, float('nan')):.4f} |")
+
+    lines.extend(
+        [
+            "",
+            "## Limitations and anti-overclaim notes",
+            "",
+            "- This report is descriptive. None of the numbers above constitute",
+            "  evidence of *open-ended evolution*, *language*, or *tool use* —",
+            "  see `docs/scientific_validation.md` §7 for the language",
+            "  guardrails.",
+            "- Single-seed numbers are pilots. For headline claims run",
+            "  `scripts/run_ablation_matrix.py --seeds 10` and report",
+            "  median + IQR + Cliff's δ vs the appropriate baseline.",
+            "- The proxy field is an *inductive bias*, not a fluid simulator.",
+            "  Treat any 'physics' wording accordingly.",
+        ]
+    )
 
     lines.extend(
         [
