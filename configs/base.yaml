@@ -38,6 +38,13 @@ avida:
   point_mutation_prob: 0.0025
   insertion_prob: 0.0005
   deletion_prob: 0.0005
+  duplication_prob: 0.0003
+  min_genome_length: 4
+  merit_cycle_exponent: 0.5
+  merit_floor: 1.0
+  max_cycles_per_update: 16
+  metabolite_uptake: 0.05
+  metabolite_deposit: 0.01
 
 evolution:
   generations: 2
