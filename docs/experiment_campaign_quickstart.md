@@ -84,6 +84,9 @@ python scripts/run_quick_campaign.py \
 | `--out-dir PATH` | Override the campaign's `base_output_dir`. |
 | `--run-sim PATH` | Alternate single-run entrypoint (defaults to `scripts/run_sim.py`). |
 | `--python PATH` | Python interpreter for subprocess invocations. |
+| `--resume` | Skip cells whose `metrics.json`/`metrics.csv` exists AND whose resolved config hash matches. See [campaign_cache_acceleration.md](campaign_cache_acceleration.md). |
+| `--force` | Ignore prior outputs and re-execute every cell. Mutually exclusive with `--resume`. |
+| `--workers N` | Run up to `N` cells concurrently (default 1, experimental). |
 
 ## Manifest
 
@@ -94,8 +97,10 @@ python scripts/run_quick_campaign.py \
 - Environment (platform, Python version, working dir, git SHA, timestamp).
 - Per-cell records: source config, seed, run name, output dir, the resolved
   per-cell config path, exact subprocess command, status (`planned`,
-  `dry-run`, `ok`, `failed`, `error`, `skipped`), return code, duration,
-  and start/finish timestamps.
+  `dry-run`, `ok`, `failed`, `error`, `skipped`, `cached`), return code,
+  duration, start/finish timestamps, SHA-256 `config_hash`, and `cache_hit`.
+- A top-level `summary` block with `n_cells`, `n_cached`, `n_ok`,
+  `n_failed`, `n_skipped`, and `total_duration_s`.
 
 `<out>/manifest.md` is a human-readable rendering of the same data with a
 cell table and the list of commands.
@@ -107,7 +112,9 @@ Non-zero if any cell ended with status `failed` or `error`. `skipped` and
 
 ## Limitations
 
-- Cells run sequentially. No parallelism / scheduler integration.
+- Cells run sequentially by default. `--workers N` enables optional
+  thread-pool parallelism but most cells saturate JAX threads on their own,
+  so the safe default remains `--workers 1`.
 - Subprocess stdout/stderr is inherited, not captured into the manifest.
 - The override surface is limited to `seed`, `run_name`, `output_dir`, and
   `evolution.generations`. Arbitrary nested overrides (e.g. world size)
