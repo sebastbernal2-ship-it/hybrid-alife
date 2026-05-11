@@ -224,7 +224,7 @@ def test_action_reproduce_uses_dead_slots():
     pop.alive = pop.alive.at[half:].set(False)
     pop.energy = pop.energy.at[:half].set(cfg.embodied.reproduce_energy_threshold + 1)
     repro = jnp.where(jnp.arange(n) < half, 1.0, 0.0)
-    pop = apply_reproduction(pop, repro, cfg.embodied, next_lineage_start=999, key=key)
+    pop, _births = apply_reproduction(pop, repro, cfg.embodied, next_lineage_start=999, key=key)
     assert int(pop.alive.sum()) == n
 
 

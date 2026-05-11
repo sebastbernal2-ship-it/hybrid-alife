@@ -1,0 +1,75 @@
+seed: 11
+run_name: lineage_growth_tiny
+output_dir: outputs/runs
+
+# Tiny CPU config explicitly tuned to produce embodied births and a positive
+# max lineage depth within a few generations. The knobs that make this work:
+#   - low reproduce_energy_threshold (cheap to qualify for repro)
+#   - low reproduction_energy_cost (parent does not starve after repro)
+#   - low basal_metabolic_cost (less attrition)
+#   - rich resource regeneration in the world, small world (so agents find food)
+#   - reproduce gate threshold met under default decode_actions
+world:
+  width: 16
+  height: 16
+  toroidal: true
+  resource_channels: 2
+  hazard_channels: 1
+  max_agents: 16
+  max_digital_organisms: 8
+  flow_noise_std: 0.0
+  concentration_decay: 0.97
+  concentration_diffusion: 0.05
+  resource_regen: 0.05
+  hazard_decay: 0.99
+  metabolite_channels: 1
+  curvature_regime: "straight"
+
+embodied:
+  enabled: true
+  population_size: 16
+  obs_radius: 2
+  hidden_size: 8
+  message_size: 2
+  genome_mutation_std: 0.02
+  genome_mutation_prob: 0.05
+  initial_energy: 12.0
+  reproduce_energy_threshold: 4.0
+  reproduction_energy_cost: 1.0
+  basal_metabolic_cost: 0.5
+  cost_move_scale: 0.05
+  cost_eat: 0.0
+  cost_attack: 0.0
+  cost_reproduce: 0.0
+  cost_terraform: 0.0
+  cost_emit: 0.0
+  # Half of slots start dead so reproduction has placement targets right away.
+  initial_alive_fraction: 0.5
+  # Lower repro gate threshold so the untrained sigmoid (~0.5) routinely triggers births.
+  repro_gate_threshold: 0.3
+
+avida:
+  enabled: false
+  population_size: 4
+  genome_length: 8
+  max_genome_length: 16
+  registers: 4
+  memory_size: 4
+  cycles_per_update: 2
+  point_mutation_prob: 0.0025
+  insertion_prob: 0.0005
+  deletion_prob: 0.0005
+
+evolution:
+  generations: 3
+  steps_per_generation: 6
+  elite_fraction: 0.1
+  tournament_size: 2
+  extinction_min_population: 2
+  novelty_enabled: false
+  reseed_on_extinction: false
+
+logging:
+  metrics_every: 1
+  checkpoint_every_generations: 100
+  replay_every_generations: 100
