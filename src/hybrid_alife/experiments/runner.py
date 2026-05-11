@@ -112,6 +112,7 @@ def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tu
     state = step_world(state, cfg.world)
 
     if state.embodied is not None and cfg.embodied.enabled:
+        alive_before = int(state.embodied.alive.sum())
         obs = observe_embodied(state.embodied, state.world, cfg.embodied, cfg.world, k_obs)
         actions, embodied = act_embodied(state.embodied, obs, cfg.embodied, k_ctrl)
         embodied, new_world, repro_gate = apply_embodied_actions(
@@ -119,10 +120,16 @@ def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tu
         )
         state.world = new_world
         # Reproduction
-        embodied = apply_reproduction(
+        embodied, births = apply_reproduction(
             embodied, repro_gate, cfg.embodied, lineage_counter, k_repro
         )
         lineage_counter += embodied.alive.shape[0]
+        alive_after = int(embodied.alive.sum())
+        # Deaths = agents that died from energy/hazards during this step.
+        # Births raise alive_after, so: deaths = (alive_before + births) - alive_after.
+        deaths = max(0, alive_before + int(births) - alive_after)
+        state.embodied_births_this_gen += int(births)
+        state.embodied_deaths_this_gen += int(deaths)
         state.embodied = embodied
         # Update occupancy on world from new positions for crowd metrics
         state.world.occupancy = compute_occupancy(
@@ -182,8 +189,21 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                 state, lineage_counter = step_sim(state, cfg, lineage_counter)
                 if state.step % cfg.logging.metrics_every == 0:
                     metrics = collect_full_metrics(state)
+                    metrics["embodied_births_per_generation"] = int(
+                        state.embodied_births_this_gen
+                    )
+                    metrics["embodied_deaths_per_generation"] = int(
+                        state.embodied_deaths_this_gen
+                    )
                     state.metrics = metrics
                     writer.write(metrics)
+
+            # Snapshot per-generation birth/death counts before reseeding/selection.
+            state.metrics = {
+                **(state.metrics or {}),
+                "embodied_births_per_generation": int(state.embodied_births_this_gen),
+                "embodied_deaths_per_generation": int(state.embodied_deaths_this_gen),
+            }
 
             # End-of-generation: archives, selection, reseeding
             if state.embodied is not None:
@@ -229,6 +249,10 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                     **state.metrics,
                 }
             )
+
+            # Reset per-generation counters for the next generation.
+            state.embodied_births_this_gen = 0
+            state.embodied_deaths_this_gen = 0
 
     # Final checkpoint and final archives
     save_checkpoint(output_dir / "checkpoint_final.pkl", state, raw_config)

@@ -111,6 +111,12 @@ class EmbodiedConfig:
     hazard_deposit_scale: float = 1.0
     # Controller architecture: "gru" (default) or "mlp" for ablations.
     controller_arch: str = "gru"
+    # Fraction of slots initialized alive. Setting < 1.0 leaves dead slots
+    # available so reproduction has somewhere to place children right away.
+    initial_alive_fraction: float = 1.0
+    # Reproduce-gate threshold (sigmoid output must exceed this to trigger a
+    # birth). Lower it for "births-friendly" tiny CPU configs.
+    repro_gate_threshold: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -268,3 +274,7 @@ class SimState:
     embodied: EmbodiedPopulationState | None
     avida: AvidaPopulationState | None
     metrics: dict[str, Any] = field(default_factory=dict)
+    # Birth/death counters accumulated across the current generation. Reset
+    # to zero by the runner at the end of each generation.
+    embodied_births_this_gen: int = 0
+    embodied_deaths_this_gen: int = 0
