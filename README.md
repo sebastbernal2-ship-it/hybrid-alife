@@ -87,6 +87,28 @@ outputs/        runtime outputs (gitignored)
 | `ablation_static_world.yaml` | No drift, no flow noise |
 | `ablation_drifting_world.yaml` | Drifting flow field, higher noise |
 
+## Visual outputs
+
+A single command produces every figure described below:
+
+```bash
+python scripts/run_sim.py --config configs/smoke200.yaml
+python scripts/generate_report.py outputs/runs/smoke200
+# → outputs/runs/smoke200/plots/{world_fields,agents,metrics,map_elites}.png
+# → outputs/runs/smoke200/report.md
+```
+
+| Plot | What it shows |
+| --- | --- |
+| `plots/world_fields.png` | Per-channel heatmaps of the proxy-physics world (terrain, flow, shear, curvature, concentration, …) |
+| `plots/agents.png` | Final embodied-agent positions overlaid on a world field (margination / clustering check) |
+| `plots/metrics.png` | Survival, action entropy, communication usage, CBI, Avida merit, lineage depth over time |
+| `plots/map_elites.png` | MAP-Elites archive heatmap — behavioral coverage and elite fitness |
+
+See [`docs/GALLERY.md`](docs/GALLERY.md) for what each visual means, how to
+read it, the exact source artifact it comes from, the ablation-matrix
+summary, and `make gallery` shortcuts.
+
 ## Current results (200-generation smoke run)
 
 Outputs land in `outputs/runs/<run_name>/`:
