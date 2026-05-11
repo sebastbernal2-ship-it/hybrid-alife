@@ -109,15 +109,35 @@ See `outputs/runs/smoke200/report.md` for the auto-generated report and plots.
 
 ## Metrics implemented
 
+Core (per-step):
+
 - Survival fraction (per branch)
-- Lineage depth: mean and max
+- Lineage depth: mean and max; effective lineage count (Hill 1D)
 - Reproductive success (unique living lineages)
 - Action entropy (behavioral diversity proxy)
 - Communication usage rate, message energy
 - Coordinated behavior index (convention/ritual proxy)
 - Enrichment separation index (microfluidic-separation analog)
-- Mean Avida merit (useful work proxy)
+- Mean Avida merit (useful work proxy); Avida logic-task count
 - World aggregate stats (mean enrichment, concentration, metabolite)
+
+Scientific-depth (offline / suite-level):
+
+- **Bedau-Packard activity statistics** (`metrics.bedau`): \(A_{\text{new}}\),
+  \(A_{\text{cum}}\), \(A_p\) with a paired neutral-shadow runner
+  (`experiments.shadow.run_shadow`).
+- **QD summary** (`metrics.qd`): QD-score, coverage, archive entropy,
+  occupancy entropy over MAP-Elites archives.
+- **Emergent-communication compositionality** (`metrics.communication`):
+  topsim, posdis, bosdis, plus channel-shuffle / zero-channel ablations and
+  a mutual-information channel-capacity estimator.
+- **Lineage tree** (`metrics.lineage.LineageTree`): JSON export with
+  ancestry chains.
+- **Transfer / robustness suite** (`experiments.transfer`): median + IQR,
+  bootstrap CI, Cliff's δ effect size, markdown summary writer.
+
+See `docs/scientific_validation.md` for the full acceptance criteria and
+language guardrails.
 
 ## Tests
 
@@ -130,30 +150,70 @@ reproduction into dead slots, Avida self-replication, all VM ops, tournament
 selection, extinction recovery, novelty and MAP-Elites archives, metrics, JSONL
 roundtrip, checkpoint roundtrip, and full end-to-end run.
 
-## Roadmap
+## Reproducibility & runnable commands
 
-Implemented in this milestone:
+Everything in `docs/scientific_validation.md` and the
+[EC Reproducibility Checklist](EC_REPRODUCIBILITY_CHECKLIST.md) is wired up
+to a CPU-runnable command:
 
-- Full proxy-physics world with six sixth-sense modalities, drift/noise options
-- Embodied GRU controller with all action types coupled to world deposits and resource consumption
-- Avida-style VM with seeded self-replicator, H_ALLOC/H_COPY/H_DIVIDE, point/insertion/deletion mutation
-- Tournament selection, extinction reseeding, novelty + MAP-Elites archives
-- JSONL metrics, deterministic checkpoints, auto report generation
-- Six ablation configs, CI workflow, comprehensive smoke tests
+```bash
+# Single run + auto report
+python scripts/run_sim.py --config configs/smoke200.yaml
+python scripts/generate_report.py outputs/runs/smoke200
 
-Partial / next steps:
+# Full ablation matrix with median/IQR/Cliff's δ summary
+python scripts/run_ablation_matrix.py \
+    --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
+              configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
+    --seeds 3 --include-shadow \
+    --out-dir outputs/ablation_matrix
 
-- Lineage depth/reproduction counters: currently lineage IDs grow but inter-generation propagation needs deeper validation against branching trees.
-- Transfer/robustness experiments: configs exist for static/drifting ablation but cross-environment transfer runs are not yet automated.
-- Flax-based controllers: current GRU is hand-rolled JAX; a Flax variant would simplify scaling.
-- Faster JIT step: `step_sim` is not yet `jit`-wrapped because of the dataclass orchestration; the numeric kernels are already JAX-vectorized.
+# Paired neutral-shadow run (Bedau control) on its own
+python -c "from hybrid_alife.experiments.runner import load_config; \
+           from hybrid_alife.experiments.shadow import run_shadow; \
+           run_shadow(load_config('configs/smoke200.yaml'))"
+```
+
+Pre-register your descriptors and minimal criterion using
+`docs/preregistration_template.md` *before* running.
+
+## Status: what is complete vs experimental
+
+**Complete and tested:**
+
+- Proxy-physics world with multiple curvature regimes, advection, Dean
+  secondary flow, drift, and sensing-uncertainty modes (delayed / noisy /
+  dropout / shuffled / blind).
+- Embodied GRU + MLP controllers, action-cost model, message gating.
+- Avida-style VM with logic-task rewards, merit-based cycle allocation,
+  duplication mutation, and branch coupling via metabolites.
+- Tournament selection, novelty + MAP-Elites archives.
+- Bedau / QD / compositionality / lineage Hill 1D metrics with unit tests.
+- Neutral-shadow runner, transfer/robustness statistics, ablation matrix
+  driver, anti-overclaim report sections.
+- CI runs the full 84-test suite on every push.
+
+**Experimental:**
+
+- Full POET-style coevolutionary loop is *not* implemented; the transfer
+  suite currently re-evaluates per-config end-of-run metrics, not
+  trained-on-A-evaluated-on-B agent transfer.
+- Compositionality metrics expect quantised messages — for the continuous
+  emergent channel we currently discretise via argmax. Treat numbers as
+  a lower bound.
+- Surrogate-assisted QD and Meta-Referential evaluation (memo P2) are
+  not yet implemented.
 
 ## Limitations
 
-- This is research scaffolding, not a CFD simulator. Proxy fields are stylized.
+- This is research scaffolding, not a CFD simulator. Proxy fields are
+  stylized inductive bias; the uniform-field ablation config exists to
+  show they are doing measurable work.
 - Tests and runs are deliberately small (CPU-feasible) so CI stays fast.
-- Reproduction uses simple greedy slot-matching; there is no genealogy database.
-- "Six senses" is a labeled grouping for clarity, not a biological claim.
+  Headline numbers should be re-run at ≥10 seeds.
+- "Sixth sense" and "language" terminology are *labels*, not biological or
+  linguistic claims — see `docs/scientific_validation.md` §7 for the
+  language guardrails this repo commits to.
 
 ## Development
 
