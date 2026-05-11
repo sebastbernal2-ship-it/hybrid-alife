@@ -161,6 +161,13 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
    because reseeding refills dead slots. Real selection pressure has to be
    measured via lineage-depth and Hill 1D, not survival fraction.
 
+For per-metric interpretation, the engineering/preliminary/strong evidence
+tiers, allowed vs disallowed claims, the ablation logic, replication
+requirements, and the calibration thresholds these risks should be judged
+against, see [`docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`](SCIENTIFIC_INTERPRETATION_GUIDE.md).
+Any write-up that quotes numbers from this repo should be checked against
+that guide before publication.
+
 ## Next actions
 
 ### Next 20 minutes

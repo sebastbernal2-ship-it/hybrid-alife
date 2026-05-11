@@ -31,7 +31,11 @@ restructuring the document.
 
 State the **pre-registered hypothesis** and the **decision rule** before
 inspecting numbers. See `docs/preregistration_template.md` and
-`docs/scientific_validation.md`.
+`docs/scientific_validation.md`. Tag every claim in this report with an
+evidence tier (Engineering / Preliminary / Strong) as defined in
+[`docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`](SCIENTIFIC_INTERPRETATION_GUIDE.md)
+and check it against the allowed-vs-disallowed claim list in §4 of that
+guide.
 
 - [ ] Hypothesis registered before run? (`docs/preregistration_template.md`)
 - [ ] Seeds ≥ 10 for headline claims? (`scripts/run_ablation_matrix.py --seeds 10`)
