@@ -1,0 +1,63 @@
+seed: 7
+run_name: qd_active
+output_dir: outputs/runs
+
+# Tiny CPU config that produces non-zero MAP-Elites coverage in a short run.
+# Goals:
+#   - small world + few generations so it runs in seconds on CPU
+#   - enough agents and steps to spread the behavior descriptor across bins
+#   - high genome mutation + tournament churn to drive descriptor diversity
+
+world:
+  width: 16
+  height: 16
+  toroidal: true
+  resource_channels: 3
+  hazard_channels: 2
+  max_agents: 12
+  max_digital_organisms: 8
+  flow_noise_std: 0.03
+  concentration_decay: 0.97
+  concentration_diffusion: 0.08
+
+embodied:
+  enabled: true
+  population_size: 12
+  obs_radius: 2
+  hidden_size: 12
+  message_size: 4
+  genome_mutation_std: 0.08
+  genome_mutation_prob: 0.2
+  initial_energy: 20.0
+  reproduce_energy_threshold: 30.0
+  reproduction_energy_cost: 15.0
+  basal_metabolic_cost: 0.05
+
+avida:
+  enabled: false
+  population_size: 4
+  genome_length: 20
+  max_genome_length: 48
+  registers: 4
+  memory_size: 8
+  cycles_per_update: 2
+  point_mutation_prob: 0.0025
+  insertion_prob: 0.0005
+  deletion_prob: 0.0005
+
+evolution:
+  generations: 6
+  steps_per_generation: 8
+  elite_fraction: 0.1
+  tournament_size: 3
+  extinction_min_population: 2
+  novelty_enabled: true
+  map_elites_enabled: true
+  map_elites_bins: 4
+  novelty_k: 3
+  novelty_archive_size: 128
+
+logging:
+  metrics_every: 4
+  checkpoint_every_generations: 50
+  replay_every_generations: 1
