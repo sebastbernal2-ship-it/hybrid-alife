@@ -15,6 +15,9 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      MPLBACKEND: Agg
+      PYTHONUTF8: "1"
     # Hard ceiling so a hung JAX compile / runaway test can't burn the day.
     timeout-minutes: 20
     strategy:
