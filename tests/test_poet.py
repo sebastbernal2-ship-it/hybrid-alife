@@ -250,6 +250,9 @@ def test_campaign_writes_manifest_analysis_and_figures(tmp_path: Path):
     assert checkpoint["version"] == 1
     assert checkpoint["state"].generation == 2
     payload = json.loads((tmp_path / "summary.json").read_text())
+    assert payload["schema_version"] == 2
+    assert json.loads((tmp_path / "config.json").read_text())["schema_version"] == 2
+    assert json.loads((tmp_path / "transfer_matrix.json").read_text())["schema_version"] == 2
     assert payload["track"] == "isolated"
     assert payload["generations"] == 2
     assert result.generation == 2

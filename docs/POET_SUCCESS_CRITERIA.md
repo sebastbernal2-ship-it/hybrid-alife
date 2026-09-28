@@ -19,7 +19,7 @@ This value is a campaign parameter, not a calibrated claim about open-endedness.
 
 ## Replication metadata
 
-Every cell records:
+Every cell uses artifact schema version `2` and records:
 
 - `replication_id`
 - `seed_offset`
@@ -46,22 +46,28 @@ It can still be useful engineering or preliminary evidence.
 
 ## Commands
 
-```bash
-JAX_PLATFORMS=cpu venv/bin/python scripts/run_poet.py \
-  --config configs/poet_campaign.yaml \
-  --tracks poet static \
-  --seeds 0 1 2 3 4 5 6 7 8 9 \
-  --replication-id replication-1 \
-  --seed-offset 0 \
-  --operator NAME \
-  --machine-label MACHINE \
-  --cache-cleared \
-  --generations 200 \
-  --out-dir outputs/poet/replication-1
+Run the two replications into one nested campaign directory so the analyzer can discover and pair every cell:
 
-venv/bin/python scripts/analyze_poet_campaign.py outputs/poet \
+```bash
+for replication in 1 2; do
+  offset=$(( (replication - 1) * 10000 ))
+  JAX_PLATFORMS=cpu venv/bin/python scripts/run_poet.py \
+    --config configs/poet_campaign.yaml \
+    --tracks poet static \
+    --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --replication-id replication-$replication \
+    --seed-offset "$offset" \
+    --operator NAME \
+    --machine-label MACHINE \
+    --cache-cleared \
+    --generations 200 \
+    --out-dir docs/results/poet_campaign_final_v3/replication-$replication
+done
+
+venv/bin/python scripts/analyze_poet_campaign.py docs/results/poet_campaign_final_v3 \
   --primary-track poet --baseline-track static
 ```
 
 The analysis artifact is `analysis/statistical_summary.json`.
+The analyzer rejects stale schema versions, missing replication metadata, and duplicate replication-track-seed cells instead of overwriting them.
 The decision is descriptive evidence only until an independent operator or machine completes the second replication.

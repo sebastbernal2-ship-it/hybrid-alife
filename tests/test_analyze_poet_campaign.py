@@ -1,8 +1,17 @@
 from __future__ import annotations
 
-import numpy as np
+import json
+from pathlib import Path
 
-from scripts.analyze_poet_campaign import assess_success, paired_comparison
+import numpy as np
+import pytest
+
+from scripts.analyze_poet_campaign import (
+    assess_success,
+    discover_summary_paths,
+    load_campaign_summaries,
+    paired_comparison,
+)
 
 
 def test_paired_comparison_reports_campaign_statistics() -> None:
@@ -13,6 +22,62 @@ def test_paired_comparison_reports_campaign_statistics() -> None:
     assert result["ties"] == 0
     assert result["exact_paired_sign_permutation_p"] == 0.5
     assert result["cliffs_delta"] == 0.75
+
+
+def test_analyzer_discovers_two_replication_layout(tmp_path: Path) -> None:
+    for replication_id in ("replication-1", "replication-2"):
+        for track in ("poet", "static"):
+            path = tmp_path / replication_id / track / "seed-000" / "summary.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "track": track,
+                        "seed": 0,
+                        "final_transfer_mean": 1.0,
+                        "heldout_transfer_mean": 1.0,
+                        "source_commit": "abc123",
+                        "replication_metadata": {
+                            "replication_id": replication_id,
+                            "seed_offset": 0 if replication_id == "replication-1" else 1000,
+                            "operator": "tester",
+                            "machine_label": "machine",
+                            "cache_cleared": True,
+                        },
+                    }
+                )
+            )
+
+    paths = discover_summary_paths(tmp_path)
+    assert len(paths) == 4
+    summaries = load_campaign_summaries(tmp_path)
+    assert len(summaries) == 4
+
+
+def test_analyzer_rejects_duplicate_replication_track_seed(tmp_path: Path) -> None:
+    payload = {
+        "schema_version": 2,
+        "track": "poet",
+        "seed": 0,
+        "final_transfer_mean": 1.0,
+        "heldout_transfer_mean": 1.0,
+        "source_commit": "abc123",
+        "replication_metadata": {
+            "replication_id": "replication-1",
+            "seed_offset": 0,
+            "operator": "tester",
+            "machine_label": "machine",
+            "cache_cleared": True,
+        },
+    }
+    for name in ("first", "second"):
+        path = tmp_path / name / "poet" / "seed-000" / "summary.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(payload))
+
+    with pytest.raises(ValueError, match="duplicate campaign cell"):
+        load_campaign_summaries(tmp_path)
 
 
 def test_assess_success_requires_two_independent_replications() -> None:

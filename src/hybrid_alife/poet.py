@@ -39,6 +39,7 @@ from hybrid_alife.world.env import (
 )
 
 OBS_DIM = 8
+POET_ARTIFACT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,7 @@ class POETState:
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
+            "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
             "generation": self.generation,
             "policy_updates": self.policy_updates,
             "policy_mutations": self.policy_mutations,
@@ -960,6 +962,7 @@ def save_poet_checkpoint(
         pickle.dump(
             {
                 "version": 1,
+                "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
                 "seed": seed,
                 "source_commit": _source_commit(),
                 "config": asdict(cfg),
@@ -981,6 +984,7 @@ def write_poet_artifacts(
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "figures").mkdir(exist_ok=True)
     metadata = {
+        "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
         "source_commit": _source_commit(),
         "seed": seed,
         "effective_seed": seed + state.replication_metadata["seed_offset"],
@@ -1087,6 +1091,7 @@ def write_poet_artifacts(
     summary = state.to_jsonable()
     summary.update(
         {
+            "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
             "source_commit": metadata["source_commit"],
             "config": metadata["config"],
             "seed": seed,

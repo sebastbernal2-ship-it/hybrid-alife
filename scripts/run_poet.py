@@ -9,7 +9,12 @@ import platform
 from dataclasses import asdict
 from pathlib import Path
 
-from hybrid_alife.poet import _source_commit, load_poet_config, run_poet
+from hybrid_alife.poet import (
+    POET_ARTIFACT_SCHEMA_VERSION,
+    _source_commit,
+    load_poet_config,
+    run_poet,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,6 +48,7 @@ def main() -> None:
         "cache_cleared": args.cache_cleared,
     }
     manifest = {
+        "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
         "source_commit": _source_commit(),
         "config": args.config,
         "tracks": args.tracks,

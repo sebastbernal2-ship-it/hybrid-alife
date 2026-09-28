@@ -1,174 +1,29 @@
 {
-  "name": "paired_ppo_poet_metric_corrected_v2",
+  "schema_version": 2,
+  "name": "poet_vs_static_two_replication",
   "config": "configs/poet_campaign.yaml",
-  "tracks": [
-    "isolated",
-    "avida_enabled",
-    "avida_persistent"
-  ],
-  "seeds": [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9
-  ],
+  "tracks": ["poet", "static"],
+  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   "generations": 200,
-  "cells": [
+  "primary_track": "poet",
+  "baseline_track": "static",
+  "replications": [
     {
-      "track": "isolated",
-      "seed": 0,
-      "generations": 200
+      "replication_id": "replication-1",
+      "seed_offset": 0,
+      "operator": "sebas",
+      "machine_label": "local-cpu-1",
+      "cache_cleared": true,
+      "out_dir": "docs/results/poet_campaign_final_v3/replication-1"
     },
     {
-      "track": "isolated",
-      "seed": 1,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 2,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 3,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 4,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 5,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 6,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 7,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 8,
-      "generations": 200
-    },
-    {
-      "track": "isolated",
-      "seed": 9,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 0,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 1,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 2,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 3,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 4,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 5,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 6,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 7,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 8,
-      "generations": 200
-    },
-    {
-      "track": "avida_enabled",
-      "seed": 9,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 0,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 1,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 2,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 3,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 4,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 5,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 6,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 7,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 8,
-      "generations": 200
-    },
-    {
-      "track": "avida_persistent",
-      "seed": 9,
-      "generations": 200
+      "replication_id": "replication-2",
+      "seed_offset": 10000,
+      "operator": "sebas",
+      "machine_label": "local-cpu-1",
+      "cache_cleared": true,
+      "out_dir": "docs/results/poet_campaign_final_v3/replication-2"
     }
-  ]
+  ],
+  "cell_count": 40
 }
