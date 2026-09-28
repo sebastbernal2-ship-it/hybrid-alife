@@ -25,6 +25,7 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_poet.py \
 The default command runs both `isolated` and `avida_enabled` tracks.
 
 The Avida-enabled track runs the existing Avida VM as a bounded comparison sidecar.
+Its `summary.json` records the actual `avida_comparator_steps` cap used for that metric.
 
 ## Preregistered campaign
 

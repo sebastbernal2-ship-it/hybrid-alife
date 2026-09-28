@@ -436,8 +436,14 @@ def _grid_vector(field: jax.Array, position: jax.Array) -> jax.Array:
 
 
 def _world_observation(
-    env: EnvironmentGenome, world: WorldState, position: jax.Array, step: int, cfg: POETConfig
+    env: EnvironmentGenome,
+    world: WorldState,
+    position: jax.Array,
+    step: int,
+    cfg: POETConfig,
+    horizon: int | None = None,
 ) -> jax.Array:
+    horizon = cfg.rollout_steps if horizon is None else horizon
     terrain = _grid_value(world.terrain[..., 0], position)
     resource = _grid_vector(world.resources[..., 0], position)
     hazard = _grid_vector(world.hazards[..., 0], position)
@@ -449,7 +455,7 @@ def _world_observation(
             env.params[1],
             terrain,
             resource - hazard,
-            1.0 - step / max(cfg.rollout_steps, 1),
+            1.0 - step / max(horizon, 1),
             jnp.mean(world.metabolites) + jnp.mean(world.concentration),
         ],
         dtype=jnp.float32,
@@ -507,7 +513,11 @@ def collect_rollout(
     key: jax.Array,
     *,
     stochastic: bool = True,
+    horizon: int | None = None,
 ) -> _Batch:
+    horizon = cfg.rollout_steps if horizon is None else horizon
+    if horizon < 1:
+        raise ValueError("rollout horizon must be positive")
     key, world_key, population_key = jax.random.split(key, 3)
     world, world_cfg = initialize_environment_world(env, cfg, world_key)
     avida = (
@@ -530,9 +540,9 @@ def collect_rollout(
     old_log_probs: list[jax.Array] = []
     rewards: list[jax.Array] = []
     values: list[jax.Array] = []
-    for step in range(cfg.rollout_steps):
+    for step in range(horizon):
         key, action_key = jax.random.split(key)
-        observation = _world_observation(env, state.world, positions, step, cfg)
+        observation = _world_observation(env, state.world, positions, step, cfg, horizon)
         logits, value = policy_forward(params, observation)
         if stochastic:
             action, log_prob = _categorical_action(logits, action_key)
@@ -550,7 +560,7 @@ def collect_rollout(
         if done:
             positions = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
     last_value = policy_forward(
-        params, _world_observation(env, state.world, positions, cfg.rollout_steps, cfg)
+        params, _world_observation(env, state.world, positions, horizon, cfg, horizon)
     )[1]
     advantages = _gae(rewards, values, last_value, cfg)
     returns = advantages + jnp.stack(values)
@@ -594,7 +604,14 @@ def ppo_update(
 def evaluate_policy(
     params: PolicyParams, env: EnvironmentGenome, cfg: POETConfig, seed: int
 ) -> float:
-    batch = collect_rollout(params, env, cfg, jax.random.PRNGKey(seed), stochastic=False)
+    batch = collect_rollout(
+        params,
+        env,
+        cfg,
+        jax.random.PRNGKey(seed),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
+    )
     return float(jnp.mean(batch.returns))
 
 
@@ -620,6 +637,10 @@ def _avida_comparison_score(matrix: np.ndarray) -> float:
     return float(np.mean(np.maximum(centered, 0.0)))
 
 
+def _avida_comparator_steps(generations: int) -> int:
+    return max(1, min(generations, 4))
+
+
 def _run_avida_comparator(
     env: EnvironmentGenome, cfg: POETConfig, seed: int, generations: int
 ) -> float:
@@ -639,7 +660,7 @@ def _run_avida_comparator(
         embodied=None,
         avida=population,
     )
-    for _ in range(max(1, min(generations, 4))):
+    for _ in range(_avida_comparator_steps(generations)):
         state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
         state.rng, step_key = jax.random.split(state.rng)
         state.avida, state.world, lineage_start = _step_avida_fast(
@@ -779,6 +800,9 @@ def write_poet_artifacts(
     )
     save_poet_checkpoint(out_dir / "poet_checkpoint.pkl", state, cfg, seed)
     comparison_score = _avida_comparison_score(final_matrix) if cfg.avida_enabled else None
+    avida_comparator_steps = (
+        _avida_comparator_steps(generations) if cfg.avida_enabled else None
+    )
     avida_mean_merit = (
         float(
             np.mean(
@@ -797,6 +821,7 @@ def write_poet_artifacts(
             "seed": seed,
             "generations": generations,
             "comparison_score": comparison_score,
+            "avida_comparator_steps": avida_comparator_steps,
             "avida_mean_merit": avida_mean_merit,
             "final_transfer_mean": float(np.mean(final_matrix)),
             "final_transfer_std": float(np.std(final_matrix)),

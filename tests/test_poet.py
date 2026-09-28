@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import jax
@@ -14,6 +15,7 @@ from hybrid_alife.poet import (
     _poet_avida_config,
     _step_avida_fast,
     collect_rollout,
+    evaluate_policy,
     evaluate_transfer_matrix,
     initialize_environment_world,
     initialize_poet_state,
@@ -109,6 +111,33 @@ def test_transfer_uses_frozen_policy_parameters():
     matrix = evaluate_transfer_matrix(state.policies, state.environments, cfg, seed=4)
     np.testing.assert_array_equal(before, state.policies[0].w1)
     assert matrix.shape == (cfg.population_size, cfg.population_size)
+
+
+def test_transfer_evaluation_uses_configured_horizon():
+    cfg = tiny_config()
+    state = initialize_poet_state(cfg, seed=1)
+    short = evaluate_policy(
+        state.policies[0],
+        state.environments[0],
+        replace(cfg, transfer_steps=1),
+        seed=4,
+    )
+    long = evaluate_policy(
+        state.policies[0],
+        state.environments[0],
+        replace(cfg, transfer_steps=cfg.rollout_steps),
+        seed=4,
+    )
+    assert short != long
+
+
+def test_avida_comparator_horizon_is_recorded(tmp_path: Path):
+    cfg = POETConfig(
+        **{**tiny_config().__dict__, "avida_enabled": True, "track": "avida_enabled"}
+    )
+    run_poet(cfg, seed=0, generations=5, out_dir=tmp_path)
+    payload = json.loads((tmp_path / "summary.json").read_text())
+    assert payload["avida_comparator_steps"] == 4
 
 
 def test_campaign_writes_manifest_analysis_and_figures(tmp_path: Path):
