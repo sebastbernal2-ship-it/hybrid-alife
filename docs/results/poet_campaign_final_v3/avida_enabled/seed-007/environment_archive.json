@@ -1,0 +1,76 @@
+{
+  "source_commit": "d0542eb8108e62a978cacac5ff14759b445cb7cd",
+  "seed": 7,
+  "generations": 200,
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 16,
+    "action_count": 5,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.001,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 4
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.06,
+    "terrain_mutation_std": 0.08,
+    "terrain_mutation_prob": 0.08,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": true,
+    "avida_lifecycle": "reset",
+    "track": "avida_enabled"
+  },
+  "environments": [
+    {
+      "environment_index": 0,
+      "params": [
+        0.598320484161377,
+        0.5470022559165955,
+        0.8008545637130737,
+        0.7513689398765564,
+        0.20000000298023224,
+        -0.14293363690376282
+      ],
+      "terrain_mean": 0.5344064235687256,
+      "terrain_std": 0.2718614339828491
+    },
+    {
+      "environment_index": 1,
+      "params": [
+        0.5809036493301392,
+        0.5535044074058533,
+        0.6876838803291321,
+        0.7190238833427429,
+        0.20000000298023224,
+        -0.1802581250667572
+      ],
+      "terrain_mean": 0.530466616153717,
+      "terrain_std": 0.2737891376018524
+    }
+  ]
+}
