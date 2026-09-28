@@ -389,7 +389,10 @@ def apply_h_divide(
     # flag is set; otherwise we keep parent_copied unchanged.
     dup_offset = (arange[None, :] - parent_len[:, None])  # >= 0 after parent end
     in_dup_window = (dup_offset >= 0) & (dup_offset < dup_len[:, None])
-    dup_src_idx = jnp.mod(dup_start[:, None] + jnp.clip(dup_offset, 0, dup_len[:, None] - 1), jnp.maximum(parent_len[:, None], 1))
+    dup_src_idx = jnp.mod(
+        dup_start[:, None] + jnp.clip(dup_offset, 0, dup_len[:, None] - 1),
+        jnp.maximum(parent_len[:, None], 1),
+    )
     dup_vals = jnp.take_along_axis(parent_copied, dup_src_idx, axis=1)
     augmented = jnp.where(duplication[:, None] & in_dup_window, dup_vals, parent_copied)
 
@@ -422,13 +425,17 @@ def apply_h_divide(
     new_copied = pop.copied.at[children].set(
         jnp.where(use_b, jnp.zeros_like(pop.copied[children]), pop.copied[children])
     )
-    new_cl = pop.copied_length.at[children].set(jnp.where(use, zero_int, pop.copied_length[children]))
+    new_cl = pop.copied_length.at[children].set(
+        jnp.where(use, zero_int, pop.copied_length[children])
+    )
     new_merit = pop.merit.at[children].set(
         jnp.where(use, jnp.ones_like(use, dtype=jnp.float32), pop.merit[children])
     )
     new_age = pop.age.at[children].set(jnp.where(use, zero_int, pop.age[children]))
     new_alive = pop.alive.at[children].set(jnp.where(use, one_bool, pop.alive[children]))
-    new_tasks = pop.tasks_completed.at[children].set(jnp.where(use, zero_int, pop.tasks_completed[children]))
+    new_tasks = pop.tasks_completed.at[children].set(
+        jnp.where(use, zero_int, pop.tasks_completed[children])
+    )
 
     # Reset parent buffer so it must alloc again
     new_copied = new_copied.at[parents].set(

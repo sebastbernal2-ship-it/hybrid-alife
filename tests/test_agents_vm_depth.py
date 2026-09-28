@@ -15,7 +15,6 @@ import jax.numpy as jnp
 import numpy as np
 
 from hybrid_alife.agents.avida_vm import (
-    INSTRUCTION_COUNT,
     Op,
     _cycle_budget,
     _logic_task_outputs,
@@ -26,8 +25,10 @@ from hybrid_alife.agents.avida_vm import (
 )
 from hybrid_alife.agents.controller import (
     decode_actions,
-    forward as controller_forward,
     init_controller_params,
+)
+from hybrid_alife.agents.controller import (
+    forward as controller_forward,
 )
 from hybrid_alife.agents.embodied import (
     act_embodied,
@@ -65,7 +66,9 @@ def test_controller_forward_shapes():
     n = cfg.embodied.population_size
     obs_dim = embodied_observation_dim(cfg.embodied, cfg.world)
     act_dim = embodied_action_dim(cfg.embodied)
-    params = init_controller_params(n, obs_dim, act_dim, cfg.embodied.hidden_size, jax.random.PRNGKey(0))
+    params = init_controller_params(
+        n, obs_dim, act_dim, cfg.embodied.hidden_size, jax.random.PRNGKey(0)
+    )
     obs = jnp.ones((n, obs_dim), dtype=jnp.float32)
     hidden = jnp.zeros((n, cfg.embodied.hidden_size), dtype=jnp.float32)
     raw, new_hidden = controller_forward(params, obs, hidden, use_memory=True)
@@ -82,7 +85,9 @@ def test_controller_mlp_ablation_drops_memory():
     n = cfg.embodied.population_size
     obs_dim = embodied_observation_dim(cfg.embodied, cfg.world)
     act_dim = embodied_action_dim(cfg.embodied)
-    params = init_controller_params(n, obs_dim, act_dim, cfg.embodied.hidden_size, jax.random.PRNGKey(0))
+    params = init_controller_params(
+        n, obs_dim, act_dim, cfg.embodied.hidden_size, jax.random.PRNGKey(0)
+    )
     obs = jax.random.normal(jax.random.PRNGKey(1), (n, obs_dim))
     h_start = jnp.ones((n, cfg.embodied.hidden_size))
     _, h_mem = controller_forward(params, obs, h_start, use_memory=True)
@@ -189,7 +194,9 @@ def test_action_terraform_changes_concentration():
     _, w_h, _ = apply_embodied_actions(pop, act_h, world, cfg.embodied, cfg.world, key)
     # Terraform-hazard pushes the first concentration channel down (negative
     # deposit) relative to the resource-terraform case.
-    assert float(jnp.mean(w_h.concentration[..., 0])) <= float(jnp.mean(w_r.concentration[..., 0])) + 1e-6
+    assert float(jnp.mean(w_h.concentration[..., 0])) <= (
+        float(jnp.mean(w_r.concentration[..., 0])) + 1e-6
+    )
 
 
 def test_action_emit_respects_message_gate_threshold():
@@ -319,7 +326,13 @@ def test_avida_h_copy_then_divide_creates_offspring():
     cfg = _cfg()
     key = jax.random.PRNGKey(15)
     world = initialize_world(cfg.world, key)
-    avida_cfg = _replace_avida(cfg, point_mutation_prob=0.0, insertion_prob=0.0, deletion_prob=0.0, duplication_prob=0.0)
+    avida_cfg = _replace_avida(
+        cfg,
+        point_mutation_prob=0.0,
+        insertion_prob=0.0,
+        deletion_prob=0.0,
+        duplication_prob=0.0,
+    )
     pop = initialize_avida_population(avida_cfg, key)
     # Kill half so there are dead slots to receive children.
     n = pop.alive.shape[0]
@@ -372,7 +385,6 @@ def test_avida_duplication_extends_genome_length():
         deletion_prob=0.0,
         duplication_prob=1.0,
     )
-    world = initialize_world(cfg.world, key)
     pop = initialize_avida_population(avida_cfg, key)
     n = pop.alive.shape[0]
     pop.alive = pop.alive.at[n // 2:].set(False)

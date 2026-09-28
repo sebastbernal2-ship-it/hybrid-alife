@@ -32,7 +32,8 @@ from hybrid_alife.evolution.selection import (
 )
 from hybrid_alife.logging.jsonl import JsonlWriter
 from hybrid_alife.metrics.core import collect_full_metrics
-from hybrid_alife.metrics.qd import archive_entropy, coverage as qd_coverage, qd_score
+from hybrid_alife.metrics.qd import archive_entropy, qd_score
+from hybrid_alife.metrics.qd import coverage as qd_coverage
 from hybrid_alife.replay.checkpoint import save_checkpoint
 from hybrid_alife.types import (
     AvidaConfig,
@@ -43,8 +44,7 @@ from hybrid_alife.types import (
     SimState,
     WorldConfig,
 )
-from hybrid_alife.world.env import compute_occupancy, step_world
-from hybrid_alife.world.env import initialize_world
+from hybrid_alife.world.env import compute_occupancy, initialize_world, step_world
 
 console = Console()
 
@@ -75,7 +75,10 @@ def _coerce_dataclass(cls: type, raw: dict[str, Any]) -> Any:
     for name, fld in field_info.items():
         if name in raw:
             kwargs[name] = raw[name]
-        elif fld.default is not fld.default_factory and fld.default is not getattr(fld, "MISSING", None):  # type: ignore[attr-defined]
+        elif (
+            fld.default is not fld.default_factory
+            and fld.default is not getattr(fld, "MISSING", None)
+        ):  # type: ignore[attr-defined]
             # leave to default
             pass
     return cls(**kwargs)
@@ -107,8 +110,18 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
     )
 
 
-def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tuple[SimState, int]:
-    """Single integration step. Returns (state, new lineage_counter)."""
+def step_sim(
+    state: SimState,
+    cfg: ExperimentConfig,
+    lineage_counter: int,
+    *,
+    allow_reproduction: bool = True,
+) -> tuple[SimState, int]:
+    """Advance one step.
+
+    ``allow_reproduction=False`` evaluates a frozen policy without genome
+    mutation, selection, or replacement births.
+    """
     state.rng, k_obs, k_ctrl, k_act, k_repro, k_avida = jax.random.split(state.rng, 6)
     state = step_world(state, cfg.world)
 
@@ -120,17 +133,19 @@ def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tu
             embodied, actions, state.world, cfg.embodied, cfg.world, k_act
         )
         state.world = new_world
-        # Reproduction
-        embodied, births = apply_reproduction(
-            embodied, repro_gate, cfg.embodied, lineage_counter, k_repro
-        )
-        lineage_counter += embodied.alive.shape[0]
-        alive_after = int(embodied.alive.sum())
-        # Deaths = agents that died from energy/hazards during this step.
-        # Births raise alive_after, so: deaths = (alive_before + births) - alive_after.
-        deaths = max(0, alive_before + int(births) - alive_after)
-        state.embodied_births_this_gen += int(births)
-        state.embodied_deaths_this_gen += int(deaths)
+        if allow_reproduction:
+            # Reproduction mutates child genomes, so frozen-policy evaluation
+            # deliberately skips this branch.
+            embodied, births = apply_reproduction(
+                embodied, repro_gate, cfg.embodied, lineage_counter, k_repro
+            )
+            lineage_counter += embodied.alive.shape[0]
+            alive_after = int(embodied.alive.sum())
+            # Deaths = agents that died from energy/hazards during this step.
+            # Births raise alive_after, so: deaths = (alive_before + births) - alive_after.
+            deaths = max(0, alive_before + int(births) - alive_after)
+            state.embodied_births_this_gen += int(births)
+            state.embodied_deaths_this_gen += int(deaths)
         state.embodied = embodied
         # Update occupancy on world from new positions for crowd metrics
         state.world.occupancy = compute_occupancy(
@@ -157,6 +172,61 @@ def step_sim(state: SimState, cfg: ExperimentConfig, lineage_counter: int) -> tu
 
     state.step += 1
     return state, lineage_counter
+
+
+def _validate_array(name: str, value: Any, shape: tuple[int, ...] | None = None) -> None:
+    array = np.asarray(value)
+    if shape is not None and array.shape != shape:
+        raise RuntimeError(f"{name} has shape {array.shape}, expected {shape}")
+    if not np.isfinite(array).all():
+        raise RuntimeError(f"{name} contains non-finite values")
+
+
+def validate_runtime_invariants(state: SimState, cfg: ExperimentConfig) -> None:
+    """Fail fast when a run produces invalid state or breaks its shape contract."""
+    if state.generation < 0 or state.step < 0:
+        raise RuntimeError("generation and step must be non-negative")
+    if int(np.asarray(state.world.time)) != state.step:
+        raise RuntimeError(f"world.time {int(np.asarray(state.world.time))} != step {state.step}")
+
+    h, w = cfg.world.height, cfg.world.width
+    world_shapes = {
+        "world.terrain": (h, w, 4),
+        "world.resources": (h, w, cfg.world.resource_channels),
+        "world.hazards": (h, w, cfg.world.hazard_channels),
+        "world.flow": (h, w, 2),
+        "world.curvature": (h, w, 1),
+        "world.shear": (h, w, 2),
+        "world.shear_grad": (h, w, 2),
+        "world.enrichment": (h, w, 1),
+        "world.lift": (h, w, 2),
+        "world.concentration": (h, w, 2),
+        "world.metabolites": (h, w, cfg.world.metabolite_channels),
+        "world.occupancy": (h, w),
+    }
+    for name, shape in world_shapes.items():
+        _validate_array(name, getattr(state.world, name.removeprefix("world.")), shape)
+    _validate_array("world.time", state.world.time)
+
+    if state.embodied is not None and cfg.embodied.enabled:
+        n = cfg.embodied.population_size
+        _validate_array("embodied.positions", state.embodied.positions, (n, 2))
+        _validate_array("embodied.energy", state.embodied.energy, (n,))
+        _validate_array("embodied.alive", state.embodied.alive, (n,))
+        positions = np.asarray(state.embodied.positions)
+        if (positions < 0).any() or (positions >= 1).any():
+            raise RuntimeError("embodied.positions must stay in [0, 1)")
+        for name, value in state.embodied.genomes.items():
+            _validate_array(f"embodied.genomes.{name}", value)
+            if np.asarray(value).shape[0] != n:
+                raise RuntimeError(f"embodied.genomes.{name} has the wrong population size")
+
+    if state.avida is not None and cfg.avida.enabled:
+        n = cfg.avida.population_size
+        _validate_array("avida.genomes", state.avida.genomes, (n, cfg.avida.max_genome_length))
+        _validate_array("avida.genome_lengths", state.avida.genome_lengths, (n,))
+        _validate_array("avida.alive", state.avida.alive, (n,))
+        _validate_array("avida.merit", state.avida.merit, (n,))
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +268,8 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                     )
                     state.metrics = metrics
                     writer.write(metrics)
+
+            validate_runtime_invariants(state, cfg)
 
             # Snapshot per-generation birth/death counts before reseeding/selection.
             state.metrics = {
@@ -269,6 +341,8 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
             # Reset per-generation counters for the next generation.
             state.embodied_births_this_gen = 0
             state.embodied_deaths_this_gen = 0
+
+    validate_runtime_invariants(state, cfg)
 
     # Final checkpoint and final archives
     save_checkpoint(output_dir / "checkpoint_final.pkl", state, raw_config)

@@ -1,0 +1,21 @@
+width: 8
+height: 8
+terrain_channels: 1
+population_size: 2
+policy_hidden: 12
+action_count: 5
+rollout_steps: 8
+transfer_steps: 8
+environment_mutation_std: 0.08
+terrain_mutation_std: 0.12
+terrain_mutation_prob: 0.2
+policy_mutation_std: 0.01
+policy_mutation_prob: 0.05
+ppo:
+  learning_rate: 0.003
+  clip_ratio: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  gamma: 0.99
+  gae_lambda: 0.95
+  epochs: 2

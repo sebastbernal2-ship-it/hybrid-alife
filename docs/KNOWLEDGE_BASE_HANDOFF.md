@@ -10,10 +10,12 @@
 
 - **Name:** hybrid-alife — Hybrid Artificial-Life Simulator.
 - **Repository:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip at handoff:** `b98123307cd4367f70bcef9ba593733cc1ad5a6b`
-  (`merge: visual run display tooling`).
-- **This sprint branch:** `sprint/kb-handoff-final` (docs-only).
-- **Date of handoff:** 2026-05-11.
+- **Main branch tip at handoff:** `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`
+  (`chore(git): ignore temp audit artifacts`).
+- **Validation branch:** `feat/solidness-performance` at
+  `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`.
+- **Date of handoff:** 2026-09-28.
+- **Integration status:** the validation branch awaits a PR into `main`.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
 
 ## Mission (one paragraph)
@@ -36,6 +38,7 @@ src/hybrid_alife/
 ├── world/         env.py (terrain, proxy fields, advection), sensing.py
 ├── evolution/     selection.py (tournament+reseed), archives.py (novelty+ME)
 ├── experiments/   runner.py, shadow.py, transfer.py
+├── poet.py        bounded paired PPO-POET population loop
 ├── metrics/       core, bedau, qd, communication, comm_benchmark, lineage
 ├── logging/       JSONL writer
 ├── replay/        deterministic pickle checkpoints
@@ -44,17 +47,21 @@ src/hybrid_alife/
 
 scripts/          run_sim, generate_report, run_ablation_matrix,
                   run_comm_benchmark, run_compute_scaling,
-                  run_transfer_matrix, run_quick_campaign,
+                  run_transfer_matrix, run_quick_campaign, run_poet,
+                  analyze_poet_campaign, profile_full_run, benchmark_cpu,
                   preflight_campaign, visualize_run
 configs/          base, smoke200, 11 ablations, qd_active, comm_task,
                   lineage_growth, scaling_tiny, transfer_{source,target},
+                  poet_{smoke,campaign}, poet_campaign_manifest.json,
                   campaigns/ (multi-config sweeps)
 tests/            CPU-feasible pytest suite
 ```
 
 ## Validation status (current)
 
-- `pytest -q` → **193 passed in 98.20s** on CPU (full suite, no skips).
+- `pytest -q` → **217 passed** in the validated CPU environment.
+- PPO-POET campaign: two tracks, ten seeds per track, and 200 generations per
+  cell are archived in `docs/results/poet_campaign_final_v2/`.
 - Communication benchmark: compositional control hits topsim / posdis / bosdis
   = 1.0.
 - QD-active smoke (`configs/qd_active.yaml`, gen 5): coverage 0.4375,
@@ -78,7 +85,9 @@ tests/            CPU-feasible pytest suite
 | [`qd_active.md`](qd_active.md) | MAP-Elites archive, QD logging. |
 | [`comm_benchmark.md`](comm_benchmark.md) | Synthetic compositionality benchmark. |
 | [`lineage_growth.md`](lineage_growth.md) | Lineage tree, Hill 1D effective count. |
-| [`poet_transfer.md`](poet_transfer.md) | v1 transfer matrix + compute scaling. |
+| [`poet_transfer.md`](poet_transfer.md) | Fixed-policy transfer matrix + compute scaling. |
+| [`poet_ppo_campaign.md`](poet_ppo_campaign.md) | PPO-POET campaign design and outputs. |
+| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Archived 20-cell campaign evidence and checksums. |
 | [`campaign_cache_acceleration.md`](campaign_cache_acceleration.md) | Cache-accelerated campaigns. |
 | [`experiment_campaign_quickstart.md`](experiment_campaign_quickstart.md) | Multi-config sweep quickstart. |
 | [`visualization_quickstart.md`](visualization_quickstart.md) | `visualize_run.py` usage. |
@@ -96,7 +105,7 @@ tests/            CPU-feasible pytest suite
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect 193 passing in ~98 s on CPU)
+# Tests (expect the current 217-test suite to pass on CPU)
 pytest -q
 
 # Preflight before any multi-hour campaign
@@ -148,10 +157,12 @@ session should look for:
   including paired neutral-shadow runs when `--include-shadow` is used.
 - `outputs/comm_benchmark/...` — synthetic compositionality benchmark results.
 - `outputs/compute_scaling/...` — budget × coverage scaling curves.
-- `outputs/transfer/...` — v1 transfer matrix tables + bootstrap CIs.
+- `outputs/transfer/...` — transfer matrix tables and fixed-policy results.
 - `outputs/campaigns/<campaign>/...` — cache-accelerated campaign artifacts.
 - `outputs/visualizations/<run_name>/...` — frames and overview plots from
   `visualize_run.py`.
+- `docs/results/poet_campaign_final_v2/` — archived PPO-POET campaign cells,
+  aggregate statistics, profiles, and SHA256 checksums.
 
 ## Next-session first prompt
 
@@ -159,10 +170,12 @@ Copy-paste this into a new chat to continue work with zero prior context:
 
 > You are continuing the hybrid-alife project at
 > https://github.com/sebastbernal2-ship-it/hybrid-alife (main at
-> `b98123307cd4367f70bcef9ba593733cc1ad5a6b`). First read
+> `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`, validation branch at
+> `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`). First read
 > `docs/KNOWLEDGE_BASE_HANDOFF.md`, then `docs/CONTINUATION_HANDOFF.md`, then
 > `docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`. Confirm baseline with
-> `pytest -q` (expect 193 passing in ~98 s on CPU). Then pick one of the
+> `pytest -q` (expect the current 217-test suite to pass on CPU). Then review
+> the pending PPO-POET integration before picking one of the
 > "Next priorities" items from `KNOWLEDGE_BASE_HANDOFF.md`, open a new branch
 > `sprint/<topic>-fast` off main, and land it via PR with CI green. Do not
 > weaken language guardrails or remove ablation pairings. Report seeds,
@@ -186,15 +199,16 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
   with paired neutral shadow; QD-score, coverage, archive entropy;
   topsim / posdis / bosdis on argmax-discretised messages plus MI channel
   capacity; Hill 1D effective lineage count.
-- v1 transfer matrix re-evaluates per-config end-of-run metrics; true
-  trained-on-A-evaluated-on-B transfer is not yet implemented.
-- Compositionality scores on continuous channels are upper-bounded by argmax
-  quantisation; topsim/posdis/bosdis = 1.0 on the synthetic benchmark validates
+- The transfer matrix has independent-run re-evaluation and fixed-policy
+  modes. Fixed-policy mode evaluates trained-on-A controller genomes in B.
+- Discrete compositionality scores use argmax quantisation. Raw continuous
+  channel diagnostics are logged against action cues; neither is language
+  evidence.
   the tooling, not emergent language.
 - Reseeding hides extinction; embodied alive-fraction stays at 1.0, so
   selection pressure must be measured via lineage depth and Hill 1D, not
   survival fraction.
-- The full pytest suite currently reports 193 passed in 98.20 s on CPU.
+- The full pytest suite currently reports 217 passed in the validated CPU environment.
 - GitHub Actions CI runs the full pytest suite on every push; merges into
   `main` require a green CI.
 - Sprint branches use the pattern `sprint/<topic>-fast`; they land via merge
@@ -221,10 +235,10 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 1. Proxy fields are stylized, not physical — claims about microfluidic-style
    ecology require the `ablation_uniform_field` comparison.
-2. Compositionality on continuous channels is upper-bounded by argmax
-   quantisation; numbers are lower bounds, not language evidence.
-3. v1 transfer is re-evaluation, not transfer learning; a generalisation claim
-   needs trained-on-A-evaluated-on-B with identical controller weights.
+2. Discrete compositionality is quantised; continuous channel diagnostics
+   are operational cues and not language evidence.
+3. Fixed-policy transfer uses trained-on-A controller weights in B. It is not
+   environment-agent coevolution and does not certify generalisation.
 4. CI smokes are tiny (gen-5); variance across seeds is large at this scale —
    publishable numbers need ≥10 seeds and longer horizons.
 5. Bedau ratios depend on a shadow paired to the live config; always pass
@@ -235,25 +249,25 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Next priorities (in order)
 
-1. **v2 transfer:** load policies from run-A checkpoints and evaluate them in
-   config B without further mutation, behind a `--mode {reeval,transfer}` flag
-   on `scripts/run_transfer_matrix.py`. Acceptance: bootstrap-CI on transfer
-   gap vs reeval gap, both reported.
-2. **Surrogate-assisted QD:** small regression head over behaviour-descriptor
+1. **PR integration:** open and validate the PPO-POET feature branch before
+   merging it into `main`. Keep CI green and update this handoff after merge.
+2. **Archive validation:** preserve the campaign manifest, checksums, and
+   publication report with every headline result.
+3. **Surrogate-assisted QD:** small regression head over behaviour-descriptor
    → fitness to gate full rollouts. Acceptance: ≥30% reduction in rollouts to
    reach current smoke200 coverage at matched seeds.
-3. **Continuous-channel compositionality:** non-discretising estimator (e.g.
+4. **Continuous-channel compositionality:** non-discretising estimator (e.g.
    kernel topsim) reported alongside the argmax-discretised baseline.
-4. **POET-loop scaffold:** environment-generator population with a minimal
-   criterion and an environment-archive paralleling the agent MAP-Elites
-   archive.
+5. **Bounded coevolution extension:** add a minimal criterion, environment
+   archive, and stepping-stone selection to PPO-POET before making an
+   open-ended coevolution claim.
 5. **Headline at scale:** rerun smoke200 and one ablation at ≥10 seeds and the
    longest horizon CI can absorb; report seeds + horizon + compute budget with
    every number.
 
 ## Success criteria for "continuation succeeded"
 
-1. `pytest -q` still reports ≥193 passing tests, never fewer without an
+1. `pytest -q` still reports ≥217 passing tests, never fewer without an
    explicit deletion memo.
 2. The smokes in [`CONTINUATION_HANDOFF.md`](CONTINUATION_HANDOFF.md) "Next 20
    minutes" run end-to-end on CPU and produce the same JSONL shape.

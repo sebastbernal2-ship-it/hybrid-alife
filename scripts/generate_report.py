@@ -157,7 +157,12 @@ def render_headline_table(
 
 def render_scaling_section(scaling: dict | None) -> list[str]:
     if scaling is None:
-        return ["## Compute-scaling slopes", "", "_No `scaling_slopes.json` present — skipped._", ""]
+        return [
+            "## Compute-scaling slopes",
+            "",
+            "_No `scaling_slopes.json` present — skipped._",
+            "",
+        ]
     if "_error" in scaling:
         return ["## Compute-scaling slopes", "", f"_{scaling['_error']}_", ""]
     lines = ["## Compute-scaling slopes", "", "| axis | slope | r² | n |", "|---|---|---|---|"]
@@ -176,17 +181,22 @@ def render_scaling_section(scaling: dict | None) -> list[str]:
 
 def render_transfer_section(matrix: dict | None) -> list[str]:
     if matrix is None:
-        return ["## POET-style transfer matrix", "", "_No `transfer_matrix.json` present — skipped._", ""]
+        return ["## Transfer matrix", "", "_No `transfer_matrix.json` present — skipped._", ""]
+    title = (
+        "## Fixed-policy transfer matrix"
+        if matrix.get("mode") == "fixed_policy_transfer"
+        else "## Independent-run transfer matrix"
+    )
     if "_error" in matrix:
-        return ["## POET-style transfer matrix", "", f"_{matrix['_error']}_", ""]
-    lines = ["## POET-style transfer matrix", ""]
+        return [title, "", f"_{matrix['_error']}_", ""]
+    lines = [title, ""]
     tasks = matrix.get("tasks") or matrix.get("labels")
     grid = matrix.get("matrix") or matrix.get("values")
     if tasks and grid:
         header = "| source \\ target | " + " | ".join(str(t) for t in tasks) + " |"
         sep = "|---" * (len(tasks) + 1) + "|"
         lines.extend([header, sep])
-        for src, row in zip(tasks, grid):
+        for src, row in zip(tasks, grid, strict=True):
             cells = " | ".join(fmt(float(v)) for v in row)
             lines.append(f"| {src} | {cells} |")
     else:

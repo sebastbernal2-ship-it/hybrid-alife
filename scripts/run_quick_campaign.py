@@ -33,18 +33,16 @@ import concurrent.futures
 import copy
 import hashlib
 import json
-import os
 import platform
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_SIM = REPO_ROOT / "scripts" / "run_sim.py"
@@ -322,7 +320,7 @@ def materialize_cell_config(
 
 
 def execute_cell(cell: Cell) -> None:
-    cell.started_at = datetime.now(timezone.utc).isoformat()
+    cell.started_at = datetime.now(UTC).isoformat()
     t0 = time.time()
     try:
         result = subprocess.run(  # noqa: S603 — command list is launcher-built
@@ -338,7 +336,7 @@ def execute_cell(cell: Cell) -> None:
         cell.error = repr(exc)
     finally:
         cell.duration_s = time.time() - t0
-        cell.finished_at = datetime.now(timezone.utc).isoformat()
+        cell.finished_at = datetime.now(UTC).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +398,7 @@ def build_manifest(
             "python_version": sys.version.split()[0],
             "cwd": str(REPO_ROOT),
             "git_sha": _git_sha(),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
         "cells": [cell.__dict__ for cell in cells],
     }
@@ -436,7 +434,9 @@ def _render_manifest_md(m: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Cells")
     lines.append("")
-    lines.append("| # | source_config | seed | run_name | status | rc | duration_s | cache | hash |")
+    lines.append(
+        "| # | source_config | seed | run_name | status | rc | duration_s | cache | hash |"
+    )
     lines.append("|---|---|---|---|---|---|---|---|---|")
     for cell in m["cells"]:
         h = (cell.get("config_hash") or "")[:8]

@@ -55,6 +55,8 @@ def save_checkpoint(path: str | Path, state: SimState, config: dict[str, Any]) -
         "embodied": _state_dict(state.embodied) if state.embodied is not None else None,
         "avida": _state_dict(state.avida) if state.avida is not None else None,
         "metrics": dict(state.metrics),
+        "embodied_births_this_gen": int(state.embodied_births_this_gen),
+        "embodied_deaths_this_gen": int(state.embodied_deaths_this_gen),
     }
     with path.open("wb") as f:
         pickle.dump(payload, f)
@@ -97,3 +99,21 @@ def restore_states(
         avida = None
 
     return world, embodied, avida
+
+
+def restore_sim_state(payload: dict[str, Any]) -> SimState:
+    """Rebuild a complete simulation state from a checkpoint payload."""
+    import jax.numpy as jnp
+
+    world, embodied, avida = restore_states(payload)
+    return SimState(
+        generation=int(payload["generation"]),
+        step=int(payload["step"]),
+        rng=jnp.asarray(payload["rng"]),
+        world=world,
+        embodied=embodied,
+        avida=avida,
+        metrics=dict(payload.get("metrics", {})),
+        embodied_births_this_gen=int(payload.get("embodied_births_this_gen", 0)),
+        embodied_deaths_this_gen=int(payload.get("embodied_deaths_this_gen", 0)),
+    )

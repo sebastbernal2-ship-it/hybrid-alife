@@ -17,12 +17,19 @@ map meanings to messages with known properties:
 | `holistic`       | low             | near zero              | high (1:1 codes) |
 | `random`         | floor           | floor                  | floor            |
 
-Two ablations are applied to every protocol:
+Two discrete ablations and two raw-channel controls are applied to every
+protocol:
 
 - **channel shuffle** — rows of the message matrix are permuted, decoupling
   meaning from message. Should collapse topsim and channel capacity.
 - **channel zero** — all message symbols replaced with 0. Should drive
   posdis, bosdis, and channel capacity to floor (≈ 0).
+- **neutral** — referent-independent continuous vectors with matched shape.
+- **uniform** — a constant continuous vector for every referent.
+
+`continuous_topsim` uses Euclidean message distance without argmax
+quantisation. `continuous_channel_capacity` is eta-squared, the fraction of
+continuous message variance explained by the referent label.
 
 The pairing of high channel capacity with low posdis/bosdis under the
 holistic protocol is the headline reason the science memo asks for **all

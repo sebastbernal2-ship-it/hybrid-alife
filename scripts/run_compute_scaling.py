@@ -5,8 +5,8 @@ For each generation budget in ``--budgets``, run the same fixed-world config
 with that many generations and record the final metric values. Then fit
 ``metric ~ slope * log10(generations) + intercept`` per metric.
 
-This is a deliberately minimal "compute scaling" — see docs/poet_transfer.md
-for the v1 limitations (no power-law CIs, no multi-seed averaging in v1).
+This is a deliberately minimal compute-scaling harness. See
+`docs/poet_transfer.md` for the transfer and scaling limits.
 
 Outputs (under --out-dir):
 
@@ -19,13 +19,12 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import Sequence
 
 from hybrid_alife.experiments.runner import load_config, run_experiment
 from hybrid_alife.logging.jsonl import read_jsonl
-
 
 DEFAULT_METRICS = [
     "action_entropy",
@@ -79,7 +78,7 @@ def least_squares_slope(xs: Sequence[float], ys: Sequence[float]) -> float:
         return 0.0
     mean_x = sum(xs) / n
     mean_y = sum(ys) / n
-    num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
     den = sum((x - mean_x) ** 2 for x in xs)
     if den == 0.0:
         return 0.0
@@ -99,7 +98,11 @@ def fit_slopes(
                 values.append(float("nan"))
             else:
                 values.append(float(v))
-        valid = [(x, y) for x, y in zip(log_budgets, values) if not math.isnan(y)]
+        valid = [
+            (x, y)
+            for x, y in zip(log_budgets, values, strict=True)
+            if not math.isnan(y)
+        ]
         if len(valid) >= 2:
             xs = [p[0] for p in valid]
             ys = [p[1] for p in valid]

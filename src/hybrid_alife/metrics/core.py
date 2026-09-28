@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from hybrid_alife.metrics.bedau import hill_number_1d, lineage_hill1d
+from hybrid_alife.metrics.bedau import lineage_hill1d
+from hybrid_alife.metrics.communication import continuous_comm_summary
 from hybrid_alife.types import SimState
 
 
@@ -95,6 +96,22 @@ def enrichment_separation_index(state: SimState) -> float:
     return float(np.std(field) / (mu + 1e-6))
 
 
+def continuous_communication_metrics(state: SimState) -> dict[str, float]:
+    """Score raw message vectors against each agent's latest action cue.
+
+    This is an operational channel diagnostic, not a semantic language claim:
+    action-history indices are the only referents stored by the simulator.
+    """
+    if state.embodied is None:
+        return {"continuous_topsim": 0.0, "continuous_channel_capacity": 0.0}
+    alive = np.asarray(state.embodied.alive).astype(bool)
+    if alive.sum() < 4:
+        return {"continuous_topsim": 0.0, "continuous_channel_capacity": 0.0}
+    meanings = np.asarray(state.embodied.action_history)[alive, -1][:, None]
+    messages = np.asarray(state.embodied.messages)[alive]
+    return continuous_comm_summary(meanings, messages)
+
+
 def coordinated_behavior_index(state: SimState) -> float:
     """Proxy convention/ritual metric: do living agents share action distribution?
 
@@ -159,6 +176,7 @@ def collect_full_metrics(state: SimState) -> dict[str, float]:
         "action_entropy": action_entropy(state),
         "message_energy": message_energy(state),
         "comm_usage_rate": communication_usage_rate(state),
+        **continuous_communication_metrics(state),
         "enrichment_separation": enrichment_separation_index(state),
         "coordinated_behavior_index": coordinated_behavior_index(state),
         "mean_enrichment": float(np.asarray(state.world.enrichment).mean()),

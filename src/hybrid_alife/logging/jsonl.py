@@ -24,7 +24,7 @@ class JsonlWriter:
         except Exception:
             pass
 
-    def __enter__(self) -> "JsonlWriter":
+    def __enter__(self) -> JsonlWriter:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

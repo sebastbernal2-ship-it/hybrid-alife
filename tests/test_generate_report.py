@@ -65,13 +65,19 @@ def test_full_artifact_set(tmp_path: Path) -> None:
         )
     )
     (tmp_path / "transfer_matrix.json").write_text(
-        json.dumps({"tasks": ["A", "B"], "matrix": [[1.0, 0.3], [0.4, 1.0]]})
+        json.dumps(
+            {
+                "mode": "fixed_policy_transfer",
+                "tasks": ["A", "B"],
+                "matrix": [[1.0, 0.3], [0.4, 1.0]],
+            }
+        )
     )
     _run(tmp_path, "--no-plots")
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "Compute-scaling slopes" in report
     assert "population" in report
-    assert "POET-style transfer matrix" in report
+    assert "Fixed-policy transfer matrix" in report
     assert "| A |" in report
 
 

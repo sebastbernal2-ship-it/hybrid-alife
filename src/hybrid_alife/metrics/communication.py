@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # Distance and rank helpers
 # ---------------------------------------------------------------------------
@@ -36,6 +35,8 @@ def _hamming(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 def _spearman(x: np.ndarray, y: np.ndarray) -> float:
     if x.size < 2 or y.size < 2:
+        return 0.0
+    if np.ptp(x) <= 0.0 or np.ptp(y) <= 0.0:
         return 0.0
     rx = _rank(x)
     ry = _rank(y)
@@ -181,7 +182,9 @@ def channel_capacity(messages: np.ndarray, referents: np.ndarray) -> float:
     """
     messages = np.atleast_2d(messages).astype(np.int64)
     if messages.shape[1] > 1:
-        flat = np.ascontiguousarray(messages).view(np.dtype((np.void, messages.dtype.itemsize * messages.shape[1])))
+        flat = np.ascontiguousarray(messages).view(
+            np.dtype((np.void, messages.dtype.itemsize * messages.shape[1]))
+        )
         flat = np.unique(flat, return_inverse=True)[1]
     else:
         flat = messages.flatten()
@@ -201,8 +204,89 @@ def zero_channel(messages: np.ndarray) -> np.ndarray:
     return np.zeros_like(messages)
 
 
+def _euclidean(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    delta = a[:, None, :] - b[None, :, :]
+    return np.sqrt(np.sum(delta * delta, axis=-1))
+
+
+def continuous_topsim(meanings: np.ndarray, messages: np.ndarray, sample: int = 256) -> float:
+    """Topographic similarity for raw continuous message vectors.
+
+    Meaning distance is Hamming distance and message distance is Euclidean
+    distance. This avoids argmax quantisation and is the primary metric for a
+    continuous communication channel.
+    """
+    meanings = np.atleast_2d(meanings).astype(np.int64)
+    messages = np.atleast_2d(messages).astype(np.float64)
+    n = min(meanings.shape[0], messages.shape[0])
+    if n < 4:
+        return 0.0
+    meanings = meanings[:n]
+    messages = messages[:n]
+    if n > sample:
+        idx = np.random.default_rng(0).choice(n, size=sample, replace=False)
+        meanings = meanings[idx]
+        messages = messages[idx]
+    dm = _hamming(meanings, meanings)
+    dmsg = _euclidean(messages, messages)
+    iu = np.triu_indices_from(dm, k=1)
+    return _spearman(dm[iu], dmsg[iu])
+
+
+def continuous_channel_capacity(messages: np.ndarray, referents: np.ndarray) -> float:
+    """Return eta-squared, a bounded continuous-channel information proxy.
+
+    Eta-squared is the fraction of message variance explained by the discrete
+    referent label. It is zero for a uniform channel and remains meaningful
+    when messages are not quantised.
+    """
+    messages = np.atleast_2d(messages).astype(np.float64)
+    labels = np.asarray(referents).reshape(-1)
+    n = min(messages.shape[0], labels.size)
+    if n == 0:
+        return 0.0
+    messages = messages[:n]
+    labels = labels[:n]
+    centered = messages - messages.mean(axis=0, keepdims=True)
+    total = float(np.sum(centered * centered))
+    if total <= 1e-12:
+        return 0.0
+    between = 0.0
+    for label in np.unique(labels):
+        group = messages[labels == label]
+        if group.size:
+            delta = group.mean(axis=0) - messages.mean(axis=0)
+            between += float(group.shape[0] * np.sum(delta * delta))
+    return float(np.clip(between / total, 0.0, 1.0))
+
+
+def neutral_continuous_channel(
+    messages: np.ndarray, rng: np.random.Generator | None = None
+) -> np.ndarray:
+    """Generate a referent-independent continuous control with matched shape."""
+    messages = np.asarray(messages, dtype=np.float64)
+    rng = rng or np.random.default_rng(0)
+    scale = float(np.std(messages)) or 1.0
+    return rng.normal(0.0, scale, size=messages.shape)
+
+
+def uniform_continuous_channel(messages: np.ndarray) -> np.ndarray:
+    """Generate a constant continuous control with the same message shape."""
+    messages = np.asarray(messages, dtype=np.float64)
+    return np.full_like(messages, float(messages.mean()) if messages.size else 0.0)
+
+
+def continuous_comm_summary(meanings: np.ndarray, messages: np.ndarray) -> dict[str, float]:
+    """Summarise raw continuous-channel structure without quantisation."""
+    meanings = np.atleast_2d(meanings)
+    return {
+        "continuous_topsim": continuous_topsim(meanings, messages),
+        "continuous_channel_capacity": continuous_channel_capacity(messages, meanings[:, 0]),
+    }
+
+
 def comm_summary(meanings: np.ndarray, messages: np.ndarray) -> dict[str, float]:
-    """Compose the three headline compositionality metrics."""
+    """Compose the three discrete compositionality metrics."""
     return {
         "topsim": topsim(meanings, messages),
         "posdis": posdis(meanings, messages),

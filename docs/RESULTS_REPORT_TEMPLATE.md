@@ -84,9 +84,10 @@ Auto-fillable from `scaling_slopes.json` and `transfer_matrix.json`.
 TODO: identify which axis returns the best metric per FLOP and call out any
 plateaus.
 
-### 3.2 POET-style transfer matrix
+### 3.2 Fixed-policy transfer matrix
 
-Source → target task transfer (higher = better, diagonal = self-play):
+Source → target controller transfer (higher = better, diagonal = same-world
+control). State whether the matrix uses `reeval` or `fixed_policy_transfer` mode.
 
 ```
 <paste transfer_matrix.json summary table here>
@@ -166,7 +167,7 @@ Paths are relative to the run directory.
 
 - `metrics.jsonl` — per-step / per-generation metrics stream
 - `scaling_slopes.json` — compute-scaling regression outputs (optional)
-- `transfer_matrix.json` — POET-style transfer matrix (optional)
+- `transfer_matrix.json` — transfer matrix with explicit mode metadata (optional)
 - `map_elites.npz` — MAP-Elites archive (optional)
 - `novelty_archive.npz` — novelty archive (optional)
 - `checkpoint_final.pkl` — final world + populations

@@ -17,15 +17,10 @@ These are the four-cell unit tests called out by the validation memo:
 from __future__ import annotations
 
 import jax
-import jax.numpy as jnp
 import numpy as np
-import pytest
 
-from dataclasses import replace
-
-from hybrid_alife.types import WorldConfig
+from hybrid_alife.types import SimState, WorldConfig
 from hybrid_alife.world.env import initialize_world, step_world
-from hybrid_alife.types import SimState
 
 
 def _base_cfg(**over) -> WorldConfig:

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "platform": "cpu",
+  "python": "3.12.3",
+  "jax_platform": "cpu",
+  "seed": 7,
+  "generations": 10,
+  "steps_per_generation": 2,
+  "steps": 20,
+  "elapsed_seconds": 15.904123551008524,
+  "seconds_per_step": 0.7952061775504262,
+  "output_shape": {
+    "world": [
+      12,
+      12,
+      2
+    ],
+    "embodied": [
+      6,
+      2
+    ],
+    "avida": [
+      6,
+      32
+    ]
+  },
+  "optimization_benchmark": {
+    "scope": "kernel_only",
+    "adoption": "not_adopted_until_full_run_profile",
+    "seeds": 10,
+    "repeats": 8,
+    "jit": {
+      "eager_seconds": 0.000891515999683179,
+      "compiled_seconds": 0.0002189090009778738,
+      "speedup": 4.072541538724983
+    },
+    "seed_batch": {
+      "sequential_seconds": 0.03477613801078405,
+      "batched_seconds": 0.00024678700719960034,
+      "speedup": 140.91559521469156
+    }
+  },
+  "config": "configs/scaling_tiny.yaml"
+}

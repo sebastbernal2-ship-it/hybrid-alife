@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-"""V1 transfer matrix for hybrid-alife.
+"""Transfer matrix for hybrid-alife.
 
-For each (source_config, target_config) pair, we run both configs (optionally
-re-using existing run dirs via --source-runs / --target-runs) and report the
-final-row metric deltas (target - source). This is *checkpoint-level
-transfer*: it measures how the headline metric shifts when the world changes,
-not full policy generalisation. See docs/poet_transfer.md for limitations.
+The default ``reeval`` mode reports final-metric deltas between independently
+trained runs. The ``transfer`` mode loads source checkpoints and evaluates only
+the trained embodied controller genomes in fresh target worlds, with mutation,
+selection, reproduction, and Avida disabled.
 
 Outputs (under --out-dir):
 
@@ -13,7 +12,8 @@ Outputs (under --out-dir):
     transfer_matrix.md
 
 The JSON shape is documented in docs/poet_transfer.md so downstream tooling
-and tests can rely on it.
+and tests can rely on it. The document records the limits of this transfer
+harness and does not claim environment-agent coevolution.
 
 Typical usage::
 
@@ -28,14 +28,14 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import Sequence
 
 from hybrid_alife.experiments.runner import load_config, run_experiment
+from hybrid_alife.experiments.transfer import evaluate_fixed_policy
 from hybrid_alife.logging.jsonl import read_jsonl
 from hybrid_alife.types import ExperimentConfig
-
 
 DEFAULT_METRICS = [
     "action_entropy",
@@ -57,6 +57,12 @@ def parse_args() -> argparse.Namespace:
         help="Metric names to include in the matrix.",
     )
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--mode",
+        choices=("reeval", "transfer"),
+        default="reeval",
+        help="reeval compares independent runs; transfer evaluates frozen source policies.",
+    )
     p.add_argument("--out-dir", type=str, default="outputs/transfer_matrix")
     p.add_argument(
         "--skip-run-if-exists",
@@ -110,6 +116,7 @@ def build_transfer_matrix(
                 delta[m] = float(t) - float(s)
             cells.append({"source": source, "target": target, "metrics": delta})
     return {
+        "mode": "reeval",
         "metrics": list(metrics),
         "sources": list(source_metrics.keys()),
         "targets": list(target_metrics.keys()),
@@ -119,8 +126,43 @@ def build_transfer_matrix(
     }
 
 
+def build_fixed_policy_matrix(
+    source_checkpoints: dict[str, Path],
+    target_configs: dict[str, ExperimentConfig],
+    metrics: Sequence[str],
+) -> dict:
+    """Build a matrix of direct metrics from frozen source policies."""
+    supported_metrics = [
+        m for m in metrics if not m.startswith("avida_") and m != "mean_avida_merit"
+    ]
+    cells = []
+    for source, checkpoint in source_checkpoints.items():
+        for target, cfg in target_configs.items():
+            evaluated = evaluate_fixed_policy(checkpoint, cfg)
+            cells.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "metrics": {
+                        m: evaluated[m] for m in supported_metrics if m in evaluated
+                    },
+                }
+            )
+    return {
+        "mode": "fixed_policy_transfer",
+        "metrics": supported_metrics,
+        "sources": list(source_checkpoints),
+        "targets": list(target_configs),
+        "cells": cells,
+    }
+
+
 def write_matrix_markdown(matrix: dict, out_path: Path) -> None:
-    lines = ["# Transfer Matrix (target − source deltas)\n"]
+    if matrix.get("mode") == "fixed_policy_transfer":
+        title = "# Fixed-Policy Transfer Matrix (direct target metrics)"
+    else:
+        title = "# Transfer Matrix (target − source deltas)"
+    lines = [title + "\n"]
     metrics = matrix["metrics"]
     for m in metrics:
         lines.append(f"## {m}\n")
@@ -144,17 +186,36 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    source_metrics: dict[str, dict[str, float]] = {}
-    for cfg_path in args.source_configs:
-        name, row = _run_and_collect(cfg_path, args.seed, out_dir, args.skip_run_if_exists)
-        source_metrics[name] = row
+    if args.mode == "transfer":
+        source_checkpoints: dict[str, Path] = {}
+        for cfg_path in args.source_configs:
+            cfg = load_config(cfg_path)
+            run_name = f"{cfg.run_name}_s{args.seed}"
+            run_cfg = replace(cfg, seed=args.seed, run_name=run_name, output_dir=str(out_dir))
+            checkpoint = out_dir / run_name / "checkpoint_final.pkl"
+            if not (args.skip_run_if_exists and checkpoint.exists()):
+                run_experiment(run_cfg)
+            if not checkpoint.exists():
+                raise FileNotFoundError(f"source checkpoint was not created: {checkpoint}")
+            source_checkpoints[cfg.run_name] = checkpoint
 
-    target_metrics: dict[str, dict[str, float]] = {}
-    for cfg_path in args.target_configs:
-        name, row = _run_and_collect(cfg_path, args.seed, out_dir, args.skip_run_if_exists)
-        target_metrics[name] = row
+        target_configs: dict[str, ExperimentConfig] = {}
+        for cfg_path in args.target_configs:
+            cfg = load_config(cfg_path)
+            target_configs[cfg.run_name] = replace(cfg, seed=args.seed)
+        matrix = build_fixed_policy_matrix(source_checkpoints, target_configs, args.metrics)
+    else:
+        source_metrics: dict[str, dict[str, float]] = {}
+        for cfg_path in args.source_configs:
+            name, row = _run_and_collect(cfg_path, args.seed, out_dir, args.skip_run_if_exists)
+            source_metrics[name] = row
 
-    matrix = build_transfer_matrix(source_metrics, target_metrics, args.metrics)
+        target_metrics: dict[str, dict[str, float]] = {}
+        for cfg_path in args.target_configs:
+            name, row = _run_and_collect(cfg_path, args.seed, out_dir, args.skip_run_if_exists)
+            target_metrics[name] = row
+
+        matrix = build_transfer_matrix(source_metrics, target_metrics, args.metrics)
 
     json_path = out_dir / "transfer_matrix.json"
     md_path = out_dir / "transfer_matrix.md"

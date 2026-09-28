@@ -28,8 +28,10 @@ import jax.numpy as jnp
 
 from hybrid_alife.agents.controller import (
     decode_actions,
-    forward as controller_forward,
     init_controller_params,
+)
+from hybrid_alife.agents.controller import (
+    forward as controller_forward,
 )
 from hybrid_alife.types import (
     EmbodiedConfig,
@@ -39,14 +41,12 @@ from hybrid_alife.types import (
     WorldState,
 )
 from hybrid_alife.world.env import (
-    consume_from_grid,
     gather_patch,
     hazard_damage,
     positions_to_grid,
     scatter_add_to_grid,
 )
 from hybrid_alife.world.sensing import sample_sixth_sense, sixth_sense_dim
-
 
 PATCH_CHANNELS_DEFAULT = (
     4  # terrain
@@ -317,12 +317,16 @@ def apply_embodied_actions(
     # Metabolite deposit proportional to energy expenditure. The deposit
     # scale gates the strength of the embodied -> digital coupling.
     metab_scalar = embodied_cfg.metabolite_deposit_scale * (0.01 + 0.05 * eat) * alive_f
-    metab = jnp.broadcast_to(metab_scalar[:, None], (metab_scalar.shape[0], world_cfg.metabolite_channels))
+    metab = jnp.broadcast_to(
+        metab_scalar[:, None], (metab_scalar.shape[0], world_cfg.metabolite_channels)
+    )
     new_metab = scatter_add_to_grid(world.metabolites, new_pos, metab, pop.alive, h, w)
 
     # Hazard accumulation from attacks (attack deposits hazard locally)
     hazard_scalar = embodied_cfg.hazard_deposit_scale * 0.02 * attack * alive_f
-    hazard_dep = jnp.broadcast_to(hazard_scalar[:, None], (hazard_scalar.shape[0], world_cfg.hazard_channels))
+    hazard_dep = jnp.broadcast_to(
+        hazard_scalar[:, None], (hazard_scalar.shape[0], world_cfg.hazard_channels)
+    )
     new_hazards = scatter_add_to_grid(world.hazards, new_pos, hazard_dep, pop.alive, h, w)
     new_hazards = jnp.clip(new_hazards, 0.0, 1.0)
 
@@ -353,7 +357,8 @@ def apply_embodied_actions(
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
 
-    # Reproduction handled in apply_reproduction; here we only zero-out parents' energy cost when triggered.
+    # Reproduction is handled in apply_reproduction; here we only zero-out
+    # parents' energy cost when triggered.
 
     # Mark dead (energy<=0)
     new_alive = pop.alive & (new_energy > 0.0)
@@ -488,7 +493,9 @@ def apply_reproduction(
     new_alive = pop.alive.at[children].set(
         jnp.where(use, jnp.ones_like(use), pop.alive[children])
     )
-    new_age = pop.age.at[children].set(jnp.where(use, jnp.zeros_like(use, dtype=jnp.int32), pop.age[children]))
+    new_age = pop.age.at[children].set(
+        jnp.where(use, jnp.zeros_like(use, dtype=jnp.int32), pop.age[children])
+    )
     new_hidden = pop.hidden.at[children].set(
         jnp.where(use[:, None], jnp.zeros_like(pop.hidden[children]), pop.hidden[children])
     )

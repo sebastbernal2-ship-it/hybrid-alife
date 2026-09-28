@@ -100,7 +100,8 @@ def plot_map_elites(archive_path: str | Path, out_path: str | Path) -> Path:
     arr = np.where(filled, fitness, np.nan)
     im = ax.imshow(arr, cmap="cividis", origin="lower")
     ax.set_title(
-        f"MAP-Elites coverage {filled.mean():.2f}, QD score {np.where(filled, fitness, 0.0).sum():.1f}"
+        "MAP-Elites coverage "
+        f"{filled.mean():.2f}, QD score {np.where(filled, fitness, 0.0).sum():.1f}"
     )
     ax.set_xlabel("eat-rate bin")
     ax.set_ylabel("speed bin")
