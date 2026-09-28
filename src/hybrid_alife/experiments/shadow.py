@@ -17,10 +17,10 @@ the adaptive component.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -83,7 +83,7 @@ def paired_activity_from_lineage_logs(
     shadow_tracker = ActivityTracker(persistence_threshold=persistence_threshold)
     exp_rows: list[dict[str, float]] = []
     shadow_rows: list[dict[str, float]] = []
-    for gen, (e, s) in enumerate(zip(exp_log, shadow_log)):
+    for gen, (e, s) in enumerate(zip(exp_log, shadow_log, strict=False)):
         e_usage = _lineage_usage(e)
         s_usage = _lineage_usage(s)
         exp_tracker.observe(gen, e_usage)
@@ -98,7 +98,7 @@ def _lineage_usage(entry: dict[str, np.ndarray]) -> dict[int, float]:
     alive = np.asarray(entry["alive"]).astype(bool)
     living = ids[alive]
     uniq, counts = np.unique(living, return_counts=True)
-    return {int(u): float(c) for u, c in zip(uniq, counts)}
+    return {int(u): float(c) for u, c in zip(uniq, counts, strict=True)}
 
 
 def write_shadow_config(cfg_path: str | Path, out_path: str | Path) -> Path:

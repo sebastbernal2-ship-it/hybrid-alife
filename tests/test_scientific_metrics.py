@@ -32,12 +32,10 @@ from hybrid_alife.metrics.communication import (
 from hybrid_alife.metrics.lineage import LineageTree
 from hybrid_alife.metrics.qd import (
     archive_entropy,
-    coverage,
     occupancy_entropy,
     qd_score,
     qd_summary,
 )
-
 
 # ---------------------------------------------------------------------------
 # Bedau activity

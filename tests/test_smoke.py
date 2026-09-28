@@ -107,7 +107,9 @@ def test_scatter_and_consume():
     pos = jnp.array([[0.1, 0.1]])
     alive = jnp.array([True])
     val = jnp.ones((1, cfg.world.resource_channels))
-    new_field = scatter_add_to_grid(world.resources, pos, val, alive, cfg.world.height, cfg.world.width)
+    new_field = scatter_add_to_grid(
+        world.resources, pos, val, alive, cfg.world.height, cfg.world.width
+    )
     assert new_field.shape == world.resources.shape
     _, take = consume_from_grid(world.resources, pos, 0.5, alive, cfg.world.height, cfg.world.width)
     assert take.shape == (1,)
@@ -128,10 +130,15 @@ def test_six_sense_shape_and_blind_ablation():
 
     from hybrid_alife.types import EmbodiedConfig
 
-    blind_kwargs = {f.name: getattr(cfg.embodied, f.name) for f in cfg.embodied.__dataclass_fields__.values()}
+    blind_kwargs = {
+        f.name: getattr(cfg.embodied, f.name)
+        for f in cfg.embodied.__dataclass_fields__.values()
+    }
     blind_kwargs["blind"] = True
     blind_cfg = EmbodiedConfig(**blind_kwargs)
-    blind = sample_sixth_sense(world, pop.positions, pop.alive, pop.messages, cfg.world, blind_cfg, key)
+    blind = sample_sixth_sense(
+        world, pop.positions, pop.alive, pop.messages, cfg.world, blind_cfg, key
+    )
     assert bool(jnp.all(blind == 0.0))
 
 
@@ -144,7 +151,10 @@ def test_embodied_actions_all_paths():
     world = initialize_world(cfg.world, key)
     pop = initialize_embodied_population(cfg.embodied, cfg.world, key)
     obs = observe_embodied(pop, world, cfg.embodied, cfg.world, key)
-    assert obs.shape == (cfg.embodied.population_size, embodied_observation_dim(cfg.embodied, cfg.world))
+    assert obs.shape == (
+        cfg.embodied.population_size,
+        embodied_observation_dim(cfg.embodied, cfg.world),
+    )
     actions, pop = act_embodied(pop, obs, cfg.embodied)
     assert actions.shape == (cfg.embodied.population_size, embodied_action_dim(cfg.embodied))
     n = cfg.embodied.population_size
@@ -170,7 +180,9 @@ def test_reproduction_into_dead_slots():
     pop.alive = pop.alive.at[half:].set(False)
     pop.energy = pop.energy.at[:half].set(cfg.embodied.reproduce_energy_threshold + 5)
     repro_gate = jnp.ones((n,))
-    new_pop, _births = apply_reproduction(pop, repro_gate, cfg.embodied, next_lineage_start=1000, key=key)
+    new_pop, _births = apply_reproduction(
+        pop, repro_gate, cfg.embodied, next_lineage_start=1000, key=key
+    )
     assert int(new_pop.alive.sum()) >= half
 
 

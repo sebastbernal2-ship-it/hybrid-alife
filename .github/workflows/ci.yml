@@ -47,10 +47,9 @@ jobs:
           pip list
 
       - name: Lint
-        run: |
-          ruff check src tests || true
+        run: ruff check src tests
 
       - name: Run tests
         # -q for compactness; --durations surfaces slow tests when CI feels sluggish.
         run: |
-          pytest -q --durations=10
+          pytest -q --durations=10 --cov=src/hybrid_alife --cov-report=term-missing --cov-fail-under=85

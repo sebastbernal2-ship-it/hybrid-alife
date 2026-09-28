@@ -52,7 +52,9 @@ Avida is the canonical digital-evolution platform: self-replicating computer pro
 - **Novelty search** abandons the objective function and rewards behavioral novelty alone, often outperforming objective-driven search on deceptive problems ([Lehman & Stanley, *Evolutionary Computation* 2011 / dissertation](https://joellehman.com/lehman-dissertation.pdf); [PubMed 20868264](https://pubmed.ncbi.nlm.nih.gov/20868264/)).
 - **MAP-Elites** tiles a user-chosen *behavior descriptor space* into cells and keeps the elite per cell, producing a *map* (illumination) rather than a single best — yielding both diverse and high-performing solutions ([Mouret & Clune, arXiv:1504.04909](https://arxiv.org/abs/1504.04909); [Mouret QD page](https://members.loria.fr/jbmouret/qd.html); reference implementation pattern in [EvoTorch docs](https://docs.evotorch.ai/latest/examples/notebooks/Feature_Space_Illumination_with_MAPElites/)).
 - **Open-endedness** is measured via Bedau-Packard *evolutionary activity statistics* (new components, persistence, mean cumulative activity) with a neutral-shadow baseline ([Bullock & Bedau 2006](https://people.reed.edu/~mab/publications/papers/bullock.bedau.ALJ06.pdf); [O'Reilly Radar overview](https://www.oreilly.com/radar/open-endedness-the-last-grand-challenge-youve-never-heard-of/); [Aston / Stepney review](https://research.aston.ac.uk/en/publications/insights-from-artificial-life-measuring-and-classifying-open-ende)).
-- **POET** demonstrates the stepping-stone phenomenon empirically: coevolving environments + agents with periodic transfer beats direct optimization and direct curricula ([Wang et al., arXiv:1901.01753](https://arxiv.org/abs/1901.01753); [POET in ACM GECCO](https://dl.acm.org/doi/10.1145/3321707.3321799)).
+- The transfer literature studies stepping stones with coevolving environments
+  and agents. This repository does not implement that coevolution loop, so its
+  fixed-policy transfer results must not be described as equivalent evidence.
 - **Caveat literature**: Hickinbotham & Stepney argue any fixed open-endedness metric is eventually escaped by a truly open-ended system, so metrics describe rather than certify open-endedness ([Hickinbotham et al., *Artificial Life* 2024](https://direct.mit.edu/artl/article/30/3/390/114972/On-the-Open-Endedness-of-Detecting-Open-Endedness)). [Soros & Stanley](https://www.uvm.edu/neurobotics/pubs/pdf/2016_SorosCheneyStanley_HowTheStrictnessOfTheMinimalCriterionImpactsOpenEndedEvolution_ALIFE.pdf) further show the *strictness of the minimal criterion* heavily shapes open-endedness outcomes.
 
 ### Required metrics (must implement)
@@ -63,7 +65,7 @@ Avida is the canonical digital-evolution platform: self-replicating computer pro
 | **Archive entropy** | Shannon entropy over occupied cells | Detects mode collapse in novelty/QD |
 | **Behavioral-distance novelty score** | Mean k-NN distance in descriptor space (k=15 is standard from [Lehman & Stanley](https://joellehman.com/lehman-dissertation.pdf)) | Use as fitness in novelty-search ablation |
 | **Bedau activity statistics** | New-component count \(A_{\text{new}}\), cumulative activity \(A_{\text{cum}}\), persistent-component count \(A_p\) | Compute on *both* the experimental run and a no-selection shadow ([Bullock & Bedau](https://people.reed.edu/~mab/publications/papers/bullock.bedau.ALJ06.pdf)) |
-| **Stepping-stone transferability (POET-style)** | Probability that an agent evolved in env \(E_i\) solves env \(E_j\) after transfer | Required if claiming "open-ended coevolution" ([Wang et al.](https://arxiv.org/abs/1901.01753)) |
+| **Fixed-policy transferability** | Performance of frozen controller genomes trained in env \(E_i\) when evaluated in env \(E_j\) | Report only as fixed-policy transfer; it does not support an environment-agent coevolution claim |
 
 ### Experimental design
 - Run **three controls per QD experiment**: (a) pure objective search, (b) random search, (c) novelty-only search. Headline QD wins must beat all three on QD-score *and* not lose by >5% on best-fitness.
@@ -194,7 +196,8 @@ Before any release note, paper, or blog post, every claim in the following table
 5. Ship a filled [EC reproducibility checklist](https://arxiv.org/html/2602.07059v1) in the repo root.
 
 **P1 (next milestone):**
-6. POET-style transferability metric for any coevolutionary claim.
+6. Fixed-policy transfer metrics for cross-environment controller evaluation.
+   Add an environment-agent coevolution loop before making a coevolution claim.
 7. Effective lineage count (Hill \({}^1D\)) and lineage-tree export.
 8. Pre-registration template for behavior descriptors and minimal criterion, committed before the run.
 9. Compute-scaling harness that varies only training steps with world size locked.

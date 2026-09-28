@@ -73,10 +73,11 @@ def select_and_mutate_embodied(
     # Replace dead organisms with mutated parent copies.
     dead = ~pop.alive
     new_genomes: dict[str, jax.Array] = {}
-    for name, value in pop.genomes.items():
+    for genome_index, (name, value) in enumerate(pop.genomes.items()):
         parent_g = value[parent_idx]
-        # mutate just dead slots
-        sub_key = jax.random.fold_in(k_mut, hash(name) & 0xFFFFFFFF)
+        # Use the insertion-order index, not Python's process-randomized hash.
+        # This keeps a seeded run reproducible across processes.
+        sub_key = jax.random.fold_in(k_mut, genome_index)
         k_mask, k_noise = jax.random.split(sub_key)
         mask = jax.random.bernoulli(k_mask, cfg.genome_mutation_prob, parent_g.shape)
         noise = cfg.genome_mutation_std * jax.random.normal(k_noise, parent_g.shape)
@@ -108,12 +109,16 @@ def reseed_avida(pop: AvidaPopulationState, fraction: float, key: PRNGKey) -> Av
         from hybrid_alife.agents.avida_vm import INSTRUCTION_COUNT, Op
 
         max_len = pop.genomes.shape[1]
-        new_random = jax.random.randint(key, pop.genomes.shape, 0, INSTRUCTION_COUNT, dtype=jnp.int32)
+        new_random = jax.random.randint(
+            key, pop.genomes.shape, 0, INSTRUCTION_COUNT, dtype=jnp.int32
+        )
         template = jnp.array(
             [Op.H_ALLOC, Op.H_COPY, Op.H_COPY, Op.H_COPY, Op.H_COPY, Op.H_DIVIDE],
             dtype=jnp.int32,
         )
-        new_random = new_random.at[:, : template.shape[0]].set(jnp.broadcast_to(template, (n, template.shape[0])))
+        new_random = new_random.at[:, : template.shape[0]].set(
+            jnp.broadcast_to(template, (n, template.shape[0]))
+        )
         dead = ~pop.alive
         pop.genomes = jnp.where(dead[:, None], new_random, pop.genomes)
         pop.alive = jnp.ones((n,), dtype=bool)

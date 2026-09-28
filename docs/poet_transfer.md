@@ -1,73 +1,83 @@
-# POET / Transfer / Compute-Scaling — v1 Semantics
+# Transfer and Compute-Scaling Semantics
 
-This document describes the v1 transfer and compute-scaling harness for
-hybrid-alife. It is deliberately minimal so it can run on a smoke compute
-budget (~tens of seconds per cell on CPU) while still producing real,
-machine-checkable numbers.
+This document defines the transfer and compute-scaling harness for
+`hybrid-alife`.
 
-## What this harness does
+## Transfer modes
 
-There are two top-level scripts:
+`scripts/run_transfer_matrix.py` supports two modes:
 
-- `scripts/run_transfer_matrix.py` — checkpoint-level transfer:
-  - For each `--source-config`, run a short training/evaluation (or load an
-    existing run dir if `--source-runs` is provided).
-  - For each `--target-config`, re-evaluate the same final metrics under the
-    target world settings as a checkpoint-level transfer.
-  - Writes a JSON matrix (`transfer_matrix.json`) and a markdown table
-    (`transfer_matrix.md`) of metric deltas (target − source).
+- `--mode reeval` runs each source and target configuration independently and
+  reports final-metric deltas.
+- `--mode transfer` trains each source configuration, loads its final
+  checkpoint, and evaluates only the source embodied controller genomes in a
+  fresh target world.
 
-- `scripts/run_compute_scaling.py` — compute-scaling slope:
-  - For each `--budget` (generation count), runs the same fixed-world config.
-  - Fits a least-squares slope of `metric vs log10(generations)` for each
-    metric in `--metrics` and writes `scaling_slopes.json` plus a markdown
-    summary.
+Fixed-policy transfer resets target world and agent state. It copies controller
+parameters only. Mutation, selection, reproduction, and Avida updates are
+disabled during evaluation. Source and target controller tensor shapes must
+match. A shape mismatch fails instead of silently changing the policy.
 
-The placeholder/seed configs used by these scripts are:
+Example:
 
-- `configs/transfer_source.yaml` — small source world.
-- `configs/transfer_target_uniform.yaml` — same dynamics, no resource flow
-  (uniform field) as the transfer target.
-- `configs/scaling_tiny.yaml` — fixed-world, tiny per-cell compute used to
-  sweep generation budgets.
+```bash
+python scripts/run_transfer_matrix.py \
+  --mode transfer \
+  --source-configs configs/transfer_source.yaml \
+  --target-configs configs/transfer_source.yaml configs/transfer_target_uniform.yaml \
+  --seed 0 \
+  --out-dir outputs/transfer
+```
 
-## v1 limitations (read this before citing results)
+The fixed-policy JSON contains `mode: fixed_policy_transfer` and one direct
+metric record per source-target pair. The default re-evaluation JSON retains
+the historical target-minus-source delta shape.
 
-This is **not** a full POET implementation. In particular:
+## Scientific limits
 
-1. **No co-evolution of environments and agents.** Environments are static
-   configs picked by the user. Real POET dynamically generates and selects
-   environments based on agent progress.
-2. **Checkpoint-level transfer, not policy transfer.** A "transferred"
-   agent is the final metric snapshot evaluated under target world settings
-   from the same run — we do not yet re-roll the trained genomes into a new
-   world rollout. This means the transfer matrix measures *config robustness
-   of the metric* rather than *policy generalisation*.
-3. **Compute scaling uses a 1D log-fit.** The slope is informative but is
-   not a power-law exponent. Confidence intervals are not computed at v1.
-4. **No minimal-criterion filtering or stepping-stone bookkeeping.**
+This repository does not implement environment-agent coevolution, environment
+archives, minimal-criterion filtering, or stepping-stone selection. Transfer
+results are fixed-policy generalisation results, not evidence for a broader
+coevolution claim.
 
-These limitations are intentional. The harness is designed so the JSON and
-markdown outputs have a stable shape; later versions can fill in real policy
-transfer and POET dynamics without breaking the I/O.
+Compute scaling fits a least-squares slope of each metric against
+`log10(generations)`. It is a descriptive slope, not a power-law exponent.
+The ablation driver accepts an explicit seed list or `--seeds 10` and records
+that schedule in `ablation_results.json`.
+
+CPU optimisation is measured but not adopted automatically. Run:
+
+```bash
+JAX_PLATFORMS=cpu python scripts/benchmark_cpu.py \
+  --config configs/scaling_tiny.yaml \
+  --compare-paths --benchmark-seeds 10 \
+  --output benchmarks/cpu_baseline.json
+```
+
+The comparison covers one representative JIT kernel and random-key seed
+batching. It does not claim a full-simulator speedup.
 
 ## Output shape
 
-`transfer_matrix.json`:
+`transfer_matrix.json` in re-evaluation mode includes:
 
 ```json
 {
-  "metrics": ["action_entropy", "mean_avida_merit", "qd_score", ...],
-  "sources": ["transfer_source"],
-  "targets": ["transfer_source", "transfer_target_uniform"],
+  "mode": "reeval",
+  "metrics": ["action_entropy"],
+  "sources": ["source"],
+  "targets": ["target"],
   "cells": [
-    {"source": "transfer_source", "target": "transfer_source",
-     "metrics": {"action_entropy": 1.23, ...}}
+    {"source": "source", "target": "target", "metrics": {"action_entropy": 0.1}}
   ]
 }
 ```
 
-`scaling_slopes.json`:
+`transfer_matrix.json` in fixed-policy mode includes the same matrix fields,
+with `mode` set to `fixed_policy_transfer` and metrics taken directly from the
+frozen-policy target evaluation.
+
+`scaling_slopes.json` includes:
 
 ```json
 {
@@ -81,5 +91,5 @@ transfer and POET dynamics without breaking the I/O.
 }
 ```
 
-Tests in `tests/test_transfer_scaling.py` exercise the output-file creation
-and shape using synthetic metrics so the suite stays CPU-cheap.
+Tests exercise fixed-policy shape validation, output-file creation, and
+compute-scaling statistics with CPU-cheap synthetic inputs.

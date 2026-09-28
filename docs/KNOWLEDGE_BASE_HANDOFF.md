@@ -78,7 +78,7 @@ tests/            CPU-feasible pytest suite
 | [`qd_active.md`](qd_active.md) | MAP-Elites archive, QD logging. |
 | [`comm_benchmark.md`](comm_benchmark.md) | Synthetic compositionality benchmark. |
 | [`lineage_growth.md`](lineage_growth.md) | Lineage tree, Hill 1D effective count. |
-| [`poet_transfer.md`](poet_transfer.md) | v1 transfer matrix + compute scaling. |
+| [`poet_transfer.md`](poet_transfer.md) | Fixed-policy transfer matrix + compute scaling. |
 | [`campaign_cache_acceleration.md`](campaign_cache_acceleration.md) | Cache-accelerated campaigns. |
 | [`experiment_campaign_quickstart.md`](experiment_campaign_quickstart.md) | Multi-config sweep quickstart. |
 | [`visualization_quickstart.md`](visualization_quickstart.md) | `visualize_run.py` usage. |
@@ -148,7 +148,7 @@ session should look for:
   including paired neutral-shadow runs when `--include-shadow` is used.
 - `outputs/comm_benchmark/...` — synthetic compositionality benchmark results.
 - `outputs/compute_scaling/...` — budget × coverage scaling curves.
-- `outputs/transfer/...` — v1 transfer matrix tables + bootstrap CIs.
+- `outputs/transfer/...` — transfer matrix tables and fixed-policy results.
 - `outputs/campaigns/<campaign>/...` — cache-accelerated campaign artifacts.
 - `outputs/visualizations/<run_name>/...` — frames and overview plots from
   `visualize_run.py`.
@@ -186,10 +186,11 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
   with paired neutral shadow; QD-score, coverage, archive entropy;
   topsim / posdis / bosdis on argmax-discretised messages plus MI channel
   capacity; Hill 1D effective lineage count.
-- v1 transfer matrix re-evaluates per-config end-of-run metrics; true
-  trained-on-A-evaluated-on-B transfer is not yet implemented.
-- Compositionality scores on continuous channels are upper-bounded by argmax
-  quantisation; topsim/posdis/bosdis = 1.0 on the synthetic benchmark validates
+- The transfer matrix has independent-run re-evaluation and fixed-policy
+  modes. Fixed-policy mode evaluates trained-on-A controller genomes in B.
+- Discrete compositionality scores use argmax quantisation. Raw continuous
+  channel diagnostics are logged against action cues; neither is language
+  evidence.
   the tooling, not emergent language.
 - Reseeding hides extinction; embodied alive-fraction stays at 1.0, so
   selection pressure must be measured via lineage depth and Hill 1D, not
@@ -221,10 +222,10 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 1. Proxy fields are stylized, not physical — claims about microfluidic-style
    ecology require the `ablation_uniform_field` comparison.
-2. Compositionality on continuous channels is upper-bounded by argmax
-   quantisation; numbers are lower bounds, not language evidence.
-3. v1 transfer is re-evaluation, not transfer learning; a generalisation claim
-   needs trained-on-A-evaluated-on-B with identical controller weights.
+2. Discrete compositionality is quantised; continuous channel diagnostics
+   are operational cues and not language evidence.
+3. Fixed-policy transfer uses trained-on-A controller weights in B. It is not
+   environment-agent coevolution and does not certify generalisation.
 4. CI smokes are tiny (gen-5); variance across seeds is large at this scale —
    publishable numbers need ≥10 seeds and longer horizons.
 5. Bedau ratios depend on a shadow paired to the live config; always pass
@@ -244,9 +245,9 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
    reach current smoke200 coverage at matched seeds.
 3. **Continuous-channel compositionality:** non-discretising estimator (e.g.
    kernel topsim) reported alongside the argmax-discretised baseline.
-4. **POET-loop scaffold:** environment-generator population with a minimal
-   criterion and an environment-archive paralleling the agent MAP-Elites
-   archive.
+4. **Future coevolution scaffold:** environment-generator population with a
+   minimal criterion and an environment archive paralleling the agent
+   MAP-Elites archive. This is not implemented.
 5. **Headline at scale:** rerun smoke200 and one ablation at ≥10 seeds and the
    longest horizon CI can absorb; report seeds + horizon + compute budget with
    every number.

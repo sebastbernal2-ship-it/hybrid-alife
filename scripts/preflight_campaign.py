@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -40,7 +39,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_SCRIPTS = ("run_sim.py", "run_quick_campaign.py")

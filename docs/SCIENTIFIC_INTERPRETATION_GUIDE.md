@@ -112,16 +112,16 @@ misinterpretation.
   "compositionality". The benchmark tests task completion, not linguistic
   structure.
 
-### 3.4 POET transfer score
-- Measures: performance of an agent evolved in environment A when evaluated
-  in environment B.
+### 3.4 Fixed-policy transfer score
+- Measures: performance of frozen embodied controller genomes trained in
+  environment A when evaluated in a fresh environment B.
 - Increase: better cross-environment transfer.
-- Noise floor: gains < the within-environment seed variance are noise. Always
-  report within-env variance alongside transfer numbers.
-- Supports: tier P. Tier S requires both directions (A→B and B→A) and
-  multiple environment pairs.
-- Common misread: "the agents generalize". Transfer between two
-  procedurally-related environments is not generalization.
+- Noise floor: gains below the within-environment seed variance are noise.
+  Always report within-env variance alongside transfer numbers.
+- Supports: tier P only when both directions and multiple pairs are reported.
+  Tier S also requires at least 10 seeds and held-out target environments.
+- Common misread: "the agents generalize". This harness does not implement
+  environment-agent coevolution or certify open-ended behavior.
 
 ### 3.5 World-model prediction error
 - Measures: rollout prediction error of the learned world model.
@@ -267,7 +267,7 @@ upper bounds on credulity, not lower bounds on truth.
 | Lineage growth (final depth) | runs without error   | ≥ 1.25× ablation, N ≥ 3, same direction in all seeds | ≥ 1.5× ablation, N ≥ 10, 95% CI excludes 1.0×, replicated |
 | QD active cells              | metric is computed   | ≥ 1.2× ablation, N ≥ 3 | ≥ 1.5× ablation, N ≥ 10, descriptor non-trivial, replicated |
 | Comm benchmark pass rate     | suite executes       | absolute gain ≥ 10 pp over ablation, N ≥ 3 | absolute gain ≥ 20 pp, N ≥ 10, held-out task split, replicated |
-| POET transfer score          | both envs execute    | within-env variance < transfer gap, N ≥ 3, both directions reported | bidirectional, ≥ 2 env pairs, N ≥ 10, replicated |
+| Fixed-policy transfer score  | both envs execute    | within-env variance < transfer gap, N ≥ 3, both directions reported | bidirectional, ≥ 2 env pairs, N ≥ 10, held-out targets, replicated |
 | World-model prediction error | error is finite      | ≥ 15% relative reduction vs ablation, N ≥ 3 | ≥ 25% relative reduction, paired control-task gain, N ≥ 10, replicated |
 | Cache hit rate (rerun)       | ≥ 0.9 on rerun       | (not applicable — engineering metric) | (not applicable) |
 

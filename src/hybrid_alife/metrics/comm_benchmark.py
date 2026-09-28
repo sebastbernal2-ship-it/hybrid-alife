@@ -35,9 +35,12 @@ import numpy as np
 from .communication import (
     bosdis,
     channel_capacity,
+    continuous_comm_summary,
+    neutral_continuous_channel,
     posdis,
     shuffle_channel,
     topsim,
+    uniform_continuous_channel,
     zero_channel,
 )
 
@@ -146,6 +149,7 @@ def _score(meanings: np.ndarray, messages: np.ndarray) -> dict[str, float]:
         "posdis": posdis(meanings, messages),
         "bosdis": bosdis(meanings, messages),
         "channel_capacity": channel_capacity(messages, referent),
+        **continuous_comm_summary(meanings, messages),
     }
 
 
@@ -173,6 +177,12 @@ def run_benchmark(
         if include_controls:
             result.controls["shuffle"] = _score(meanings, shuffle_channel(messages, rng))
             result.controls["zero"] = _score(meanings, zero_channel(messages))
+            result.controls["neutral"] = continuous_comm_summary(
+                meanings, neutral_continuous_channel(messages, rng)
+            )
+            result.controls["uniform"] = continuous_comm_summary(
+                meanings, uniform_continuous_channel(messages)
+            )
         out[name] = result
     return out
 

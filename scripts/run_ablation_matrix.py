@@ -13,24 +13,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
+import subprocess
 from dataclasses import replace
 from pathlib import Path
-from typing import List
-
-import yaml
 
 from hybrid_alife.experiments.runner import load_config, run_experiment
 from hybrid_alife.experiments.shadow import run_shadow
 from hybrid_alife.experiments.transfer import AblationResult, write_summary_markdown
 from hybrid_alife.logging.jsonl import read_jsonl
+from hybrid_alife.runtime import backend_report
 from hybrid_alife.types import ExperimentConfig
-
 
 DEFAULT_METRICS = [
     "embodied_alive_frac",
     "embodied_lineage_hill1d",
     "action_entropy",
     "comm_usage_rate",
+    "continuous_topsim",
+    "continuous_channel_capacity",
     "mean_avida_merit",
     "avida_tasks_solved",
 ]
@@ -47,7 +48,20 @@ def parse_args() -> argparse.Namespace:
             "configs/ablation_static_world.yaml",
         ],
     )
-    p.add_argument("--seeds", type=int, default=3, help="Seeds per config.")
+    p.add_argument(
+        "--seeds",
+        type=int,
+        default=3,
+        help="Number of deterministic seeds per config; values >=10 are supported.",
+    )
+    p.add_argument("--seed-start", type=int, default=0, help="First seed in the schedule.")
+    p.add_argument(
+        "--seed-list",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Explicit seed schedule; overrides --seeds and --seed-start.",
+    )
     p.add_argument(
         "--include-shadow",
         action="store_true",
@@ -70,6 +84,17 @@ def _load_with_seed(cfg_path: str, seed: int, out_dir: str) -> ExperimentConfig:
     return cfg
 
 
+def _seed_schedule(args: argparse.Namespace) -> list[int]:
+    seeds = args.seed_list if args.seed_list is not None else list(
+        range(args.seed_start, args.seed_start + args.seeds)
+    )
+    if not seeds:
+        raise ValueError("at least one seed is required")
+    if len(set(seeds)) != len(seeds):
+        raise ValueError("seed schedule must not contain duplicates")
+    return seeds
+
+
 def _last_metric_row(run_dir: Path) -> dict:
     metrics = run_dir / "metrics.jsonl"
     if not metrics.exists():
@@ -83,7 +108,8 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    results: List[AblationResult] = []
+    seeds = _seed_schedule(args)
+    results: list[AblationResult] = []
     baseline_name: str | None = args.baseline_name
 
     for cfg_path in args.configs:
@@ -91,7 +117,7 @@ def main() -> None:
         name = base_cfg.run_name
         if baseline_name is None:
             baseline_name = name
-        for seed in range(args.seeds):
+        for seed in seeds:
             cfg = _load_with_seed(cfg_path, seed, str(out_dir))
             run_experiment(cfg)
             row = _last_metric_row(out_dir / cfg.run_name)
@@ -99,11 +125,17 @@ def main() -> None:
 
     if args.include_shadow:
         shadow_base = load_config(args.configs[0])
-        for seed in range(args.seeds):
+        for seed in seeds:
             cfg = _load_with_seed(args.configs[0], seed, str(out_dir))
             run_shadow(cfg)
             row = _last_metric_row(out_dir / f"{cfg.run_name}_shadow")
-            results.append(AblationResult(name=f"{shadow_base.run_name}_shadow", seed=seed, metrics=row))
+            results.append(
+                AblationResult(
+                    name=f"{shadow_base.run_name}_shadow",
+                    seed=seed,
+                    metrics=row,
+                )
+            )
 
     summary_path = out_dir / "ablation_summary.md"
     write_summary_markdown(results, summary_path, DEFAULT_METRICS, baseline=baseline_name)
@@ -111,7 +143,27 @@ def main() -> None:
     # Also dump the raw results as JSON for downstream processing.
     json_path = out_dir / "ablation_results.json"
     json_path.write_text(
-        json.dumps([{"name": r.name, "seed": r.seed, "metrics": r.metrics} for r in results], indent=2),
+        json.dumps(
+            {
+                "seed_schedule": seeds,
+                "configs": list(args.configs),
+                "metadata": {
+                    "python": platform.python_version(),
+                    "backend": backend_report("auto"),
+                    "git_sha": subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip(),
+                },
+                "results": [
+                    {"name": r.name, "seed": r.seed, "metrics": r.metrics}
+                    for r in results
+                ],
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     print(f"Ablation summary written to {summary_path}")

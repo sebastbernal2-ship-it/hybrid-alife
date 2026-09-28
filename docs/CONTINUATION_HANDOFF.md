@@ -16,7 +16,7 @@
 
 - **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
 - **Main branch tip before this sprint:** `0c25070bc0c29d82371a68e1e150704c5ddbded1`
-  (`merge: sprint/poet-transfer-fast into final integration`)
+  (`merge: sprint/transfer-science into final integration`)
 - **This sprint branch:** `sprint/continuation-handoff-fast` (docs-only).
 - **Date of handoff:** 2026-05-11.
 
@@ -27,7 +27,7 @@ Avida-style instruction VM) share a 2D world of proxy microfluidic fields (curva
 shear, lift, enrichment, concentration, metabolites). Evolution loop with tournament,
 novelty archive, MAP-Elites. Scientific-depth metrics (Bedau, QD, topsim/posdis/bosdis,
 Hill 1D lineage) are implemented and unit-tested. A v1 transfer matrix and a compute-
-scaling harness exist as scripts but POET-style coevolution is **not** yet wired in.
+scaling harness exist as scripts; environment-agent coevolution is not wired in.
 
 ## Known validation (snapshot at handoff)
 
@@ -82,7 +82,7 @@ configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
             comm_task, lineage_growth, scaling_tiny, transfer_{source,target})
 tests/      9 test files, 104 tests total, all CPU-feasible
 docs/       architecture, world_model, agent_branches, scientific_validation,
-            qd_active, comm_benchmark, poet_transfer, lineage_growth,
+            qd_active, comm_benchmark, transfer, lineage_growth,
             preregistration_template, CONTINUATION_HANDOFF (this file)
 ```
 
@@ -133,8 +133,9 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
 
 ## Not implemented / experimental (what is **not** real yet)
 
-- **Full POET-style coevolutionary loop.** The transfer matrix is v1
-  re-evaluation only. No environment-generator / agent-population coevolution.
+- **Environment-agent coevolution.** The repository provides fixed-policy
+  transfer, but no environment generator, archive, or agent-population
+  coevolution loop.
 - **Compositionality on the continuous emergent channel.** Currently
   discretised via argmax; numbers should be read as a lower bound.
 - **Surrogate-assisted QD** and **Meta-Referential evaluation** (memo P2) —
@@ -148,13 +149,13 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
    inductive bias, not microfluidic ground truth. The `ablation_uniform_field`
    config exists to show they are doing measurable work — that comparison
    *must* accompany any claim about microfluidic-style ecology.
-2. **Compositionality scores are upper-bounded by quantisation.** topsim /
-   posdis / bosdis on argmax-discretised continuous messages can both
-   over- and under-state structure. Treat 1.0 on the synthetic benchmark as
-   tool validation, not emergent-language evidence.
-3. **Transfer "matrix" is not transfer learning.** v1 re-evaluates per-config
-   end-of-run metrics. A claim about generalisation requires re-running
-   policies trained on env A inside env B with the same controller weights.
+2. **Discrete compositionality scores are quantised.** topsim / posdis /
+   bosdis remain discrete diagnostics. Raw embodied messages now also expose
+   continuous topographic similarity and eta-squared capacity against action
+   cues. These metrics are channel diagnostics, not language evidence.
+3. **Transfer is fixed-policy transfer.** The transfer mode evaluates policies
+   trained in env A inside env B with the same controller weights. It does not
+   implement environment-agent coevolution or certify generalisation.
 4. **CI runs are tiny.** Headline numbers (coverage, qd_score, novelty
    archive size) come from gen-5 smoke runs. Variance across seeds at this
    scale is large; publishable numbers need ≥10 seeds and longer horizons.
@@ -197,7 +198,7 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
   python scripts/run_ablation_matrix.py \
       --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
                 configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
-      --seeds 3 --include-shadow \
+      --seeds 10 --include-shadow \
       --out-dir outputs/ablation_matrix
   ```
 - Re-run `python scripts/run_comm_benchmark.py` and confirm the compositional
@@ -216,13 +217,11 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
   behaviour-descriptor → fitness, used to gate which mutations get a full
   rollout. Acceptance: ≥30% reduction in rollouts to reach the current
   smoke200 coverage at matched seeds.
-- Add a continuous-channel compositionality estimator that does not require
-  discretisation (e.g. kernel topsim) and report both alongside the
-  argmax-discretised baseline.
-- Begin the POET loop scaffold: environment-generator population, minimal
-  criterion (using the preregistered descriptor from
-  `docs/preregistration_template.md`), and an environment-archive that
-  parallels the MAP-Elites agent archive.
+- Extend the continuous-channel diagnostics to held-out referents and
+  preregistered semantic cues before interpreting them as communication.
+- Future work may add an environment-generator population, minimal criterion,
+  and an environment archive. That coevolution loop is not part of the current
+  transfer harness.
 
 ## Exact commands
 
@@ -259,7 +258,7 @@ python scripts/run_transfer_matrix.py \
 python scripts/run_ablation_matrix.py \
     --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
               configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
-    --seeds 3 --include-shadow \
+    --seeds 10 --include-shadow \
     --out-dir outputs/ablation_matrix
 
 # Neutral-shadow run only (Bedau control)
@@ -277,7 +276,7 @@ python -c "from hybrid_alife.experiments.runner import load_config; \
   - `sprint/lineage-growth-fast` → births + depth tracking
   - `sprint/qd-active-fast`      → active MAP-Elites + per-gen QD logging
   - `sprint/comm-task-fast`      → synthetic communication benchmark
-  - `sprint/poet-transfer-fast`  → v1 transfer matrix + compute-scaling
+  - `sprint/transfer-science`  → fixed-policy transfer matrix + compute-scaling
   - `sprint/continuation-handoff-fast` → **this branch** (docs-only)
 - Open a PR from each sprint branch back into `main`. CI must be green
   (full 104-test pytest) before merging. Do **not** force-push to `main`.

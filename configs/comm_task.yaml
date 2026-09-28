@@ -1,8 +1,8 @@
 # Synthetic communication benchmark configuration.
 #
 # Used by scripts/run_comm_benchmark.py to score the four field-standard
-# communication metrics (topsim, posdis, bosdis, channel_capacity) against
-# three reference protocols and two channel ablations. See
+# communication metrics (discrete plus continuous-channel diagnostics)
+# against three reference protocols and four controls. See
 # docs/COMM_BENCHMARK.md for the language guardrail and how to read results.
 
 benchmark:
@@ -33,3 +33,4 @@ acceptance:
   zero_posdis_max: 0.01
   zero_bosdis_max: 0.01
   zero_capacity_max: 0.001
+  uniform_continuous_capacity_max: 0.001

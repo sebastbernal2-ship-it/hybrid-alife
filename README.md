@@ -203,7 +203,7 @@ python scripts/generate_report.py outputs/runs/smoke200
 python scripts/run_ablation_matrix.py \
     --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
               configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
-    --seeds 3 --include-shadow \
+    --seeds 10 --include-shadow \
     --out-dir outputs/ablation_matrix
 
 # Paired neutral-shadow run (Bedau control) on its own
@@ -233,12 +233,14 @@ Pre-register your descriptors and minimal criterion using
 
 **Experimental:**
 
-- Full POET-style coevolutionary loop is *not* implemented; the transfer
-  suite currently re-evaluates per-config end-of-run metrics, not
-  trained-on-A-evaluated-on-B agent transfer.
-- Compositionality metrics expect quantised messages — for the continuous
-  emergent channel we currently discretise via argmax. Treat numbers as
-  a lower bound.
+- Environment-agent coevolution is not implemented.
+  The transfer suite now supports fixed-policy transfer: it loads controller
+  genomes from a source checkpoint and evaluates them in a fresh target world
+  without mutation, selection, reproduction, or Avida updates.
+- Discrete compositionality metrics still use quantised messages.
+  Raw embodied messages also log continuous topographic similarity and
+  eta-squared capacity against the latest action cue. These are channel
+  diagnostics, not evidence of language.
 - Surrogate-assisted QD and Meta-Referential evaluation (memo P2) are
   not yet implemented.
 

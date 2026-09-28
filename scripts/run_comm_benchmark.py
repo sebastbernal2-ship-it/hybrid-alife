@@ -39,23 +39,42 @@ def _check_acceptance(flat: dict[str, dict[str, float]], thresholds: dict) -> li
     if (v := comp.get("bosdis", 0.0)) < thresholds.get("compositional_bosdis_min", 0.0):
         failures.append(f"compositional.bosdis {v:.3f} < {thresholds['compositional_bosdis_min']}")
     if (v := comp.get("shuffle.topsim", 1.0)) > thresholds.get("shuffle_topsim_max", 1.0):
-        failures.append(f"compositional.shuffle.topsim {v:.3f} > {thresholds['shuffle_topsim_max']}")
+        failures.append(
+            f"compositional.shuffle.topsim {v:.3f} > "
+            f"{thresholds['shuffle_topsim_max']}"
+        )
     if (v := comp.get("zero.posdis", 1.0)) > thresholds.get("zero_posdis_max", 1.0):
         failures.append(f"compositional.zero.posdis {v:.6f} > {thresholds['zero_posdis_max']}")
     if (v := comp.get("zero.bosdis", 1.0)) > thresholds.get("zero_bosdis_max", 1.0):
         failures.append(f"compositional.zero.bosdis {v:.6f} > {thresholds['zero_bosdis_max']}")
-    if (v := abs(comp.get("zero.channel_capacity", 1.0))) > thresholds.get("zero_capacity_max", 1.0):
+    if (v := abs(comp.get("zero.channel_capacity", 1.0))) > thresholds.get(
+        "zero_capacity_max", 1.0
+    ):
         failures.append(
             f"compositional.zero.channel_capacity {v:.6f} > {thresholds['zero_capacity_max']}"
+        )
+    if (v := abs(comp.get("uniform.continuous_channel_capacity", 1.0))) > thresholds.get(
+        "uniform_continuous_capacity_max", 1.0
+    ):
+        failures.append(
+            "compositional.uniform.continuous_channel_capacity "
+            f"{v:.6f} > {thresholds['uniform_continuous_capacity_max']}"
         )
     return failures
 
 
 def _print_table(flat: dict[str, dict[str, float]]) -> None:
-    metric_cols = ["topsim", "posdis", "bosdis", "channel_capacity"]
+    metric_cols = [
+        "topsim",
+        "posdis",
+        "bosdis",
+        "channel_capacity",
+        "continuous_topsim",
+        "continuous_channel_capacity",
+    ]
     print(f"{'protocol':<22} " + " ".join(f"{c:>10}" for c in metric_cols))
     for proto, metrics in flat.items():
-        for variant in ("", "shuffle.", "zero."):
+        for variant in ("", "shuffle.", "zero.", "neutral.", "uniform."):
             label = proto if not variant else f"{proto} [{variant.rstrip('.')}]"
             row = [metrics.get(f"{variant}{c}", float("nan")) for c in metric_cols]
             print(f"{label:<22} " + " ".join(f"{v:>10.4f}" for v in row))

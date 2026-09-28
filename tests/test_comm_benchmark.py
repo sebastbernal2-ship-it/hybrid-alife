@@ -137,7 +137,7 @@ def test_summarise_is_flat_json_friendly(small_spec):
     res = run_benchmark(small_spec, include_controls=True)
     flat = summarise(res)
     assert set(flat) == {"compositional", "holistic", "random"}
-    for proto, metrics in flat.items():
+    for _proto, metrics in flat.items():
         assert "topsim" in metrics
         assert "shuffle.topsim" in metrics
         assert "zero.posdis" in metrics
