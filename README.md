@@ -236,8 +236,11 @@ Pre-register your descriptors and minimal criterion using
 **Experimental:**
 
 - The standalone PPO-POET module implements a bounded paired policy and
-  environment population loop with environment mutation, policy replacement,
-  and frozen-policy transfer.
+  environment population loop with PPO updates, raw-reward minimal-criterion
+  admission, complete environment archive lineage, stepping-stone transfer,
+  held-out transfer, and frozen-policy evaluation.
+  The preregistered primary comparison is `poet` versus `static`.
+  Run the strict success gate in [`docs/POET_SUCCESS_CRITERIA.md`](docs/POET_SUCCESS_CRITERIA.md).
   This is not evidence of open-ended coevolution.
   The legacy transfer suite supports fixed-policy transfer by loading
   controller genomes from a source checkpoint and evaluating them in a fresh

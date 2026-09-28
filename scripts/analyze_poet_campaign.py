@@ -30,7 +30,17 @@ def exact_paired_sign_permutation(left: np.ndarray, right: np.ndarray) -> float:
     return exceedances / (2 ** differences.size)
 
 
-def paired_comparison(left: np.ndarray, right: np.ndarray) -> dict[str, float | int]:
+def bootstrap_mean_ci(differences: np.ndarray, *, samples: int = 10_000) -> list[float]:
+    """Return a deterministic percentile bootstrap interval for paired effects."""
+    if differences.size == 0:
+        raise ValueError("bootstrap requires at least one difference")
+    rng = np.random.default_rng(0)
+    draws = rng.choice(differences, size=(samples, differences.size), replace=True)
+    means = np.mean(draws, axis=1)
+    return [float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))]
+
+
+def paired_comparison(left: np.ndarray, right: np.ndarray) -> dict[str, float | int | list[float]]:
     if left.size != right.size:
         raise ValueError("paired comparison requires equal sample sizes")
     differences = right - left
@@ -41,6 +51,78 @@ def paired_comparison(left: np.ndarray, right: np.ndarray) -> dict[str, float | 
         "ties": int(np.sum(differences == 0)),
         "exact_paired_sign_permutation_p": exact_paired_sign_permutation(left, right),
         "cliffs_delta": cliffs_delta(right, left),
+        "bootstrap_ci_95": bootstrap_mean_ci(differences),
+    }
+
+
+def assess_success(
+    summaries: list[dict], *, primary_track: str = "poet", baseline_track: str = "static"
+) -> dict:
+    """Apply the preregistered replicated held-out transfer success criteria."""
+    grouped: dict[str, dict[str, dict[int, dict]]] = defaultdict(lambda: defaultdict(dict))
+    for summary in summaries:
+        metadata = summary.get("replication_metadata", {})
+        replication_id = str(metadata.get("replication_id", "unknown"))
+        grouped[replication_id][str(summary.get("track"))][int(summary["seed"])] = summary
+    per_replication = {}
+    all_differences = []
+    valid_replications = 0
+    for replication_id, tracks in sorted(grouped.items()):
+        primary = tracks.get(primary_track, {})
+        baseline = tracks.get(baseline_track, {})
+        seeds = sorted(set(primary) & set(baseline))
+        seeds = [
+            seed
+            for seed in seeds
+            if primary[seed].get("heldout_transfer_mean") is not None
+            and baseline[seed].get("heldout_transfer_mean") is not None
+        ]
+        if not seeds:
+            continue
+        left = np.asarray([baseline[seed]["heldout_transfer_mean"] for seed in seeds], dtype=float)
+        right = np.asarray([primary[seed]["heldout_transfer_mean"] for seed in seeds], dtype=float)
+        comparison = paired_comparison(left, right)
+        metadata = primary[seeds[0]].get("replication_metadata", {})
+        comparison.update(
+            {
+                "replication_id": replication_id,
+                "seed_count_requirement_met": len(seeds) >= 10,
+                "cache_cleared": bool(metadata.get("cache_cleared", False)),
+                "seed_offset": int(metadata.get("seed_offset", 0)),
+            }
+        )
+        per_replication[replication_id] = comparison
+        all_differences.extend((right - left).tolist())
+        if (
+            len(seeds) >= 10
+            and comparison["mean_difference"] > 0
+            and comparison["exact_paired_sign_permutation_p"] < 0.05
+        ):
+            valid_replications += 1
+    differences = np.asarray(all_differences, dtype=float)
+    ci = bootstrap_mean_ci(differences) if differences.size else [None, None]
+    offsets = [item["seed_offset"] for item in per_replication.values()]
+    independent_offsets = len(offsets) == len(set(offsets))
+    success = (
+        len(per_replication) >= 2
+        and valid_replications == len(per_replication)
+        and bool(differences.size)
+        and float(np.mean(differences)) > 0
+        and ci[0] is not None
+        and ci[0] > 0
+        and independent_offsets
+        and all(item["cache_cleared"] for item in per_replication.values())
+    )
+    return {
+        "status": "success" if success else "insufficient_evidence",
+        "primary_track": primary_track,
+        "baseline_track": baseline_track,
+        "replications": len(per_replication),
+        "valid_replications": valid_replications,
+        "independent_seed_offsets": independent_offsets,
+        "bootstrap_ci_95": ci,
+        "mean_difference": float(np.mean(differences)) if differences.size else None,
+        "per_replication": per_replication,
     }
 
 
@@ -48,6 +130,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_dir")
     parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--primary-track", default="poet")
+    parser.add_argument("--baseline-track", default="static")
     return parser.parse_args()
 
 
@@ -97,6 +181,11 @@ def main() -> None:
         "summary_count": len(summaries),
         "source_commits": sorted(
             {summary.get("source_commit", "unknown") for summary in summaries}
+        ),
+        "success_analysis": assess_success(
+            summaries,
+            primary_track=args.primary_track,
+            baseline_track=args.baseline_track,
         ),
     }
     if len(comparisons) == 1:

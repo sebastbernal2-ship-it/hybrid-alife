@@ -7,6 +7,10 @@ action_count: 5
 rollout_steps: 8
 transfer_steps: 8
 avida_lifecycle: reset
+track: poet
+minimal_criterion: -10.0
+heldout_environments: 4
+heldout_seed_offset: 1000003
 environment_mutation_std: 0.06
 terrain_mutation_std: 0.08
 terrain_mutation_prob: 0.08
