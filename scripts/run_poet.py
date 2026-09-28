@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
-from hybrid_alife.poet import load_poet_config, run_poet
+from hybrid_alife.poet import _source_commit, load_poet_config, run_poet
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tracks",
         nargs="+",
-        choices=("isolated", "avida_enabled"),
+        choices=("isolated", "avida_enabled", "avida_persistent"),
         default=("isolated", "avida_enabled"),
     )
     return parser.parse_args()
@@ -29,6 +30,7 @@ def main() -> None:
     args = parse_args()
     root = Path(args.out_dir)
     manifest = {
+        "source_commit": _source_commit(),
         "config": args.config,
         "tracks": args.tracks,
         "seeds": args.seeds,
@@ -43,7 +45,14 @@ def main() -> None:
             cell_dir = root / track / f"seed-{seed:03d}"
             run_poet(cfg, seed=seed, generations=generations, out_dir=cell_dir)
             manifest["cells"].append(
-                {"track": track, "seed": seed, "generations": generations, "out_dir": str(cell_dir)}
+                {
+                    "track": track,
+                    "seed": seed,
+                    "generations": generations,
+                    "out_dir": str(cell_dir),
+                    "source_commit": manifest["source_commit"],
+                    "config": asdict(cfg),
+                }
             )
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(json.dumps(manifest, indent=2))

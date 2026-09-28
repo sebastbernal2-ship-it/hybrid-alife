@@ -22,18 +22,21 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_poet.py \
   --out-dir /tmp/hybrid-alife-poet-smoke
 ```
 
-The default command runs both `isolated` and `avida_enabled` tracks.
+The default command runs `isolated` and `avida_enabled` tracks.
 
-The Avida-enabled track runs the existing Avida VM as a bounded comparison sidecar.
-Its `summary.json` records the actual `avida_comparator_steps` cap used for that metric.
+The `avida_enabled` track runs the existing Avida VM as a reset-per-rollout comparison sidecar.
+The `avida_persistent` track carries its Avida population across PPO training rollouts and generations.
+Both Avida tracks remain bounded comparisons, not open-ended evolution.
+Their `summary.json` files record the lifecycle and the actual `avida_comparator_steps` cap used for the comparator metric.
 
 ## Preregistered campaign
 
 `configs/poet_campaign_manifest.json` is the campaign manifest.
 
-It contains two tracks, ten seeds per track, and 200 generations per cell.
+It contains three tracks, ten seeds per track, and 200 generations per cell.
 
-The manifest has 20 cells in total.
+The manifest has 30 cells in total.
+The original 20-cell design is rerun with corrected raw-reward transfer scores, and the persistent Avida track adds 10 comparison cells.
 
 Run a campaign with `configs/poet_campaign.yaml` and the same `scripts/run_poet.py` entrypoint.
 
@@ -51,7 +54,8 @@ venv/bin/python scripts/analyze_poet_campaign.py /tmp/hybrid-alife-poet-smoke
 
 The analysis writes `analysis/statistical_summary.json` and `analysis/transfer_by_track.png`.
 
-The summary reports mean, median, standard deviation, IQR, and Cliff's delta when both tracks exist.
+The summary reports mean, median, standard deviation, IQR, Cliff's delta, paired mean differences, wins, and exact paired sign-permutation p-values for every track pair.
+Each cell records the source Git commit and complete configuration in its JSON artifacts.
 
 ## Profiling rule
 

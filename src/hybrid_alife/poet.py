@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import pickle
+import subprocess
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -69,7 +70,14 @@ class POETConfig:
     policy_mutation_prob: float = 0.05
     transfer_steps: int = 12
     avida_enabled: bool = False
+    avida_lifecycle: str = "reset"
     track: str = "isolated"
+
+    def __post_init__(self) -> None:
+        if self.avida_lifecycle not in {"reset", "persistent"}:
+            raise ValueError("avida_lifecycle must be reset or persistent")
+        if self.avida_lifecycle == "persistent" and not self.avida_enabled:
+            raise ValueError("persistent Avida requires avida_enabled=True")
 
 
 class PolicyParams(NamedTuple):
@@ -110,6 +118,7 @@ class POETState:
     final_environment_terrain: np.ndarray
     track: str
     avida_enabled: bool
+    avida_lifecycle: str
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -119,6 +128,7 @@ class POETState:
             "environment_mutations": self.environment_mutations,
             "track": self.track,
             "avida_enabled": self.avida_enabled,
+            "avida_lifecycle": self.avida_lifecycle,
             "metrics": self.metrics,
             "transfer_history": [matrix.round(8).tolist() for matrix in self.transfer_history],
         }
@@ -131,6 +141,20 @@ class _Batch:
     old_log_probs: jax.Array
     advantages: jax.Array
     returns: jax.Array
+    rewards: jax.Array
+
+
+def _source_commit() -> str:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parents[2],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
 
 
 def _register_pytree_dataclass(cls: type) -> None:
@@ -323,6 +347,7 @@ def initialize_poet_state(cfg: POETConfig, seed: int) -> POETState:
         final_environment_terrain=initial_terrain.copy(),
         track=cfg.track,
         avida_enabled=cfg.avida_enabled,
+        avida_lifecycle=cfg.avida_lifecycle,
     )
 
 
@@ -506,25 +531,24 @@ def _rollout_step(
     return state, next_position, reward.astype(jnp.float32), done, lineage_counter
 
 
-def collect_rollout(
+def _collect_rollout(
     params: PolicyParams,
     env: EnvironmentGenome,
     cfg: POETConfig,
     key: jax.Array,
     *,
-    stochastic: bool = True,
-    horizon: int | None = None,
-) -> _Batch:
+    stochastic: bool,
+    horizon: int | None,
+    initial_avida: AvidaPopulationState | None = None,
+) -> tuple[_Batch, AvidaPopulationState | None]:
     horizon = cfg.rollout_steps if horizon is None else horizon
     if horizon < 1:
         raise ValueError("rollout horizon must be positive")
     key, world_key, population_key = jax.random.split(key, 3)
     world, world_cfg = initialize_environment_world(env, cfg, world_key)
-    avida = (
-        initialize_avida_population(_poet_avida_config(), population_key)
-        if cfg.avida_enabled
-        else None
-    )
+    avida = initial_avida
+    if avida is None and cfg.avida_enabled:
+        avida = initialize_avida_population(_poet_avida_config(), population_key)
     state = SimState(
         generation=0,
         step=0,
@@ -571,7 +595,28 @@ def collect_rollout(
         old_log_probs=jnp.stack(old_log_probs),
         advantages=advantages,
         returns=returns,
+        rewards=jnp.stack(rewards),
+    ), state.avida
+
+
+def collect_rollout(
+    params: PolicyParams,
+    env: EnvironmentGenome,
+    cfg: POETConfig,
+    key: jax.Array,
+    *,
+    stochastic: bool = True,
+    horizon: int | None = None,
+) -> _Batch:
+    batch, _ = _collect_rollout(
+        params,
+        env,
+        cfg,
+        key,
+        stochastic=stochastic,
+        horizon=horizon,
     )
+    return batch
 
 
 def ppo_update(
@@ -612,7 +657,7 @@ def evaluate_policy(
         stochastic=False,
         horizon=cfg.transfer_steps,
     )
-    return float(jnp.mean(batch.returns))
+    return float(jnp.sum(batch.rewards))
 
 
 def evaluate_transfer_matrix(
@@ -679,6 +724,13 @@ def run_poet(
     state = initialize_poet_state(cfg, seed)
     generations = cfg.rollout_steps if generations is None else generations
     key = jax.random.PRNGKey(seed + 17)
+    persistent_avida: list[AvidaPopulationState | None] = [None] * len(state.environments)
+    if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
+        for index in range(len(persistent_avida)):
+            key, population_key = jax.random.split(key)
+            persistent_avida[index] = initialize_avida_population(
+                _poet_avida_config(), population_key
+            )
     for generation in range(generations):
         transfer = evaluate_transfer_matrix(
             state.policies, state.environments, cfg, seed + generation
@@ -690,9 +742,20 @@ def run_poet(
         for index, env in enumerate(state.environments):
             parent_index = int(np.argmax(transfer[:, index]))
             key, rollout_key = jax.random.split(key)
-            batch = collect_rollout(
-                trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
-            )
+            if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
+                batch, persistent_avida[index] = _collect_rollout(
+                    trained_policies[parent_index],
+                    env,
+                    cfg,
+                    rollout_key,
+                    stochastic=True,
+                    horizon=None,
+                    initial_avida=persistent_avida[index],
+                )
+            else:
+                batch = collect_rollout(
+                    trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
+                )
             trained_policies[parent_index], loss = ppo_update(
                 trained_policies[parent_index], batch, cfg.ppo
             )
@@ -748,6 +811,7 @@ def save_poet_checkpoint(
             {
                 "version": 1,
                 "seed": seed,
+                "source_commit": _source_commit(),
                 "config": asdict(cfg),
                 "state": state,
             },
@@ -766,16 +830,14 @@ def write_poet_artifacts(
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "figures").mkdir(exist_ok=True)
+    metadata = {
+        "source_commit": _source_commit(),
+        "seed": seed,
+        "generations": generations,
+        "config": asdict(cfg),
+    }
     (out_dir / "config.json").write_text(
-        json.dumps(
-            {
-                "seed": seed,
-                "generations": generations,
-                "track": cfg.track,
-                "avida_enabled": cfg.avida_enabled,
-            },
-            indent=2,
-        ),
+        json.dumps(metadata, indent=2),
         encoding="utf-8",
     )
     with (out_dir / "metrics.jsonl").open("w", encoding="utf-8") as handle:
@@ -783,7 +845,15 @@ def write_poet_artifacts(
             handle.write(json.dumps(row, sort_keys=True) + "\n")
     final_matrix = state.transfer_history[-1]
     (out_dir / "transfer_matrix.json").write_text(
-        json.dumps({"matrix": final_matrix.tolist(), "frozen_policy": True}, indent=2),
+        json.dumps(
+            {
+                **metadata,
+                "matrix": final_matrix.tolist(),
+                "frozen_policy": True,
+                "mode": "raw_reward_transfer",
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     archive = [
@@ -796,7 +866,7 @@ def write_poet_artifacts(
         for index, environment in enumerate(state.environments)
     ]
     (out_dir / "environment_archive.json").write_text(
-        json.dumps(archive, indent=2), encoding="utf-8"
+        json.dumps({**metadata, "environments": archive}, indent=2), encoding="utf-8"
     )
     save_poet_checkpoint(out_dir / "poet_checkpoint.pkl", state, cfg, seed)
     comparison_score = _avida_comparison_score(final_matrix) if cfg.avida_enabled else None
@@ -818,6 +888,8 @@ def write_poet_artifacts(
     summary = state.to_jsonable()
     summary.update(
         {
+            "source_commit": metadata["source_commit"],
+            "config": metadata["config"],
             "seed": seed,
             "generations": generations,
             "comparison_score": comparison_score,
@@ -857,6 +929,7 @@ def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfi
     ppo = PPOConfig(**raw.pop("ppo", {}))
     if track is not None:
         raw["track"] = track
-        raw["avida_enabled"] = track == "avida_enabled"
+        raw["avida_enabled"] = track != "isolated"
+        raw["avida_lifecycle"] = "persistent" if track == "avida_persistent" else "reset"
     raw["ppo"] = ppo
     return POETConfig(**raw)

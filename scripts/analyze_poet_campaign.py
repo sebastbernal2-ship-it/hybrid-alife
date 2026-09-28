@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -14,6 +15,33 @@ import numpy as np
 def cliffs_delta(left: np.ndarray, right: np.ndarray) -> float:
     comparisons = np.subtract.outer(left, right)
     return float((np.sum(comparisons > 0) - np.sum(comparisons < 0)) / comparisons.size)
+
+
+def exact_paired_sign_permutation(left: np.ndarray, right: np.ndarray) -> float:
+    differences = np.asarray(right, dtype=float) - np.asarray(left, dtype=float)
+    if differences.size == 0:
+        raise ValueError("paired comparison requires at least one value")
+    observed = abs(float(np.mean(differences)))
+    exceedances = 0
+    for signs in itertools.product((-1.0, 1.0), repeat=differences.size):
+        permuted = float(np.mean(differences * np.asarray(signs)))
+        if abs(permuted) >= observed - 1e-12:
+            exceedances += 1
+    return exceedances / (2 ** differences.size)
+
+
+def paired_comparison(left: np.ndarray, right: np.ndarray) -> dict[str, float | int]:
+    if left.size != right.size:
+        raise ValueError("paired comparison requires equal sample sizes")
+    differences = right - left
+    return {
+        "n_pairs": int(differences.size),
+        "mean_difference": float(np.mean(differences)),
+        "wins": int(np.sum(differences > 0)),
+        "ties": int(np.sum(differences == 0)),
+        "exact_paired_sign_permutation_p": exact_paired_sign_permutation(left, right),
+        "cliffs_delta": cliffs_delta(right, left),
+    }
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,15 +77,30 @@ def main() -> None:
             "values": values.tolist(),
         }
     tracks = sorted(table)
-    if len(tracks) == 2:
-        table["comparison"] = {
-            "left": tracks[0],
-            "right": tracks[1],
-            "cliffs_delta": cliffs_delta(
-                np.asarray(table[tracks[0]]["values"]), np.asarray(table[tracks[1]]["values"])
-            ),
+    comparison_order = [
+        name for name in ("isolated", "avida_enabled", "avida_persistent") if name in tracks
+    ]
+    comparison_order.extend(name for name in tracks if name not in comparison_order)
+    comparisons = {}
+    for left_name, right_name in itertools.combinations(comparison_order, 2):
+        left = np.asarray(table[left_name]["values"])
+        right = np.asarray(table[right_name]["values"])
+        comparisons[f"{right_name}_minus_{left_name}"] = {
+            "left": left_name,
+            "right": right_name,
+            **paired_comparison(left, right),
         }
-    result = {"source": str(root), "tracks": table, "summary_count": len(summaries)}
+    result = {
+        "source": str(root),
+        "tracks": table,
+        "comparisons": comparisons,
+        "summary_count": len(summaries),
+        "source_commits": sorted(
+            {summary.get("source_commit", "unknown") for summary in summaries}
+        ),
+    }
+    if len(comparisons) == 1:
+        result["comparison"] = next(iter(comparisons.values()))
     (out / "statistical_summary.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 
     import matplotlib

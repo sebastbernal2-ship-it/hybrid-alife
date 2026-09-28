@@ -113,6 +113,23 @@ def test_transfer_uses_frozen_policy_parameters():
     assert matrix.shape == (cfg.population_size, cfg.population_size)
 
 
+def test_transfer_evaluation_reports_raw_reward_return():
+    cfg = tiny_config()
+    state = initialize_poet_state(cfg, seed=1)
+    batch = collect_rollout(
+        state.policies[0],
+        state.environments[0],
+        cfg,
+        jax.random.PRNGKey(4),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
+    )
+    np.testing.assert_allclose(
+        evaluate_policy(state.policies[0], state.environments[0], cfg, seed=4),
+        np.sum(np.asarray(batch.rewards)),
+    )
+
+
 def test_transfer_evaluation_uses_configured_horizon():
     cfg = tiny_config()
     state = initialize_poet_state(cfg, seed=1)
@@ -129,6 +146,24 @@ def test_transfer_evaluation_uses_configured_horizon():
         seed=4,
     )
     assert short != long
+
+
+def test_persistent_avida_track_advances_and_records_lifecycle(tmp_path: Path):
+    cfg = POETConfig(
+        **{
+            **tiny_config().__dict__,
+            "avida_enabled": True,
+            "avida_lifecycle": "persistent",
+            "track": "avida_persistent",
+        }
+    )
+    result = run_poet(cfg, seed=0, generations=2, out_dir=tmp_path)
+    payload = json.loads((tmp_path / "summary.json").read_text())
+    config = json.loads((tmp_path / "config.json").read_text())
+    assert result.avida_lifecycle == "persistent"
+    assert payload["avida_lifecycle"] == "persistent"
+    assert config["config"]["avida_lifecycle"] == "persistent"
+    assert config["source_commit"]
 
 
 def test_avida_comparator_horizon_is_recorded(tmp_path: Path):
