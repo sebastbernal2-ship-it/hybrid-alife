@@ -229,14 +229,19 @@ Pre-register your descriptors and minimal criterion using
 - Bedau / QD / compositionality / lineage Hill 1D metrics with unit tests.
 - Neutral-shadow runner, transfer/robustness statistics, ablation matrix
   driver, anti-overclaim report sections.
-- CI runs the full 84-test suite on every push.
+- CI runs the full pytest suite on every push.
+- The validated PPO-POET campaign is archived in
+  `docs/results/poet_campaign_final_v2/`.
 
 **Experimental:**
 
-- Environment-agent coevolution is not implemented.
-  The transfer suite now supports fixed-policy transfer: it loads controller
-  genomes from a source checkpoint and evaluates them in a fresh target world
-  without mutation, selection, reproduction, or Avida updates.
+- The standalone PPO-POET module implements a bounded paired policy and
+  environment population loop with environment mutation, policy replacement,
+  and frozen-policy transfer.
+  This is not evidence of open-ended coevolution.
+  The legacy transfer suite supports fixed-policy transfer by loading
+  controller genomes from a source checkpoint and evaluating them in a fresh
+  target world without mutation, selection, reproduction, or Avida updates.
 - Discrete compositionality metrics still use quantised messages.
   Raw embodied messages also log continuous topographic similarity and
   eta-squared capacity against the latest action cue. These are channel

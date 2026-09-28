@@ -15,10 +15,13 @@
 ## Pointers
 
 - **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip before this sprint:** `0c25070bc0c29d82371a68e1e150704c5ddbded1`
-  (`merge: sprint/transfer-science into final integration`)
-- **This sprint branch:** `sprint/continuation-handoff-fast` (docs-only).
-- **Date of handoff:** 2026-05-11.
+- **Main branch tip before this sprint:** `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`
+  (`chore(git): ignore temp audit artifacts`).
+- **Validation branch:** `feat/solidness-performance` at
+  `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`.
+- **Date of handoff:** 2026-09-28.
+- **Integration status:** the validation branch is pushed and awaits a PR into
+  `main`.
 
 ## TL;DR project state
 
@@ -27,11 +30,15 @@ Avida-style instruction VM) share a 2D world of proxy microfluidic fields (curva
 shear, lift, enrichment, concentration, metabolites). Evolution loop with tournament,
 novelty archive, MAP-Elites. Scientific-depth metrics (Bedau, QD, topsim/posdis/bosdis,
 Hill 1D lineage) are implemented and unit-tested. A v1 transfer matrix and a compute-
-scaling harness exist as scripts; environment-agent coevolution is not wired in.
+scaling harness exist as scripts. The legacy transfer harness remains fixed-policy.
+The standalone PPO-POET module adds a bounded paired policy and environment
+population loop, but it does not establish open-ended coevolution.
 
 ## Known validation (snapshot at handoff)
 
-- `pytest -q` → **104 tests passed in ~83 s** on CPU.
+- `pytest -q` → **217 tests passed** in the validated CPU environment.
+- PPO-POET campaign: two tracks, ten seeds per track, and 200 generations per
+  cell are archived in `docs/results/poet_campaign_final_v2/`.
 - QD-active smoke (`configs/qd_active.yaml`) at gen 5:
   - coverage `0.4375`, qd_score `77.9649`, novelty archive size `72`.
 - Communication benchmark acceptance:
@@ -58,6 +65,7 @@ src/hybrid_alife/
 │   ├── runner.py         config loader + main run loop
 │   ├── shadow.py         neutral-shadow runner (Bedau control)
 │   └── transfer.py       median/IQR, bootstrap CI, Cliff's δ
+└── poet.py               bounded paired PPO-POET population loop
 ├── metrics/
 │   ├── core.py           per-step survival, entropy, comms, enrichment
 │   ├── bedau.py          A_new, A_cum, A_p
@@ -76,14 +84,19 @@ scripts/
 ├── run_ablation_matrix.py    multi-config × multi-seed sweep + stats
 ├── run_comm_benchmark.py     synthetic compositionality benchmark
 ├── run_compute_scaling.py    budget-vs-coverage scaling harness
-└── run_transfer_matrix.py    v1 transfer evaluation across configs
+├── run_transfer_matrix.py    fixed-policy transfer evaluation across configs
+├── run_poet.py               PPO-POET campaign runner
+├── analyze_poet_campaign.py  PPO-POET campaign analysis
+├── profile_full_run.py       full-run CPU profile
+└── benchmark_cpu.py          bounded CPU comparison
 
 configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
-            comm_task, lineage_growth, scaling_tiny, transfer_{source,target})
-tests/      9 test files, 104 tests total, all CPU-feasible
+            comm_task, lineage_growth, scaling_tiny, transfer_{source,target},
+            poet_{smoke,campaign})
+tests/      CPU-feasible pytest suite with 217 validated tests
 docs/       architecture, world_model, agent_branches, scientific_validation,
-            qd_active, comm_benchmark, transfer, lineage_growth,
-            preregistration_template, CONTINUATION_HANDOFF (this file)
+            qd_active, comm_benchmark, transfer, poet_ppo_campaign,
+            lineage_growth, preregistration_template, CONTINUATION_HANDOFF (this file)
 ```
 
 Data flow: `WorldState` is the shared substrate. Embodied agents deposit /
@@ -133,9 +146,11 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
 
 ## Not implemented / experimental (what is **not** real yet)
 
-- **Environment-agent coevolution.** The repository provides fixed-policy
-  transfer, but no environment generator, archive, or agent-population
-  coevolution loop.
+- **Open-ended environment-agent coevolution.** The standalone PPO-POET
+  module provides a bounded paired policy and environment population loop.
+  Environment archives, minimal-criterion filtering, and stepping-stone
+  selection are not implemented, so the results do not establish open-ended
+  coevolution.
 - **Compositionality on the continuous emergent channel.** Currently
   discretised via argmax; numbers should be read as a lower bound.
 - **Surrogate-assisted QD** and **Meta-Referential evaluation** (memo P2) —
@@ -156,7 +171,7 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
 3. **Transfer is fixed-policy transfer.** The transfer mode evaluates policies
    trained in env A inside env B with the same controller weights. It does not
    implement environment-agent coevolution or certify generalisation.
-4. **CI runs are tiny.** Headline numbers (coverage, qd_score, novelty
+4. **CI runs are tiny.** Headline legacy metrics (coverage, qd_score, novelty
    archive size) come from gen-5 smoke runs. Variance across seeds at this
    scale is large; publishable numbers need ≥10 seeds and longer horizons.
 5. **Bedau A_new / A_cum / A_p depend on a paired neutral shadow.** If the
@@ -181,7 +196,7 @@ that guide before publication.
 
 ### Next 20 minutes
 
-- `pytest -q` to confirm the 104-test suite still passes locally.
+- `pytest -q` to confirm the current 217-test suite still passes locally.
 - `python scripts/run_sim.py --config configs/base.yaml` (2-gen smoke) to
   confirm runner + JSONL writer are healthy end-to-end.
 - Skim `outputs/` for prior sprint artifacts (transfer / scaling); confirm
@@ -210,18 +225,17 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 
 ### Next 1 day
 
-- Implement v2 transfer: load trained policies from run A's checkpoint and
-  evaluate them inside config B without further mutation. Wire into
-  `scripts/run_transfer_matrix.py` behind a `--mode {reeval,transfer}` flag.
+- Verify the fixed-policy transfer mode against an archived source checkpoint
+  and document the resulting matrix with its horizon metadata.
 - Stand up surrogate-assisted QD: a small regression head over
   behaviour-descriptor → fitness, used to gate which mutations get a full
   rollout. Acceptance: ≥30% reduction in rollouts to reach the current
   smoke200 coverage at matched seeds.
 - Extend the continuous-channel diagnostics to held-out referents and
   preregistered semantic cues before interpreting them as communication.
-- Future work may add an environment-generator population, minimal criterion,
-  and an environment archive. That coevolution loop is not part of the current
-  transfer harness.
+- Future work may extend the bounded PPO-POET loop with a minimal criterion,
+  environment archive, and stepping-stone selection.
+  That work is not evidence of open-ended coevolution until those controls exist.
 
 ## Exact commands
 
@@ -230,7 +244,7 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect 104 passing, ~83 s on CPU)
+# Tests (expect the current 217-test suite to pass on CPU)
 pytest -q
 
 # Lint
@@ -271,15 +285,14 @@ python -c "from hybrid_alife.experiments.runner import load_config; \
 
 - `main` is the integration branch. Each completed sprint lands as a merge
   commit; see `git log --oneline main` for the chronology.
-- Sprint branches use the pattern `sprint/<topic>-fast` (fast = time-boxed
-  CPU-feasible). Active branches at handoff (already merged into main):
-  - `sprint/lineage-growth-fast` → births + depth tracking
-  - `sprint/qd-active-fast`      → active MAP-Elites + per-gen QD logging
-  - `sprint/comm-task-fast`      → synthetic communication benchmark
-  - `sprint/transfer-science`  → fixed-policy transfer matrix + compute-scaling
-  - `sprint/continuation-handoff-fast` → **this branch** (docs-only)
-- Open a PR from each sprint branch back into `main`. CI must be green
-  (full 104-test pytest) before merging. Do **not** force-push to `main`.
+- Follow-up branches use the pattern `sprint/<topic>-fast` (fast = time-boxed
+  CPU-feasible).
+- The current validation branch is `feat/solidness-performance`.
+- Its PPO-POET implementation, campaign archive, and metadata fixes await a PR
+  into `main`.
+- Open a PR from each validation branch back into `main`. CI must be green
+  before merging. The current PPO-POET validation branch is
+  `feat/solidness-performance`. Do **not** force-push to `main`.
 - Never amend merged commits; create new sprint branches off `main` for
   follow-ups.
 
@@ -308,15 +321,15 @@ git fetch --all
 git branch -r | grep sprint/        # list remote sprints
 ```
 
-The pre-sprint integration point is the merge commit
-`0c25070bc0c29d82371a68e1e150704c5ddbded1`. If `main` drifts unexpectedly,
-diff against that commit to recover the known-good baseline.
+The current pre-integration point is `main` at
+`ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`.
+Compare the validation branch against that commit when reviewing the pending PR.
 
 ## Success criteria for "continuation succeeded"
 
 A future chat has successfully continued this project if and only if:
 
-1. `pytest -q` still reports 104 passing tests (or more, never fewer
+1. `pytest -q` still reports 217 passing tests (or more, never fewer
    without an explicit deletion memo).
 2. The smokes in the **Next 20 minutes** section run to completion on CPU
    and produce the same shape of JSONL output as today.

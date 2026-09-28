@@ -45,7 +45,7 @@ after 90 minutes of wasted compute is hours.
 git status
 
 # 1b. Make sure tests still pass on the current commit.
-pytest -q                                    # expect 104+ passing
+pytest -q                                    # expect the current full suite to pass
 
 # 1c. Run the dedicated preflight checker (no simulation, fail-fast).
 python scripts/preflight_campaign.py \

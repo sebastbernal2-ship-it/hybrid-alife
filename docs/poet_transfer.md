@@ -35,10 +35,10 @@ the historical target-minus-source delta shape.
 
 ## Scientific limits
 
-This repository does not implement environment-agent coevolution, environment
-archives, minimal-criterion filtering, or stepping-stone selection. Transfer
-results are fixed-policy generalisation results, not evidence for a broader
-coevolution claim.
+The legacy fixed-policy transfer harness does not implement environment-agent
+coevolution, environment archives, minimal-criterion filtering, or stepping-stone
+selection. The standalone PPO-POET module provides a bounded paired population
+loop, but its results are not evidence for open-ended coevolution.
 
 Compute scaling fits a least-squares slope of each metric against
 `log10(generations)`. It is a descriptive slope, not a power-law exponent.

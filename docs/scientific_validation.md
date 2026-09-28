@@ -53,8 +53,10 @@ Avida is the canonical digital-evolution platform: self-replicating computer pro
 - **MAP-Elites** tiles a user-chosen *behavior descriptor space* into cells and keeps the elite per cell, producing a *map* (illumination) rather than a single best — yielding both diverse and high-performing solutions ([Mouret & Clune, arXiv:1504.04909](https://arxiv.org/abs/1504.04909); [Mouret QD page](https://members.loria.fr/jbmouret/qd.html); reference implementation pattern in [EvoTorch docs](https://docs.evotorch.ai/latest/examples/notebooks/Feature_Space_Illumination_with_MAPElites/)).
 - **Open-endedness** is measured via Bedau-Packard *evolutionary activity statistics* (new components, persistence, mean cumulative activity) with a neutral-shadow baseline ([Bullock & Bedau 2006](https://people.reed.edu/~mab/publications/papers/bullock.bedau.ALJ06.pdf); [O'Reilly Radar overview](https://www.oreilly.com/radar/open-endedness-the-last-grand-challenge-youve-never-heard-of/); [Aston / Stepney review](https://research.aston.ac.uk/en/publications/insights-from-artificial-life-measuring-and-classifying-open-ende)).
 - The transfer literature studies stepping stones with coevolving environments
-  and agents. This repository does not implement that coevolution loop, so its
-  fixed-policy transfer results must not be described as equivalent evidence.
+  and agents. The legacy fixed-policy transfer harness does not implement that
+  coevolution loop. The standalone PPO-POET module implements a bounded paired
+  population loop, but its results must not be described as equivalent evidence
+  of open-ended coevolution.
 - **Caveat literature**: Hickinbotham & Stepney argue any fixed open-endedness metric is eventually escaped by a truly open-ended system, so metrics describe rather than certify open-endedness ([Hickinbotham et al., *Artificial Life* 2024](https://direct.mit.edu/artl/article/30/3/390/114972/On-the-Open-Endedness-of-Detecting-Open-Endedness)). [Soros & Stanley](https://www.uvm.edu/neurobotics/pubs/pdf/2016_SorosCheneyStanley_HowTheStrictnessOfTheMinimalCriterionImpactsOpenEndedEvolution_ALIFE.pdf) further show the *strictness of the minimal criterion* heavily shapes open-endedness outcomes.
 
 ### Required metrics (must implement)
@@ -188,7 +190,7 @@ Before any release note, paper, or blog post, every claim in the following table
 
 ## 8. Prioritized Recommendations for the Codebase
 
-**P0 (block release until done):**
+**P0 (release evidence checks):**
 1. Implement Bedau activity statistics (\(A_{\text{new}}\), \(A_{\text{cum}}\), \(A_p\)) with a *paired neutral-shadow* run mode.
 2. Implement MAP-Elites archive + QD-score + coverage + archive entropy, with at least two pluggable behavior descriptors.
 3. Implement topsim, posdis, bosdis, and channel-shuffle ablation for any communication experiment.
@@ -196,8 +198,9 @@ Before any release note, paper, or blog post, every claim in the following table
 5. Ship a filled [EC reproducibility checklist](https://arxiv.org/html/2602.07059v1) in the repo root.
 
 **P1 (next milestone):**
-6. Fixed-policy transfer metrics for cross-environment controller evaluation.
-   Add an environment-agent coevolution loop before making a coevolution claim.
+6. Validate fixed-policy transfer with archived source checkpoints and explicit
+   horizon metadata. Broaden the bounded PPO-POET loop with environment archives
+   and stepping stones before making an open-ended coevolution claim.
 7. Effective lineage count (Hill \({}^1D\)) and lineage-tree export.
 8. Pre-registration template for behavior descriptors and minimal criterion, committed before the run.
 9. Compute-scaling harness that varies only training steps with world size locked.
