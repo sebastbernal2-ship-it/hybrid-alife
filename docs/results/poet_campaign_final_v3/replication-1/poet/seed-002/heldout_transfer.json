@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "source_commit": "eaf16dbfe41c981c822e6778a98126121efb5d04",
+  "seed": 2,
+  "effective_seed": 2,
+  "generations": 200,
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 16,
+    "action_count": 5,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.001,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 4
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.06,
+    "terrain_mutation_std": 0.08,
+    "terrain_mutation_prob": 0.08,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": false,
+    "avida_lifecycle": "reset",
+    "track": "poet",
+    "minimal_criterion": -10.0,
+    "heldout_environments": 4,
+    "heldout_seed_offset": 1000003
+  },
+  "replication_metadata": {
+    "replication_id": "replication-1",
+    "seed_offset": 0,
+    "operator": "sebas",
+    "machine_label": "local-cpu-1",
+    "cache_cleared": true
+  },
+  "mode": "heldout_transfer",
+  "frozen_policy": true,
+  "excluded_from_training": true,
+  "matrix": [
+    [
+      -0.37281548976898193,
+      -0.2805686295032501,
+      -3.0484719276428223,
+      4.205363750457764
+    ],
+    [
+      -0.5481499433517456,
+      -0.31078797578811646,
+      -3.226966381072998,
+      4.356808185577393
+    ]
+  ],
+  "history": [
+    [
+      [
+        -0.37281548976898193,
+        -0.2805686295032501,
+        -3.0484719276428223,
+        4.205363750457764
+      ],
+      [
+        -0.5481499433517456,
+        -0.31078797578811646,
+        -3.226966381072998,
+        4.356808185577393
+      ]
+    ]
+  ],
+  "environment_count": 4
+}

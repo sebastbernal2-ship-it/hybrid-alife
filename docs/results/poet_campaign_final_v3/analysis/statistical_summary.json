@@ -1,0 +1,197 @@
+{
+  "schema_version": 2,
+  "source": "docs/results/poet_campaign_final_v3",
+  "tracks": {
+    "poet": {
+      "n": 20,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "mean": 9.04968056678772,
+      "median": 10.248128890991211,
+      "std": 2.7587163364146585,
+      "iqr": [
+        7.567574143409729,
+        11.00682258605957
+      ],
+      "values": [
+        10.525949478149414,
+        11.201688766479492,
+        9.62460994720459,
+        5.369173526763916,
+        3.7262520790100098,
+        7.7787675857543945,
+        10.556191444396973,
+        11.09683609008789,
+        8.9114990234375,
+        6.933993816375732,
+        4.235187530517578,
+        10.976818084716797,
+        11.761165618896484,
+        11.31093692779541,
+        10.908896446228027,
+        9.424484252929688,
+        10.859614372253418,
+        11.992819786071777,
+        9.970308303833008,
+        3.828418254852295
+      ]
+    },
+    "static": {
+      "n": 20,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "mean": 1.5609644800424576,
+      "median": 0.24811439216136932,
+      "std": 2.960329499567036,
+      "iqr": [
+        -0.5339577421545982,
+        4.4819495677948
+      ],
+      "values": [
+        0.36816343665122986,
+        2.5712318420410156,
+        5.113938808441162,
+        0.16854512691497803,
+        1.1357417106628418,
+        -0.8920475840568542,
+        4.4712815284729,
+        -0.19361531734466553,
+        -1.1026537418365479,
+        4.513953685760498,
+        0.10964265465736389,
+        -1.5439671277999878,
+        5.841244220733643,
+        0.007762134075164795,
+        8.779951095581055,
+        4.56284236907959,
+        -0.7276343107223511,
+        0.3276836574077606,
+        -0.4693988859653473,
+        -1.8233757019042969
+      ]
+    }
+  },
+  "comparisons": {
+    "static_minus_poet": {
+      "left": "poet",
+      "right": "static",
+      "n_pairs": 20,
+      "mean_difference": -7.488716086745262,
+      "wins": 0,
+      "ties": 0,
+      "exact_paired_sign_permutation_p": 1.9073486328125e-06,
+      "cliffs_delta": -0.89,
+      "bootstrap_ci_95": [
+        -8.948409023843706,
+        -6.0148516394942995
+      ]
+    }
+  },
+  "summary_count": 40,
+  "source_commits": [
+    "eaf16dbfe41c981c822e6778a98126121efb5d04"
+  ],
+  "success_analysis": {
+    "status": "insufficient_evidence",
+    "primary_track": "poet",
+    "baseline_track": "static",
+    "replications": 2,
+    "valid_replications": 0,
+    "independent_seed_offsets": true,
+    "bootstrap_ci_95": [
+      -0.15925581899471578,
+      1.2303216408286242
+    ],
+    "mean_difference": 0.5300808303058148,
+    "per_replication": {
+      "replication-1": {
+        "n_pairs": 10,
+        "mean_difference": 0.18751242458820344,
+        "wins": 5,
+        "ties": 1,
+        "exact_paired_sign_permutation_p": 0.73828125,
+        "cliffs_delta": 0.11,
+        "bootstrap_ci_95": [
+          -0.8890007855370641,
+          1.1953720408864317
+        ],
+        "replication_id": "replication-1",
+        "seed_count_requirement_met": true,
+        "metadata_consistent": true,
+        "cache_cleared": true,
+        "seed_offset": 0
+      },
+      "replication-2": {
+        "n_pairs": 10,
+        "mean_difference": 0.872649236023426,
+        "wins": 6,
+        "ties": 2,
+        "exact_paired_sign_permutation_p": 0.109375,
+        "cliffs_delta": 0.36,
+        "bootstrap_ci_95": [
+          0.06621448695659637,
+          1.7971617107093334
+        ],
+        "replication_id": "replication-2",
+        "seed_count_requirement_met": true,
+        "metadata_consistent": true,
+        "cache_cleared": true,
+        "seed_offset": 10000
+      }
+    }
+  },
+  "comparison": {
+    "left": "poet",
+    "right": "static",
+    "n_pairs": 20,
+    "mean_difference": -7.488716086745262,
+    "wins": 0,
+    "ties": 0,
+    "exact_paired_sign_permutation_p": 1.9073486328125e-06,
+    "cliffs_delta": -0.89,
+    "bootstrap_ci_95": [
+      -8.948409023843706,
+      -6.0148516394942995
+    ]
+  }
+}

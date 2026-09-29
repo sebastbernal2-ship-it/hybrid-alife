@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import pickle
+import platform
+import subprocess
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -37,6 +39,7 @@ from hybrid_alife.world.env import (
 )
 
 OBS_DIM = 8
+POET_ARTIFACT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -69,7 +72,19 @@ class POETConfig:
     policy_mutation_prob: float = 0.05
     transfer_steps: int = 12
     avida_enabled: bool = False
+    avida_lifecycle: str = "reset"
     track: str = "isolated"
+    minimal_criterion: float = -10.0
+    heldout_environments: int = 4
+    heldout_seed_offset: int = 1_000_003
+
+    def __post_init__(self) -> None:
+        if self.heldout_environments < 0:
+            raise ValueError("heldout_environments must be non-negative")
+        if self.avida_lifecycle not in {"reset", "persistent"}:
+            raise ValueError("avida_lifecycle must be reset or persistent")
+        if self.avida_lifecycle == "persistent" and not self.avida_enabled:
+            raise ValueError("persistent Avida requires avida_enabled=True")
 
 
 class PolicyParams(NamedTuple):
@@ -94,6 +109,15 @@ class EnvironmentGenome(NamedTuple):
         )
 
 
+@dataclass(frozen=True)
+class EnvironmentArchiveEntry:
+    environment_id: str
+    environment: EnvironmentGenome
+    parent_id: str | None
+    birth_generation: int
+    admission_score: float | None
+
+
 @dataclass
 class POETState:
     environments: tuple[EnvironmentGenome, ...]
@@ -110,17 +134,50 @@ class POETState:
     final_environment_terrain: np.ndarray
     track: str
     avida_enabled: bool
+    avida_lifecycle: str
+    environment_ids: tuple[str, ...]
+    environment_archive: list[EnvironmentArchiveEntry]
+    archive_transfer_history: list[np.ndarray]
+    heldout_environments: tuple[EnvironmentGenome, ...]
+    heldout_transfer_history: list[np.ndarray]
+    environment_candidates: int
+    environment_admissions: int
+    environment_rejections: int
+    replication_metadata: dict[str, Any]
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
+            "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
             "generation": self.generation,
             "policy_updates": self.policy_updates,
             "policy_mutations": self.policy_mutations,
             "environment_mutations": self.environment_mutations,
             "track": self.track,
             "avida_enabled": self.avida_enabled,
+            "avida_lifecycle": self.avida_lifecycle,
             "metrics": self.metrics,
             "transfer_history": [matrix.round(8).tolist() for matrix in self.transfer_history],
+            "archive_size": len(self.environment_archive),
+            "archive_admissions": self.environment_admissions,
+            "archive_rejections": self.environment_rejections,
+            "environment_candidates": self.environment_candidates,
+            "archive_lineage": [
+                {
+                    "environment_id": entry.environment_id,
+                    "parent_id": entry.parent_id,
+                    "birth_generation": entry.birth_generation,
+                    "admission_score": entry.admission_score,
+                }
+                for entry in self.environment_archive
+            ],
+            "archive_transfer_history": [
+                matrix.round(8).tolist() for matrix in self.archive_transfer_history
+            ],
+            "heldout_transfer_history": [
+                matrix.round(8).tolist() for matrix in self.heldout_transfer_history
+            ],
+            "heldout_environment_count": len(self.heldout_environments),
+            "replication_metadata": self.replication_metadata,
         }
 
 
@@ -131,6 +188,20 @@ class _Batch:
     old_log_probs: jax.Array
     advantages: jax.Array
     returns: jax.Array
+    rewards: jax.Array
+
+
+def _source_commit() -> str:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parents[2],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
 
 
 def _register_pytree_dataclass(cls: type) -> None:
@@ -297,7 +368,39 @@ def initialize_environment(cfg: POETConfig, key: jax.Array) -> EnvironmentGenome
     return EnvironmentGenome(params=params, terrain=terrain)
 
 
-def initialize_poet_state(cfg: POETConfig, seed: int) -> POETState:
+def normalize_replication_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the declared metadata required to interpret a campaign cell."""
+    metadata = {} if metadata is None else dict(metadata)
+    normalized = {
+        "replication_id": str(metadata.get("replication_id", "replication-unknown")),
+        "seed_offset": int(metadata.get("seed_offset", 0)),
+        "operator": str(metadata.get("operator", "unspecified")),
+        "machine_label": str(metadata.get("machine_label", platform.node() or "unknown")),
+        "cache_cleared": bool(metadata.get("cache_cleared", False)),
+    }
+    if not normalized["replication_id"]:
+        raise ValueError("replication_id must not be empty")
+    return normalized
+
+
+def minimal_criterion_admits(raw_reward: float, cfg: POETConfig) -> bool:
+    """Apply the preregistered raw-reward lower bound to a candidate world."""
+    return float(raw_reward) >= cfg.minimal_criterion
+
+
+def initialize_heldout_environments(cfg: POETConfig, seed: int) -> tuple[EnvironmentGenome, ...]:
+    """Create deterministic targets from a seed stream excluded from training."""
+    key = jax.random.PRNGKey(seed + cfg.heldout_seed_offset)
+    keys = jax.random.split(key, cfg.heldout_environments)
+    return tuple(initialize_environment(cfg, item) for item in keys)
+
+
+def initialize_poet_state(
+    cfg: POETConfig,
+    seed: int,
+    *,
+    replication_metadata: dict[str, Any] | None = None,
+) -> POETState:
     key = jax.random.PRNGKey(seed)
     keys = jax.random.split(key, 2 * cfg.population_size)
     environments = tuple(
@@ -308,6 +411,16 @@ def initialize_poet_state(cfg: POETConfig, seed: int) -> POETState:
     )
     initial_policy = np.asarray(policies[0].w_policy)
     initial_terrain = np.asarray(jnp.stack([env.terrain for env in environments]))
+    archive = [
+        EnvironmentArchiveEntry(
+            environment_id=f"env-{index:06d}",
+            environment=environment,
+            parent_id=None,
+            birth_generation=0,
+            admission_score=None,
+        )
+        for index, environment in enumerate(environments)
+    ]
     return POETState(
         environments=environments,
         policies=policies,
@@ -323,6 +436,16 @@ def initialize_poet_state(cfg: POETConfig, seed: int) -> POETState:
         final_environment_terrain=initial_terrain.copy(),
         track=cfg.track,
         avida_enabled=cfg.avida_enabled,
+        avida_lifecycle=cfg.avida_lifecycle,
+        environment_ids=tuple(entry.environment_id for entry in archive),
+        environment_archive=archive,
+        archive_transfer_history=[],
+        heldout_environments=initialize_heldout_environments(cfg, seed),
+        heldout_transfer_history=[],
+        environment_candidates=0,
+        environment_admissions=0,
+        environment_rejections=0,
+        replication_metadata=normalize_replication_metadata(replication_metadata),
     )
 
 
@@ -506,25 +629,24 @@ def _rollout_step(
     return state, next_position, reward.astype(jnp.float32), done, lineage_counter
 
 
-def collect_rollout(
+def _collect_rollout(
     params: PolicyParams,
     env: EnvironmentGenome,
     cfg: POETConfig,
     key: jax.Array,
     *,
-    stochastic: bool = True,
-    horizon: int | None = None,
-) -> _Batch:
+    stochastic: bool,
+    horizon: int | None,
+    initial_avida: AvidaPopulationState | None = None,
+) -> tuple[_Batch, AvidaPopulationState | None]:
     horizon = cfg.rollout_steps if horizon is None else horizon
     if horizon < 1:
         raise ValueError("rollout horizon must be positive")
     key, world_key, population_key = jax.random.split(key, 3)
     world, world_cfg = initialize_environment_world(env, cfg, world_key)
-    avida = (
-        initialize_avida_population(_poet_avida_config(), population_key)
-        if cfg.avida_enabled
-        else None
-    )
+    avida = initial_avida
+    if avida is None and cfg.avida_enabled:
+        avida = initialize_avida_population(_poet_avida_config(), population_key)
     state = SimState(
         generation=0,
         step=0,
@@ -571,7 +693,28 @@ def collect_rollout(
         old_log_probs=jnp.stack(old_log_probs),
         advantages=advantages,
         returns=returns,
+        rewards=jnp.stack(rewards),
+    ), state.avida
+
+
+def collect_rollout(
+    params: PolicyParams,
+    env: EnvironmentGenome,
+    cfg: POETConfig,
+    key: jax.Array,
+    *,
+    stochastic: bool = True,
+    horizon: int | None = None,
+) -> _Batch:
+    batch, _ = _collect_rollout(
+        params,
+        env,
+        cfg,
+        key,
+        stochastic=stochastic,
+        horizon=horizon,
     )
+    return batch
 
 
 def ppo_update(
@@ -612,7 +755,7 @@ def evaluate_policy(
         stochastic=False,
         horizon=cfg.transfer_steps,
     )
-    return float(jnp.mean(batch.returns))
+    return float(jnp.sum(batch.rewards))
 
 
 def evaluate_transfer_matrix(
@@ -629,6 +772,18 @@ def evaluate_transfer_matrix(
                 policy, env, cfg, seed + policy_index * 1009 + env_index
             )
     return matrix
+
+
+def evaluate_archive_transfer(
+    policies: tuple[PolicyParams, ...] | list[PolicyParams],
+    archive: list[EnvironmentArchiveEntry],
+    cfg: POETConfig,
+    seed: int,
+) -> np.ndarray:
+    """Evaluate frozen policies on every admitted environment stepping stone."""
+    return evaluate_transfer_matrix(
+        policies, [entry.environment for entry in archive], cfg, seed
+    )
 
 
 def _avida_comparison_score(matrix: np.ndarray) -> float:
@@ -674,14 +829,27 @@ def run_poet(
     seed: int,
     generations: int | None = None,
     out_dir: str | Path | None = None,
+    *,
+    replication_metadata: dict[str, Any] | None = None,
 ) -> POETState:
-    """Run paired policy/environment populations and optionally write artifacts."""
-    state = initialize_poet_state(cfg, seed)
+    """Run paired populations with admitted archive worlds and held-out targets."""
+    metadata = normalize_replication_metadata(replication_metadata)
+    effective_seed = seed + metadata["seed_offset"]
+    state = initialize_poet_state(
+        cfg, effective_seed, replication_metadata=metadata
+    )
     generations = cfg.rollout_steps if generations is None else generations
-    key = jax.random.PRNGKey(seed + 17)
+    key = jax.random.PRNGKey(effective_seed + 17)
+    persistent_avida: list[AvidaPopulationState | None] = [None] * len(state.environments)
+    if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
+        for index in range(len(persistent_avida)):
+            key, population_key = jax.random.split(key)
+            persistent_avida[index] = initialize_avida_population(
+                _poet_avida_config(), population_key
+            )
     for generation in range(generations):
         transfer = evaluate_transfer_matrix(
-            state.policies, state.environments, cfg, seed + generation
+            state.policies, state.environments, cfg, effective_seed + generation
         )
         state.transfer_history.append(transfer)
         policy_scores = transfer.mean(axis=1)
@@ -690,9 +858,20 @@ def run_poet(
         for index, env in enumerate(state.environments):
             parent_index = int(np.argmax(transfer[:, index]))
             key, rollout_key = jax.random.split(key)
-            batch = collect_rollout(
-                trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
-            )
+            if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
+                batch, persistent_avida[index] = _collect_rollout(
+                    trained_policies[parent_index],
+                    env,
+                    cfg,
+                    rollout_key,
+                    stochastic=True,
+                    horizon=None,
+                    initial_avida=persistent_avida[index],
+                )
+            else:
+                batch = collect_rollout(
+                    trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
+                )
             trained_policies[parent_index], loss = ppo_update(
                 trained_policies[parent_index], batch, cfg.ppo
             )
@@ -713,25 +892,61 @@ def run_poet(
         )
         state.policies = tuple(trained_policies)
         state.policy_mutations += 1
-        # Replace the least useful environment with a bounded mutation of the
-        # best environment.  Policy parameters are never used to mutate worlds.
-        worst_environment_index = int(np.argmin(transfer[best_policy_index]))
-        key, mutation_key = jax.random.split(key)
-        child = mutate_environment(state.environments[best_policy_index], cfg, mutation_key)
-        environments = list(state.environments)
-        environments[worst_environment_index] = child
-        state.environments = tuple(environments)
-        state.environment_mutations += 1
+
+        # Candidate worlds enter the archive only after the raw-reward criterion.
+        if cfg.track != "static":
+            worst_environment_index = int(np.argmin(transfer[best_policy_index]))
+            key, mutation_key = jax.random.split(key)
+            parent_id = state.environment_ids[best_policy_index]
+            child = mutate_environment(state.environments[best_policy_index], cfg, mutation_key)
+            candidate_score = evaluate_policy(
+                state.policies[best_policy_index], child, cfg, effective_seed + 500_000 + generation
+            )
+            state.environment_candidates += 1
+            if minimal_criterion_admits(candidate_score, cfg):
+                child_id = f"env-{len(state.environment_archive):06d}"
+                state.environment_archive.append(
+                    EnvironmentArchiveEntry(
+                        environment_id=child_id,
+                        environment=child,
+                        parent_id=parent_id,
+                        birth_generation=generation + 1,
+                        admission_score=candidate_score,
+                    )
+                )
+                environments = list(state.environments)
+                environments[worst_environment_index] = child
+                state.environments = tuple(environments)
+                ids = list(state.environment_ids)
+                ids[worst_environment_index] = child_id
+                state.environment_ids = tuple(ids)
+                state.environment_mutations += 1
+                state.environment_admissions += 1
+            else:
+                state.environment_rejections += 1
         state.generation = generation + 1
         state.final_policy = np.asarray(state.policies[0].w_policy)
         state.final_environment_terrain = np.asarray(
             jnp.stack([environment.terrain for environment in state.environments])
         )
-
     final_transfer = evaluate_transfer_matrix(
-        state.policies, state.environments, cfg, seed + generations
+        state.policies, state.environments, cfg, effective_seed + generations
     )
     state.transfer_history.append(final_transfer)
+    state.archive_transfer_history.append(
+        evaluate_archive_transfer(
+            state.policies, state.environment_archive, cfg, effective_seed + 700_000
+        )
+    )
+    if state.heldout_environments:
+        state.heldout_transfer_history.append(
+            evaluate_transfer_matrix(
+                state.policies,
+                state.heldout_environments,
+                cfg,
+                effective_seed + cfg.heldout_seed_offset,
+            )
+        )
     if out_dir is not None:
         write_poet_artifacts(state, cfg, seed, Path(out_dir), generations)
     return state
@@ -747,7 +962,9 @@ def save_poet_checkpoint(
         pickle.dump(
             {
                 "version": 1,
+                "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
                 "seed": seed,
+                "source_commit": _source_commit(),
                 "config": asdict(cfg),
                 "state": state,
             },
@@ -766,16 +983,17 @@ def write_poet_artifacts(
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "figures").mkdir(exist_ok=True)
+    metadata = {
+        "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
+        "source_commit": _source_commit(),
+        "seed": seed,
+        "effective_seed": seed + state.replication_metadata["seed_offset"],
+        "generations": generations,
+        "config": asdict(cfg),
+        "replication_metadata": state.replication_metadata,
+    }
     (out_dir / "config.json").write_text(
-        json.dumps(
-            {
-                "seed": seed,
-                "generations": generations,
-                "track": cfg.track,
-                "avida_enabled": cfg.avida_enabled,
-            },
-            indent=2,
-        ),
+        json.dumps(metadata, indent=2),
         encoding="utf-8",
     )
     with (out_dir / "metrics.jsonl").open("w", encoding="utf-8") as handle:
@@ -783,20 +1001,75 @@ def write_poet_artifacts(
             handle.write(json.dumps(row, sort_keys=True) + "\n")
     final_matrix = state.transfer_history[-1]
     (out_dir / "transfer_matrix.json").write_text(
-        json.dumps({"matrix": final_matrix.tolist(), "frozen_policy": True}, indent=2),
+        json.dumps(
+            {
+                **metadata,
+                "matrix": final_matrix.tolist(),
+                "frozen_policy": True,
+                "mode": "raw_reward_transfer",
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     archive = [
         {
-            "environment_index": index,
-            "params": np.asarray(environment.params).tolist(),
-            "terrain_mean": float(jnp.mean(environment.terrain)),
-            "terrain_std": float(jnp.std(environment.terrain)),
+            "environment_id": entry.environment_id,
+            "parent_id": entry.parent_id,
+            "birth_generation": entry.birth_generation,
+            "admission_score": entry.admission_score,
+            "params": np.asarray(entry.environment.params).tolist(),
+            "terrain": np.asarray(entry.environment.terrain).tolist(),
+            "terrain_mean": float(jnp.mean(entry.environment.terrain)),
+            "terrain_std": float(jnp.std(entry.environment.terrain)),
         }
-        for index, environment in enumerate(state.environments)
+        for entry in state.environment_archive
     ]
     (out_dir / "environment_archive.json").write_text(
-        json.dumps(archive, indent=2), encoding="utf-8"
+        json.dumps(
+            {
+                **metadata,
+                "minimal_criterion": cfg.minimal_criterion,
+                "environments": archive,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    archive_matrix = state.archive_transfer_history[-1]
+    (out_dir / "archive_transfer.json").write_text(
+        json.dumps(
+            {
+                **metadata,
+                "mode": "stepping_stone_archive_transfer",
+                "frozen_policy": True,
+                "matrix": archive_matrix.tolist(),
+                "history": [matrix.tolist() for matrix in state.archive_transfer_history],
+                "environment_ids": [entry.environment_id for entry in state.environment_archive],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    heldout_matrix = (
+        state.heldout_transfer_history[-1]
+        if state.heldout_transfer_history
+        else np.zeros((len(state.policies), 0), dtype=np.float32)
+    )
+    (out_dir / "heldout_transfer.json").write_text(
+        json.dumps(
+            {
+                **metadata,
+                "mode": "heldout_transfer",
+                "frozen_policy": True,
+                "excluded_from_training": True,
+                "matrix": heldout_matrix.tolist(),
+                "history": [matrix.tolist() for matrix in state.heldout_transfer_history],
+                "environment_count": len(state.heldout_environments),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
     save_poet_checkpoint(out_dir / "poet_checkpoint.pkl", state, cfg, seed)
     comparison_score = _avida_comparison_score(final_matrix) if cfg.avida_enabled else None
@@ -818,8 +1091,19 @@ def write_poet_artifacts(
     summary = state.to_jsonable()
     summary.update(
         {
+            "schema_version": POET_ARTIFACT_SCHEMA_VERSION,
+            "source_commit": metadata["source_commit"],
+            "config": metadata["config"],
             "seed": seed,
+            "effective_seed": metadata["effective_seed"],
             "generations": generations,
+            "replication_metadata": state.replication_metadata,
+            "heldout_transfer_mean": (
+                float(np.mean(heldout_matrix)) if heldout_matrix.size else None
+            ),
+            "archive_transfer_mean": (
+                float(np.mean(archive_matrix)) if archive_matrix.size else None
+            ),
             "comparison_score": comparison_score,
             "avida_comparator_steps": avida_comparator_steps,
             "avida_mean_merit": avida_mean_merit,
@@ -857,6 +1141,7 @@ def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfi
     ppo = PPOConfig(**raw.pop("ppo", {}))
     if track is not None:
         raw["track"] = track
-        raw["avida_enabled"] = track == "avida_enabled"
+        raw["avida_enabled"] = track in {"avida_enabled", "avida_persistent"}
+        raw["avida_lifecycle"] = "persistent" if track == "avida_persistent" else "reset"
     raw["ppo"] = ppo
     return POETConfig(**raw)

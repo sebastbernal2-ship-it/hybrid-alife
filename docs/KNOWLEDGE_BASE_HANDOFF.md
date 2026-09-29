@@ -10,12 +10,11 @@
 
 - **Name:** hybrid-alife — Hybrid Artificial-Life Simulator.
 - **Repository:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip at handoff:** `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`
-  (`chore(git): ignore temp audit artifacts`).
+- **Main branch tip at handoff:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
 - **Validation branch:** `feat/solidness-performance` at
-  `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`.
+  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
 - **Date of handoff:** 2026-09-28.
-- **Integration status:** the validation branch awaits a PR into `main`.
+- **Integration status:** the corrected implementation is on the validation branch; the v3 campaign archive and refreshed handoffs are the current working-tree deliverables for the next PR.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
 
 ## Mission (one paragraph)
@@ -59,9 +58,11 @@ tests/            CPU-feasible pytest suite
 
 ## Validation status (current)
 
-- `pytest -q` → **217 passed** in the validated CPU environment.
-- PPO-POET campaign: two tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v2/`.
+- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 passed** in the validated CPU environment.
+- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
+  cell are archived in `docs/results/poet_campaign_final_v3/`.
+- Transfer scores now use the undiscounted sum of deterministic frozen-policy rewards.
+- The Avida sidecar and persistent Avida lifecycle are both represented.
 - Communication benchmark: compositional control hits topsim / posdis / bosdis
   = 1.0.
 - QD-active smoke (`configs/qd_active.yaml`, gen 5): coverage 0.4375,
@@ -87,7 +88,8 @@ tests/            CPU-feasible pytest suite
 | [`lineage_growth.md`](lineage_growth.md) | Lineage tree, Hill 1D effective count. |
 | [`poet_transfer.md`](poet_transfer.md) | Fixed-policy transfer matrix + compute scaling. |
 | [`poet_ppo_campaign.md`](poet_ppo_campaign.md) | PPO-POET campaign design and outputs. |
-| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Archived 20-cell campaign evidence and checksums. |
+| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Superseded 20-cell campaign archive. |
+| [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Corrected 30-cell campaign evidence, statistics, and checksums. |
 | [`campaign_cache_acceleration.md`](campaign_cache_acceleration.md) | Cache-accelerated campaigns. |
 | [`experiment_campaign_quickstart.md`](experiment_campaign_quickstart.md) | Multi-config sweep quickstart. |
 | [`visualization_quickstart.md`](visualization_quickstart.md) | `visualize_run.py` usage. |
@@ -105,8 +107,8 @@ tests/            CPU-feasible pytest suite
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 217-test suite to pass on CPU)
-pytest -q
+# Tests (expect the current 220-test suite to pass on CPU)
+JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Preflight before any multi-hour campaign
 python scripts/preflight_campaign.py --config configs/campaigns/<campaign>.yaml
@@ -161,8 +163,8 @@ session should look for:
 - `outputs/campaigns/<campaign>/...` — cache-accelerated campaign artifacts.
 - `outputs/visualizations/<run_name>/...` — frames and overview plots from
   `visualize_run.py`.
-- `docs/results/poet_campaign_final_v2/` — archived PPO-POET campaign cells,
-  aggregate statistics, profiles, and SHA256 checksums.
+- `docs/results/poet_campaign_final_v2/` — superseded PPO-POET campaign archive.
+- `docs/results/poet_campaign_final_v3/` — corrected 30-cell PPO-POET archive with raw-reward scores, three Avida lifecycle tracks, aggregate statistics, and SHA256 checksums.
 
 ## Next-session first prompt
 
@@ -170,12 +172,12 @@ Copy-paste this into a new chat to continue work with zero prior context:
 
 > You are continuing the hybrid-alife project at
 > https://github.com/sebastbernal2-ship-it/hybrid-alife (main at
-> `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`, validation branch at
-> `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`). First read
+> `6364048`, validation branch at
+> `d0542eb8108e62a978cacac5ff14759b445cb7cd`). First read
 > `docs/KNOWLEDGE_BASE_HANDOFF.md`, then `docs/CONTINUATION_HANDOFF.md`, then
 > `docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`. Confirm baseline with
-> `pytest -q` (expect the current 217-test suite to pass on CPU). Then review
-> the pending PPO-POET integration before picking one of the
+> `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` (expect 220 tests to pass on CPU). Then review
+> the corrected PPO-POET campaign archive before picking one of the
 > "Next priorities" items from `KNOWLEDGE_BASE_HANDOFF.md`, open a new branch
 > `sprint/<topic>-fast` off main, and land it via PR with CI green. Do not
 > weaken language guardrails or remove ablation pairings. Report seeds,
@@ -208,7 +210,7 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 - Reseeding hides extinction; embodied alive-fraction stays at 1.0, so
   selection pressure must be measured via lineage depth and Hill 1D, not
   survival fraction.
-- The full pytest suite currently reports 217 passed in the validated CPU environment.
+- The full pytest suite currently reports 220 passed in the validated CPU environment.
 - GitHub Actions CI runs the full pytest suite on every push; merges into
   `main` require a green CI.
 - Sprint branches use the pattern `sprint/<topic>-fast`; they land via merge
@@ -249,10 +251,10 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Next priorities (in order)
 
-1. **PR integration:** open and validate the PPO-POET feature branch before
+1. **PR integration:** open and validate the corrected PPO-POET feature branch before
    merging it into `main`. Keep CI green and update this handoff after merge.
-2. **Archive validation:** preserve the campaign manifest, checksums, and
-   publication report with every headline result.
+2. **Archive validation:** preserve the v3 campaign manifest, complete configurations,
+   source commit, generated statistics, and checksums with every headline result.
 3. **Surrogate-assisted QD:** small regression head over behaviour-descriptor
    → fitness to gate full rollouts. Acceptance: ≥30% reduction in rollouts to
    reach current smoke200 coverage at matched seeds.
@@ -267,7 +269,7 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Success criteria for "continuation succeeded"
 
-1. `pytest -q` still reports ≥217 passing tests, never fewer without an
+1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports ≥220 passing tests, never fewer without an
    explicit deletion memo.
 2. The smokes in [`CONTINUATION_HANDOFF.md`](CONTINUATION_HANDOFF.md) "Next 20
    minutes" run end-to-end on CPU and produce the same JSONL shape.

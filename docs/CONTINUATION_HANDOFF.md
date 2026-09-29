@@ -15,13 +15,11 @@
 ## Pointers
 
 - **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip before this sprint:** `ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`
-  (`chore(git): ignore temp audit artifacts`).
+- **Main branch tip before this sprint:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
 - **Validation branch:** `feat/solidness-performance` at
-  `a02a486f491dfdd3e5b6b489e52c134ee5a83f09`.
+  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
 - **Date of handoff:** 2026-09-28.
-- **Integration status:** the validation branch is pushed and awaits a PR into
-  `main`.
+- **Integration status:** the corrected implementation and v3 campaign archive are on the validation branch and await a PR into `main`.
 
 ## TL;DR project state
 
@@ -36,9 +34,11 @@ population loop, but it does not establish open-ended coevolution.
 
 ## Known validation (snapshot at handoff)
 
-- `pytest -q` → **217 tests passed** in the validated CPU environment.
-- PPO-POET campaign: two tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v2/`.
+- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 tests passed** in the validated CPU environment.
+- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
+  cell are archived in `docs/results/poet_campaign_final_v3/`.
+- Transfer evaluation uses undiscounted raw reward sums from deterministic frozen-policy rollouts.
+- The campaign includes reset-per-rollout and persistent Avida lifecycle tracks.
 - QD-active smoke (`configs/qd_active.yaml`) at gen 5:
   - coverage `0.4375`, qd_score `77.9649`, novelty archive size `72`.
 - Communication benchmark acceptance:
@@ -93,7 +93,7 @@ scripts/
 configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
             comm_task, lineage_growth, scaling_tiny, transfer_{source,target},
             poet_{smoke,campaign})
-tests/      CPU-feasible pytest suite with 217 validated tests
+tests/      CPU-feasible pytest suite with 220 validated tests
 docs/       architecture, world_model, agent_branches, scientific_validation,
             qd_active, comm_benchmark, transfer, poet_ppo_campaign,
             lineage_growth, preregistration_template, CONTINUATION_HANDOFF (this file)
@@ -196,7 +196,7 @@ that guide before publication.
 
 ### Next 20 minutes
 
-- `pytest -q` to confirm the current 217-test suite still passes locally.
+- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` to confirm the current 220-test suite still passes locally.
 - `python scripts/run_sim.py --config configs/base.yaml` (2-gen smoke) to
   confirm runner + JSONL writer are healthy end-to-end.
 - Skim `outputs/` for prior sprint artifacts (transfer / scaling); confirm
@@ -244,8 +244,8 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 217-test suite to pass on CPU)
-pytest -q
+# Tests (expect the current 220-test suite to pass on CPU)
+JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Lint
 ruff check src tests
@@ -288,8 +288,7 @@ python -c "from hybrid_alife.experiments.runner import load_config; \
 - Follow-up branches use the pattern `sprint/<topic>-fast` (fast = time-boxed
   CPU-feasible).
 - The current validation branch is `feat/solidness-performance`.
-- Its PPO-POET implementation, campaign archive, and metadata fixes await a PR
-  into `main`.
+- Its corrected PPO-POET implementation, 30-cell campaign archive, and provenance metadata await a PR into `main`.
 - Open a PR from each validation branch back into `main`. CI must be green
   before merging. The current PPO-POET validation branch is
   `feat/solidness-performance`. Do **not** force-push to `main`.
@@ -322,14 +321,14 @@ git branch -r | grep sprint/        # list remote sprints
 ```
 
 The current pre-integration point is `main` at
-`ea9cbcd48f26e49ce20b2df97c24ac0e90683eb5`.
+`6364048`.
 Compare the validation branch against that commit when reviewing the pending PR.
 
 ## Success criteria for "continuation succeeded"
 
 A future chat has successfully continued this project if and only if:
 
-1. `pytest -q` still reports 217 passing tests (or more, never fewer
+1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 220 passing tests (or more, never fewer
    without an explicit deletion memo).
 2. The smokes in the **Next 20 minutes** section run to completion on CPU
    and produce the same shape of JSONL output as today.
