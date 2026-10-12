@@ -1,18 +1,18 @@
 # Field-discovery pilot
 
-This pilot runs the direct, indirect, shuffled, and intervention conditions in the hybrid-alife simulator.
-It uses `initialize_sim` and `step_sim` from the experiment runner.
+This pilot trains each condition with the existing hybrid-alife evolutionary runner, then evaluates a frozen controller through direct, indirect, shuffled, and intervention conditions.
+It uses `run_experiment`, `initialize_sim`, and `step_sim` from the experiment runner.
 It does not change PPO-POET criteria.
 
 Run a small pilot with:
 
 ```bash
-PYTHONPATH=src JAX_PLATFORMS=cpu python scripts/run_field_discovery.py --seed 7 --steps 16 --output outputs/field-discovery-pilot.json
+PYTHONPATH=src JAX_PLATFORMS=cpu python scripts/run_field_discovery.py --seed 7 --steps 16 --training-generations 2 --output outputs/field-discovery-pilot.json
 ```
 
 The runner saves one compact JSON artifact.
-It records the seed, config file, condition controls, and final survival, energy, resource, and reproduction metrics.
-It also records scores before and after the halfway point.
+It records the seed, config file, training generations, condition controls, and final survival, energy, resource, and reproduction metrics.
+It also records scores before and after the halfway point of frozen evaluation.
 The intervention condition turns on configured drift at that point.
 Other conditions use the same point to record comparable snapshots.
 
@@ -29,4 +29,4 @@ PYTHONPATH=src python scripts/analyze_field_discovery.py outputs/field-discovery
 
 This small pilot is an integration check, not evidence for a functional model or consciousness.
 Do not interpret direct-access performance as discovery.
-Research conclusions require more seeds, transfer tests, and controls.
+Research conclusions require more seeds, longer training, transfer tests, and controls.

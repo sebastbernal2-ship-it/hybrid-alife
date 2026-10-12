@@ -14,6 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--steps", type=int, default=16)
+    parser.add_argument("--training-generations", type=int, default=2)
     parser.add_argument(
         "--config-dir",
         type=Path,
@@ -21,7 +22,12 @@ def main() -> None:
     )
     parser.add_argument("--output", type=Path, default=None, help="JSON path; stdout if omitted")
     args = parser.parse_args()
-    result = run_evaluation(seed=args.seed, steps=args.steps, config_dir=args.config_dir)
+    result = run_evaluation(
+        seed=args.seed,
+        steps=args.steps,
+        training_generations=args.training_generations,
+        config_dir=args.config_dir,
+    )
     payload = json.dumps(result, indent=2) + "\n"
     if args.output is None:
         print(payload, end="")
