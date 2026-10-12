@@ -301,6 +301,9 @@ def apply_embodied_actions(
     alive_f = pop.alive.astype(jnp.float32)
 
     move = actions[..., 0:2] * 0.05  # max 5% of world per step
+    flow_grid = positions_to_grid(pop.positions, h, w)
+    local_flow = world.flow[flow_grid[:, 0], flow_grid[:, 1]]
+    move = move + embodied_cfg.flow_movement_scale * local_flow
     eat = actions[..., 2]
     attack = actions[..., 3]
     repro = actions[..., 4]
