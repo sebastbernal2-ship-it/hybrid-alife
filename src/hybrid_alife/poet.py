@@ -381,6 +381,7 @@ def _poet_world_config(cfg: POETConfig) -> WorldConfig:
         metabolite_decay=0.95,
         metabolite_diffusion=0.05,
         flow_advection_strength=0.25,
+        resource_regen=0.0,
     )
 
 
@@ -725,6 +726,140 @@ def _world_observation(
     )
 
 
+def _initialize_environment_world_fast(
+    env_params: jax.Array,
+    terrain_genome: jax.Array,
+    key: jax.Array,
+    cfg: POETConfig,
+) -> WorldState:
+    """Initialize an environment genome with tracer-safe JAX operations."""
+    world_cfg = _poet_world_config(cfg)
+    world = initialize_world(world_cfg, key)
+    terrain = world.terrain.at[..., 0].set(terrain_genome)
+    terrain = terrain.at[..., 1].set(0.5 * terrain[..., 1] + 0.5 * terrain_genome)
+    resources = world.resources.at[..., 0].set(
+        jnp.clip(world.resources[..., 0] * env_params[2] + 0.35 * terrain_genome, 0.0, 1.0)
+    )
+    hazards = world.hazards.at[..., 0].set(
+        jnp.clip(world.hazards[..., 0] * env_params[3] + 0.08 * (1.0 - terrain_genome), 0.0, 1.0)
+    )
+    flow = world.flow + env_params[4:6]
+    shear = _compute_shear(flow)
+    shear_grad = _compute_shear_gradient(shear)
+    lift = _compute_lift_proxy(flow, shear, world.curvature, world_cfg)
+    enrichment = _compute_enrichment_proxy(
+        resources, hazards, lift, world.occupancy, world_cfg
+    )
+    metabolite_seed = jnp.clip(0.05 * resources[..., 0] + 0.05 * terrain_genome, 0.0, 1.0)
+    metabolites = jnp.broadcast_to(metabolite_seed[..., None], world.metabolites.shape)
+    return WorldState(
+        terrain=terrain,
+        resources=resources,
+        hazards=hazards,
+        flow=flow,
+        curvature=world.curvature,
+        shear=shear,
+        shear_grad=shear_grad,
+        enrichment=enrichment,
+        lift=lift,
+        concentration=world.concentration,
+        metabolites=metabolites,
+        occupancy=world.occupancy,
+        time=world.time,
+    )
+
+
+def _evaluate_policy_fast(
+    params: PolicyParams,
+    env_params: jax.Array,
+    terrain_genome: jax.Array,
+    key: jax.Array,
+    cfg: POETConfig,
+) -> jax.Array:
+    """Evaluate a deterministic no-Avida rollout with one compiled scan."""
+    key, world_key, _ = jax.random.split(key, 3)
+    world_cfg = _poet_world_config(cfg)
+    world = _initialize_environment_world_fast(env_params, terrain_genome, world_key, cfg)
+    initial_position = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
+    initial_energy = jnp.asarray(1.0, dtype=jnp.float32)
+    moves = jnp.asarray(
+        [[0.0, 0.08], [0.0, -0.08], [-0.08, 0.0], [0.08, 0.0], [0.0, 0.0]],
+        dtype=jnp.float32,
+    )
+
+    def body(carry, step):
+        key, world, position, energy = carry
+        key, _ = jax.random.split(key)
+        observation = _world_observation(
+            EnvironmentGenome(params=env_params, terrain=terrain_genome),
+            world,
+            position,
+            step,
+            cfg,
+            cfg.transfer_steps,
+            energy,
+        )
+        logits, _ = policy_forward(params, observation)
+        action = jnp.argmax(logits).astype(jnp.int32)
+        move = moves[jnp.mod(action, 5)]
+        world, key = _step_world_jitted(world, key, world_cfg)
+        world = replace(
+            world,
+            resources=jnp.clip(
+                world.resources + 0.005 * env_params[2], 0.0, 1.0
+            ),
+        )
+        flow = _grid_vector(world.flow, position)
+        next_position = jnp.clip(position + move + 0.02 * flow, 0.0, 0.999)
+        grid_x = jnp.clip(
+            jnp.floor(next_position[0] * cfg.width).astype(jnp.int32), 0, cfg.width - 1
+        )
+        grid_y = jnp.clip(
+            jnp.floor(next_position[1] * cfg.height).astype(jnp.int32), 0, cfg.height - 1
+        )
+        terrain = world.terrain[grid_y, grid_x, 0]
+        resource = world.resources[grid_y, grid_x, 0]
+        hazard = world.hazards[grid_y, grid_x, 0]
+        gather = resource * jnp.where((action == 4) | (action == 5), 0.4, 0.0)
+        world = replace(
+            world,
+            resources=world.resources.at[grid_y, grid_x, 0].set(resource - gather),
+            concentration=world.concentration.at[grid_y, grid_x].add(
+                0.01 * (action >= 4)
+            ),
+        )
+        interaction = (action == 6).astype(jnp.float32)
+        reproduce = ((action >= 7) & (energy + gather > 0.65)).astype(jnp.float32)
+        world = replace(
+            world,
+            resources=world.resources.at[grid_y, grid_x, 0].add(0.05 * reproduce),
+        )
+        movement_cost = 0.02 * jnp.linalg.norm(move)
+        energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
+        hazard_cost = hazard * 0.25
+        next_energy = energy + 1.5 * gather - energy_cost - hazard_cost
+        distance = jnp.linalg.norm(next_position - env_params[:2])
+        success = (distance < 0.12) & (next_energy > 0.0)
+        failure = next_energy <= 0.0
+        done = success | failure
+        reward = 1.5 * gather + 0.2 * terrain + 0.2 * interaction
+        reward = reward - hazard_cost - energy_cost - 0.1 * distance
+        reward = reward + jnp.where(success, 1.0, 0.0) - jnp.where(failure, 1.0, 0.0)
+        next_position = jnp.where(done, initial_position, next_position)
+        next_energy = jnp.where(done, initial_energy, next_energy)
+        return (key, world, next_position, next_energy), reward.astype(jnp.float32)
+
+    _, rewards = jax.lax.scan(
+        body,
+        (key, world, initial_position, initial_energy),
+        jnp.arange(cfg.transfer_steps, dtype=jnp.int32),
+    )
+    return jnp.sum(rewards)
+
+
+_evaluate_policy_fast_jitted = jax.jit(_evaluate_policy_fast, static_argnums=4)
+
+
 def _rollout_step(
     state: SimState,
     env: EnvironmentGenome,
@@ -1033,7 +1168,7 @@ def ppo_update(
     return params, float(final_loss)
 
 
-def evaluate_policy(
+def _evaluate_policy_reference(
     params: PolicyParams, env: EnvironmentGenome, cfg: POETConfig, seed: int
 ) -> float:
     batch = collect_rollout(
@@ -1047,6 +1182,25 @@ def evaluate_policy(
     return float(jnp.sum(batch.rewards))
 
 
+def evaluate_policy(
+    params: PolicyParams, env: EnvironmentGenome, cfg: POETConfig, seed: int
+) -> float:
+    if cfg.avida_enabled:
+        return _evaluate_policy_reference(params, env, cfg, seed)
+    return float(
+        np.asarray(
+            _evaluate_policy_fast_jitted(
+                params,
+                env.params,
+                env.terrain,
+                jax.random.PRNGKey(seed),
+                cfg,
+            ),
+            dtype=np.float32,
+        )
+    )
+
+
 def evaluate_transfer_matrix(
     policies: tuple[PolicyParams, ...] | list[PolicyParams],
     environments: tuple[EnvironmentGenome, ...] | list[EnvironmentGenome],
@@ -1054,6 +1208,17 @@ def evaluate_transfer_matrix(
     seed: int,
 ) -> np.ndarray:
     """Evaluate every frozen policy on every environment without updates."""
+    if not policies or not environments:
+        return np.zeros((len(policies), len(environments)), dtype=np.float32)
+    if cfg.avida_enabled:
+        matrix = np.zeros((len(policies), len(environments)), dtype=np.float32)
+        for policy_index, policy in enumerate(policies):
+            for env_index, env in enumerate(environments):
+                matrix[policy_index, env_index] = evaluate_policy(
+                    policy, env, cfg, seed + policy_index * 1009 + env_index
+                )
+        return matrix
+
     matrix = np.zeros((len(policies), len(environments)), dtype=np.float32)
     for policy_index, policy in enumerate(policies):
         for env_index, env in enumerate(environments):

@@ -16,6 +16,7 @@ from hybrid_alife.poet import (
     _archive_informed_transfer,
     _archive_parent_index,
     _archive_training_transfer,
+    _evaluate_policy_reference,
     _poet_avida_config,
     _select_archive_parent,
     _step_avida_fast,
@@ -78,6 +79,39 @@ def test_environment_mutation_is_bounded_and_changes_dynamics():
     assert np.all(child.params <= np.asarray(cfg.environment_param_high))
     assert not np.array_equal(child.terrain, state.environments[0].terrain)
     assert child.dynamics_signature(cfg) != state.environments[0].dynamics_signature(cfg)
+
+
+def test_fast_frozen_policy_evaluation_matches_reference():
+    cfg = replace(tiny_config(), transfer_steps=4)
+    state = initialize_poet_state(cfg, seed=2)
+    seed = 17
+    fast = evaluate_policy(state.policies[0], state.environments[0], cfg, seed)
+    reference = _evaluate_policy_reference(
+        state.policies[0], state.environments[0], cfg, seed
+    )
+    np.testing.assert_allclose(fast, reference, rtol=1e-5, atol=1e-5)
+
+
+def test_fast_transfer_matrix_matches_individual_evaluation():
+    cfg = replace(tiny_config(), transfer_steps=4)
+    state = initialize_poet_state(cfg, seed=2)
+    matrix = evaluate_transfer_matrix(
+        state.policies,
+        state.environments,
+        cfg,
+        seed=17,
+    )
+    expected = np.asarray(
+        [
+            [
+                evaluate_policy(policy, env, cfg, seed=17 + policy_index * 1009 + env_index)
+                for env_index, env in enumerate(state.environments)
+            ]
+            for policy_index, policy in enumerate(state.policies)
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(matrix, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_environment_genome_is_injected_into_existing_world_state():
@@ -148,6 +182,8 @@ def test_transfer_evaluation_reports_raw_reward_return():
     np.testing.assert_allclose(
         evaluate_policy(state.policies[0], state.environments[0], cfg, seed=4),
         np.sum(np.asarray(batch.rewards)),
+        rtol=1e-6,
+        atol=1e-6,
     )
 
 
