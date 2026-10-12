@@ -53,6 +53,7 @@
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
 - A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
 - The next POET campaign needs a much smaller bounded validation run or additional vectorization before any 10-seed campaign.
+- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; two generations took 37.57 seconds and twenty generations took 2:23.34 for one seed across both tracks.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## TL;DR project state
