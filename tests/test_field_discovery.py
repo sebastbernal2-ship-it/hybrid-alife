@@ -27,6 +27,8 @@ def test_evaluation_uses_simulator_conditions_and_is_reproducible():
         assert "score" in condition["pre_intervention"]
         assert "score" in condition["post_intervention"]
     assert first["conditions"]["intervention"]["config"]["intervention_step"] == 1
+    assert first["conditions"]["shuffled"]["config"]["hidden_field_groups"]
+    assert first["conditions"]["shuffled"]["config"]["shuffle_sixth_sense"] is True
     summary = summarize_results([first, first])
     assert summary["run_count"] == 2
     assert summary["conditions"]["direct"]["survival"]["n"] == 2

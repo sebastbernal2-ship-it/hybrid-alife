@@ -16,7 +16,7 @@ SCHEMA_VERSION = 3
 _CONDITIONS = {
     "direct": "field_discovery_direct.yaml",
     "indirect": "field_discovery_indirect.yaml",
-    "shuffled": "field_discovery_direct.yaml",
+    "shuffled": "field_discovery_indirect.yaml",
     "intervention": "field_discovery_intervention.yaml",
 }
 
