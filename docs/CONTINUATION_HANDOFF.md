@@ -39,6 +39,8 @@
 - Do not merge the final PR without captain approval.
 - A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
 - Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
+- PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
+- The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
 - A preregistered campaign is running from source commit `62367a7` in tmux session `poet-preregistered-final`.
 - It runs two replications of `poet` versus `static`, ten seeds per replication, and 200 generations per cell.
 - Campaign output is under `outputs/poet_campaign_final_v4/`.
