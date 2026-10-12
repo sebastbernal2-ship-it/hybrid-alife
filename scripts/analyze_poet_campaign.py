@@ -35,6 +35,10 @@ def discover_summary_paths(root: Path) -> list[Path]:
     return sorted(root.rglob("summary.json"))
 
 
+def _condition_name(summary: dict) -> str:
+    return str(summary.get("condition", summary["track"]))
+
+
 def _campaign_cell_key(summary: dict, path: Path) -> tuple[str, str, int]:
     missing = _REQUIRED_SUMMARY_FIELDS - summary.keys()
     if missing:
@@ -50,7 +54,7 @@ def _campaign_cell_key(summary: dict, path: Path) -> tuple[str, str, int]:
     missing = _REQUIRED_REPLICATION_FIELDS - metadata.keys()
     if missing:
         raise ValueError(f"{path}: missing replication metadata: {sorted(missing)}")
-    return (str(metadata["replication_id"]), str(summary["track"]), int(summary["seed"]))
+    return (str(metadata["replication_id"]), _condition_name(summary), int(summary["seed"]))
 
 
 def load_campaign_summaries(root: Path) -> list[dict]:
@@ -78,7 +82,7 @@ def _group_summaries(summaries: list[dict]) -> dict[str, dict[str, dict[int, dic
         metadata = summary.get("replication_metadata", {})
         key = (
             str(metadata.get("replication_id", "unknown")),
-            str(summary.get("track")),
+            _condition_name(summary),
             int(summary["seed"]),
         )
         if key in seen:
@@ -270,7 +274,7 @@ def main() -> None:
     summaries = load_campaign_summaries(root)
     grouped: dict[str, list[dict]] = defaultdict(list)
     for summary in summaries:
-        grouped[summary["track"]].append(summary)
+        grouped[_condition_name(summary)].append(summary)
     table = {}
     for track, rows in sorted(grouped.items()):
         values = np.asarray([row["final_transfer_mean"] for row in rows], dtype=float)

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "name": "poet_archive_control_factorial",
+  "config": "configs/poet_campaign.yaml",
+  "conditions": [
+    "poet",
+    "static",
+    "archive_disabled",
+    "random_archive",
+    "oracle_stepping_stone"
+  ],
+  "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "generations": 200,
+  "replications": [
+    {
+      "replication_id": "replication-1",
+      "seed_offset": 0,
+      "operator": "unspecified",
+      "machine_label": "declare-before-run",
+      "cache_cleared": true
+    },
+    {
+      "replication_id": "replication-2",
+      "seed_offset": 10000,
+      "operator": "unspecified",
+      "machine_label": "declare-before-run",
+      "cache_cleared": true
+    }
+  ],
+  "cell_count": 100,
+  "status": "protocol_only_until_operator_and_machine_are_declared"
+}

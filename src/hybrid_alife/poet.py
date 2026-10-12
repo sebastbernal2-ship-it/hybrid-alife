@@ -85,6 +85,8 @@ class POETConfig:
     minimal_criterion: float = -10.0
     heldout_environments: int = 4
     heldout_seed_offset: int = 1_000_003
+    archive_mode: str = "enabled"
+    condition: str = ""
 
     def __post_init__(self) -> None:
         if self.heldout_environments < 0:
@@ -93,6 +95,10 @@ class POETConfig:
             raise ValueError("avida_lifecycle must be reset or persistent")
         if self.avida_lifecycle == "persistent" and not self.avida_enabled:
             raise ValueError("persistent Avida requires avida_enabled=True")
+        if self.archive_mode not in {"enabled", "disabled", "random", "oracle"}:
+            raise ValueError(
+                "archive_mode must be enabled, disabled, random, or oracle"
+            )
 
 
 class PolicyParams(NamedTuple):
@@ -232,11 +238,14 @@ class POETState:
     initial_environment_terrain: np.ndarray
     final_environment_terrain: np.ndarray
     track: str
+    archive_mode: str
+    condition: str
     avida_enabled: bool
     avida_lifecycle: str
     environment_ids: tuple[str, ...]
     environment_archive: list[EnvironmentArchiveEntry]
     archive_transfer_history: list[np.ndarray]
+    archive_decisions: list[dict[str, Any]]
     heldout_environments: tuple[EnvironmentGenome, ...]
     heldout_transfer_history: list[np.ndarray]
     environment_candidates: int
@@ -254,6 +263,8 @@ class POETState:
             "policy_mutations": self.policy_mutations,
             "environment_mutations": self.environment_mutations,
             "track": self.track,
+            "archive_mode": self.archive_mode,
+            "condition": self.condition or self.track,
             "avida_enabled": self.avida_enabled,
             "avida_lifecycle": self.avida_lifecycle,
             "metrics": self.metrics,
@@ -276,6 +287,7 @@ class POETState:
             "archive_transfer_history": [
                 matrix.round(8).tolist() for matrix in self.archive_transfer_history
             ],
+            "archive_decisions": self.archive_decisions,
             "heldout_transfer_history": [
                 matrix.round(8).tolist() for matrix in self.heldout_transfer_history
             ],
@@ -539,11 +551,14 @@ def initialize_poet_state(
         initial_environment_terrain=initial_terrain,
         final_environment_terrain=initial_terrain.copy(),
         track=cfg.track,
+        archive_mode=cfg.archive_mode,
+        condition=cfg.condition or cfg.track,
         avida_enabled=cfg.avida_enabled,
         avida_lifecycle=cfg.avida_lifecycle,
         environment_ids=tuple(entry.environment_id for entry in archive),
         environment_archive=archive,
         archive_transfer_history=[],
+        archive_decisions=[],
         heldout_environments=initialize_heldout_environments(cfg, seed),
         heldout_transfer_history=[],
         environment_candidates=0,
@@ -1065,6 +1080,37 @@ def _select_archive_parent(archive_transfer: np.ndarray, policy_index: int) -> i
     return int(np.argmax(archive_transfer[policy_index]))
 
 
+def _archive_training_transfer(
+    transfer: np.ndarray, archive_transfer: np.ndarray, mode: str
+) -> np.ndarray:
+    """Return the policy-selection scores for one archive control."""
+    if mode == "enabled":
+        return _archive_informed_transfer(transfer, archive_transfer)
+    if mode in {"disabled", "random", "oracle"}:
+        return np.asarray(transfer).copy()
+    raise ValueError(f"unknown archive mode: {mode}")
+
+
+def _archive_parent_index(
+    archive_transfer: np.ndarray,
+    transfer: np.ndarray,
+    policy_index: int,
+    mode: str,
+    *,
+    seed: int,
+) -> int | None:
+    """Choose an archive stepping stone without using held-out environments."""
+    if mode == "disabled":
+        return None
+    if mode == "enabled":
+        return _select_archive_parent(archive_transfer, policy_index)
+    if mode == "oracle":
+        return int(np.unravel_index(np.argmax(archive_transfer), archive_transfer.shape)[1])
+    if mode == "random":
+        return int(np.random.default_rng(seed).integers(0, archive_transfer.shape[1]))
+    raise ValueError(f"unknown archive mode: {mode}")
+
+
 def _avida_comparison_score(matrix: np.ndarray) -> float:
     """Summarize positive transfer over each policy's own-environment score."""
     centered = matrix - np.mean(matrix, axis=1, keepdims=True)
@@ -1137,7 +1183,9 @@ def run_poet(
             cfg,
             effective_seed + 700_000 + generation,
         )
-        training_transfer = _archive_informed_transfer(transfer, archive_transfer)
+        training_transfer = _archive_training_transfer(
+            transfer, archive_transfer, cfg.archive_mode
+        )
         policy_scores = training_transfer.mean(axis=1)
         best_policy_index = int(np.argmax(policy_scores))
         trained_policies = list(state.policies)
@@ -1183,11 +1231,15 @@ def run_poet(
         state.policy_mutations += 1
 
         # Candidate worlds enter the archive only after the raw-reward criterion.
-        if cfg.track != "static":
-            worst_environment_index = int(np.argmin(transfer[best_policy_index]))
-            source_archive_index = _select_archive_parent(
-                archive_transfer, best_policy_index
-            )
+        source_archive_index = _archive_parent_index(
+            archive_transfer,
+            transfer,
+            best_policy_index,
+            cfg.archive_mode,
+            seed=effective_seed + generation + 910_000,
+        )
+        source_environment_index = -1
+        if source_archive_index is not None:
             source_entry = state.environment_archive[source_archive_index]
             source_environment_index = next(
                 (
@@ -1197,9 +1249,29 @@ def run_poet(
                 ),
                 -1,
             )
+        state.archive_decisions.append(
+            {
+                "generation": generation,
+                "mode": cfg.archive_mode,
+                "policy_index": best_policy_index,
+                "archive_index": (
+                    source_archive_index if source_archive_index is not None else -1
+                ),
+                "source_environment_index": source_environment_index,
+                "heldout_excluded": True,
+            }
+        )
+        if cfg.track != "static":
+            worst_environment_index = int(np.argmin(transfer[best_policy_index]))
+            if source_archive_index is None:
+                source_environment_index = int(np.argmax(transfer[best_policy_index]))
+                parent_id = state.environment_ids[source_environment_index]
+                parent_environment = state.environments[source_environment_index]
+            else:
+                source_entry = state.environment_archive[source_archive_index]
+                parent_id = source_entry.environment_id
+                parent_environment = source_entry.environment
             key, mutation_key = jax.random.split(key)
-            parent_id = source_entry.environment_id
-            parent_environment = source_entry.environment
             child = mutate_environment(parent_environment, cfg, mutation_key)
             candidate_seed = effective_seed + 500_000 + generation
             candidate_score = evaluate_policy(
@@ -1480,7 +1552,13 @@ def _write_progress_figure(state: POETState, path: Path) -> None:
     plt.close(figure)
 
 
-def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfig:
+def load_poet_config(
+    path: str | Path,
+    *,
+    track: str | None = None,
+    archive_mode: str | None = None,
+    condition: str | None = None,
+) -> POETConfig:
     import yaml
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -1489,5 +1567,11 @@ def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfi
         raw["track"] = track
         raw["avida_enabled"] = track in {"avida_enabled", "avida_persistent"}
         raw["avida_lifecycle"] = "persistent" if track == "avida_persistent" else "reset"
+        if archive_mode is None:
+            archive_mode = "disabled" if track == "static" else "enabled"
+    if archive_mode is not None:
+        raw["archive_mode"] = archive_mode
+    if condition is not None:
+        raw["condition"] = condition
     raw["ppo"] = ppo
     return POETConfig(**raw)

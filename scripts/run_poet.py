@@ -16,6 +16,17 @@ from hybrid_alife.poet import (
     run_poet,
 )
 
+_CONDITION_SPECS = {
+    "isolated": ("isolated", "disabled"),
+    "poet": ("poet", "enabled"),
+    "static": ("static", "disabled"),
+    "archive_disabled": ("poet", "disabled"),
+    "random_archive": ("poet", "random"),
+    "oracle_stepping_stone": ("poet", "oracle"),
+    "avida_enabled": ("avida_enabled", "enabled"),
+    "avida_persistent": ("avida_persistent", "enabled"),
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -26,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tracks",
         nargs="+",
-        choices=("isolated", "poet", "static", "avida_enabled", "avida_persistent"),
+        choices=tuple(_CONDITION_SPECS),
         default=("isolated", "avida_enabled"),
     )
     parser.add_argument("--replication-id", default="replication-1")
@@ -69,11 +80,17 @@ def main() -> None:
         "cells": [],
     }
     root.mkdir(parents=True, exist_ok=True)
-    for track in args.tracks:
-        cfg = load_poet_config(args.config, track=track)
+    for condition in args.tracks:
+        base_track, archive_mode = _CONDITION_SPECS[condition]
+        cfg = load_poet_config(
+            args.config,
+            track=base_track,
+            archive_mode=archive_mode,
+            condition=condition,
+        )
         for seed in args.seeds:
             generations = args.generations if args.generations is not None else cfg.rollout_steps
-            cell_dir = root / track / f"seed-{seed:03d}"
+            cell_dir = root / condition / f"seed-{seed:03d}"
             run_poet(
                 cfg,
                 seed=seed,
@@ -83,7 +100,9 @@ def main() -> None:
             )
             manifest["cells"].append(
                 {
-                    "track": track,
+                    "track": condition,
+                    "base_track": base_track,
+                    "archive_mode": archive_mode,
                     "seed": seed,
                     "generations": generations,
                     "out_dir": str(cell_dir),

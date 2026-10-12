@@ -13,6 +13,8 @@ from hybrid_alife.poet import (
     POETConfig,
     PPOConfig,
     _archive_informed_transfer,
+    _archive_parent_index,
+    _archive_training_transfer,
     _poet_avida_config,
     _select_archive_parent,
     _step_avida_fast,
@@ -207,6 +209,27 @@ def test_archive_parent_selection_uses_retained_stepping_stones():
     archive_transfer = np.asarray([[1.0, 4.0, 2.0], [3.0, 2.0, 8.0]])
     assert _select_archive_parent(archive_transfer, 0) == 1
     assert _select_archive_parent(archive_transfer, 1) == 2
+
+
+def test_archive_controls_have_distinct_training_and_parent_semantics():
+    transfer = np.asarray([[10.0, 0.0], [0.0, 10.0]])
+    archive_transfer = np.asarray([[1.0, 5.0], [2.0, 3.0]])
+    np.testing.assert_array_equal(
+        _archive_training_transfer(transfer, archive_transfer, "disabled"), transfer
+    )
+    assert _archive_parent_index(archive_transfer, transfer, 0, "disabled", seed=4) is None
+    assert _archive_parent_index(archive_transfer, transfer, 0, "enabled", seed=4) == 1
+    assert _archive_parent_index(archive_transfer, transfer, 0, "oracle", seed=4) == 1
+    assert _archive_parent_index(archive_transfer, transfer, 0, "random", seed=4) in {0, 1}
+
+
+def test_archive_disabled_mode_preserves_same_environment_budget():
+    cfg = replace(tiny_config(), archive_mode="disabled")
+    result = run_poet(cfg, seed=2, generations=2)
+    assert result.archive_mode == "disabled"
+    assert result.policy_updates == cfg.population_size * 2
+    assert all(item["mode"] == "disabled" for item in result.archive_decisions)
+    assert all(item["archive_index"] == -1 for item in result.archive_decisions)
 
 
 def test_archive_records_lineage_and_stepping_stone_transfer(tmp_path: Path):
