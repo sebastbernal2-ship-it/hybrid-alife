@@ -36,7 +36,7 @@
 - A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
 - Field-discovery configs now add a bounded flow-alignment reward, disabled in the no-field control, to create a direct task payoff for using hidden flow.
 - The alignment-reward change is code-only until a longer simulator pilot is run.
-- Final verification reports 272 passing tests and one expected GPU fallback warning.
+- Final verification reports 275 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
