@@ -42,10 +42,9 @@
 - The three-seed active-probe pilot is archived in `docs/results/field_probe_pilot_v1/`; probe rate stayed near 0.50 in every condition, so it found no evidence of selective probing.
 - A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
 - The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
-- A preregistered campaign is running from source commit `62367a7` in tmux session `poet-preregistered-final`.
-- It runs two replications of `poet` versus `static`, ten seeds per replication, and 200 generations per cell.
-- Campaign output is under `outputs/poet_campaign_final_v4/`.
-- No campaign result exists yet; do not interpret or report a result until analysis completes.
+- The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
+- Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
+- The next POET campaign needs a bounded runtime smoke and profiled configuration before the 10-seed replication.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## Mission (one paragraph)
