@@ -38,7 +38,7 @@
 - The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
 - Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
 - The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
-- Final verification reports 275 passing tests and one expected GPU fallback warning.
+- Final verification reports 276 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
