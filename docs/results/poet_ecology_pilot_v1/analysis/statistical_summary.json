@@ -1,0 +1,281 @@
+{
+  "schema_version": 2,
+  "source": "/tmp/poet-final-pilot",
+  "tracks": {
+    "avida_enabled": {
+      "n": 3,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "mean": 2.5977433721224465,
+      "median": 1.965346097946167,
+      "std": 2.840508066689631,
+      "iqr": [
+        1.0460388958454132,
+        3.8332492113113403
+      ],
+      "values": [
+        5.701152324676514,
+        0.12673169374465942,
+        1.965346097946167
+      ]
+    },
+    "poet": {
+      "n": 3,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "mean": 2.5977433721224465,
+      "median": 1.965346097946167,
+      "std": 2.840508066689631,
+      "iqr": [
+        1.0460388958454132,
+        3.8332492113113403
+      ],
+      "values": [
+        5.701152324676514,
+        0.12673169374465942,
+        1.965346097946167
+      ]
+    }
+  },
+  "comparisons": {
+    "poet_minus_avida_enabled": {
+      "left": "avida_enabled",
+      "right": "poet",
+      "n_pairs": 3,
+      "mean_difference": 0.0,
+      "wins": 0,
+      "ties": 3,
+      "exact_paired_sign_permutation_p": 1.0,
+      "cliffs_delta": 0.0,
+      "bootstrap_ci_95": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "summary_count": 6,
+  "source_commits": [
+    "209c0cc64972c066f806f250309fb8873e4e8a11"
+  ],
+  "success_analysis": {
+    "status": "insufficient_evidence",
+    "primary_track": "poet",
+    "baseline_track": "static",
+    "replications": 1,
+    "valid_replications": 0,
+    "independent_seed_offsets": true,
+    "bootstrap_ci_95": [
+      null,
+      null
+    ],
+    "mean_difference": null,
+    "per_replication": {
+      "pilot-final": {
+        "replication_id": "pilot-final",
+        "n_pairs": 0,
+        "seed_count_requirement_met": false,
+        "metadata_consistent": true,
+        "cache_cleared": true,
+        "seed_offset": 0
+      }
+    }
+  },
+  "pilot_diagnostics": {
+    "ecology": {
+      "avida_feedback": {
+        "mean": 0.03391440121534591,
+        "median": 0.03335798776242882,
+        "iqr": [
+          0.0,
+          0.06751879552030005
+        ]
+      },
+      "controller_to_avida_events": {
+        "mean": 26.0,
+        "median": 28.0,
+        "iqr": [
+          22.0,
+          29.5
+        ]
+      },
+      "energy_cost": {
+        "mean": 3.519543589381501,
+        "median": 3.174740066919476,
+        "iqr": [
+          3.097525277158711,
+          4.027762782219798
+        ]
+      },
+      "failure_events": {
+        "mean": 0.0,
+        "median": 0.0,
+        "iqr": [
+          0.0,
+          0.0
+        ]
+      },
+      "interaction_events": {
+        "mean": 5.0,
+        "median": 3.0,
+        "iqr": [
+          3.0,
+          7.5
+        ]
+      },
+      "reproduction_events": {
+        "mean": 5.0,
+        "median": 3.0,
+        "iqr": [
+          3.0,
+          7.5
+        ]
+      },
+      "resource_gather_events": {
+        "mean": 15.666666666666666,
+        "median": 16.0,
+        "iqr": [
+          14.5,
+          16.75
+        ]
+      },
+      "success_events": {
+        "mean": 0.6666666666666666,
+        "median": 0.0,
+        "iqr": [
+          0.0,
+          1.5
+        ]
+      }
+    },
+    "archive": {
+      "archive_admissions": {
+        "mean": 3.0,
+        "median": 3.0,
+        "iqr": [
+          3.0,
+          3.0
+        ]
+      },
+      "archive_rejections": {
+        "mean": 0.0,
+        "median": 0.0,
+        "iqr": [
+          0.0,
+          0.0
+        ]
+      },
+      "archive_size": {
+        "mean": 5.0,
+        "median": 5.0,
+        "iqr": [
+          5.0,
+          5.0
+        ]
+      }
+    },
+    "admission_baselines": {
+      "fixed_policy": {
+        "mean": 1.5513086583879259,
+        "median": 1.5670907497406006,
+        "iqr": [
+          1.1816216707229614,
+          1.607669472694397
+        ]
+      },
+      "hand_coded": {
+        "mean": 2.8821843134032354,
+        "median": 2.65911865234375,
+        "iqr": [
+          2.1956114768981934,
+          4.10666561126709
+        ]
+      },
+      "random": {
+        "mean": 0.648982885811064,
+        "median": 0.6157928109169006,
+        "iqr": [
+          0.4166790544986725,
+          0.8505571484565735
+        ]
+      }
+    },
+    "causal_validity_rate": {
+      "flow_x": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "flow_y": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "goal_x": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "goal_y": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "hazard_rate": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "resource_regeneration": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      },
+      "terrain": {
+        "mean": 1.0,
+        "median": 1.0,
+        "iqr": [
+          1.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "left": "avida_enabled",
+    "right": "poet",
+    "n_pairs": 3,
+    "mean_difference": 0.0,
+    "wins": 0,
+    "ties": 3,
+    "exact_paired_sign_permutation_p": 1.0,
+    "cliffs_delta": 0.0,
+    "bootstrap_ci_95": [
+      0.0,
+      0.0
+    ]
+  }
+}

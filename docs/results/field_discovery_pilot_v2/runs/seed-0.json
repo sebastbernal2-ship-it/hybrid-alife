@@ -1,0 +1,275 @@
+{
+  "schema_version": 4,
+  "seed": 0,
+  "steps": 8,
+  "training_generations": 2,
+  "conditions": {
+    "direct": {
+      "config": {
+        "file": "field_discovery_direct.yaml",
+        "seed": 0,
+        "steps": 8,
+        "training_generations": 2,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 23.964415232340496,
+        "resource": 904.7661379389465,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.01613251368205,
+          "resource": 878.0255823545158,
+          "reproduction": 0
+        },
+        "score": 22.01613251368205
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 23.964415232340496,
+          "resource": 904.7661379389465,
+          "reproduction": 0
+        },
+        "score": 23.964415232340496
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 23.841251691182453,
+          "resource": 905.1300756186247,
+          "reproduction": 0
+        },
+        "score": 23.841251691182453
+      },
+      "counterfactual_flow_information_gain": 0.0012686296145984002
+    },
+    "indirect": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 0,
+        "steps": 8,
+        "training_generations": 2,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "curvature",
+          "shear",
+          "shear_grad",
+          "enrichment",
+          "lift",
+          "concentration",
+          "metabolites"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 23.826319058736164,
+        "resource": 905.156537424773,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.171229521433514,
+          "resource": 877.6973502933979,
+          "reproduction": 0
+        },
+        "score": 22.171229521433514
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 23.826319058736164,
+          "resource": 905.156537424773,
+          "reproduction": 0
+        },
+        "score": 23.826319058736164
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 24.17203696568807,
+          "resource": 904.3520124778152,
+          "reproduction": 0
+        },
+        "score": 24.17203696568807
+      },
+      "counterfactual_flow_information_gain": 0.002048535984135569
+    },
+    "decorrelated": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 0,
+        "steps": 8,
+        "training_generations": 2,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "shear",
+          "shear_grad",
+          "lift"
+        ],
+        "shuffle_flow_observation": true,
+        "flow_movement_scale": 0.05
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 23.90383005142212,
+        "resource": 904.9234857447445,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.166152795155842,
+          "resource": 877.6944590322673,
+          "reproduction": 0
+        },
+        "score": 22.166152795155842
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 23.90383005142212,
+          "resource": 904.9234857447445,
+          "reproduction": 0
+        },
+        "score": 23.90383005142212
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 24.070930163065594,
+          "resource": 904.6649096608162,
+          "reproduction": 0
+        },
+        "score": 24.070930163065594
+      },
+      "counterfactual_flow_information_gain": 0.011912218903602473
+    },
+    "no_field": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 0,
+        "steps": 8,
+        "training_generations": 2,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "shear",
+          "shear_grad",
+          "lift"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 22.811200777689617,
+        "resource": 907.415265634656,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.333013852437336,
+          "resource": 879.6303682681173,
+          "reproduction": 0
+        },
+        "score": 21.333013852437336
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.811200777689617,
+          "resource": 907.415265634656,
+          "reproduction": 0
+        },
+        "score": 22.811200777689617
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.811200777689617,
+          "resource": 907.415265634656,
+          "reproduction": 0
+        },
+        "score": 22.811200777689617
+      },
+      "counterfactual_flow_information_gain": 0.009949929905634439
+    },
+    "intervention": {
+      "config": {
+        "file": "field_discovery_intervention.yaml",
+        "seed": 0,
+        "steps": 8,
+        "training_generations": 2,
+        "intervention_step": 4,
+        "flow_reversed": true,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "curvature",
+          "shear",
+          "shear_grad",
+          "enrichment",
+          "lift",
+          "concentration",
+          "metabolites"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 23.91137425104777,
+        "resource": 904.9922984056175,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.171229521433514,
+          "resource": 877.6973502933979,
+          "reproduction": 0
+        },
+        "score": 22.171229521433514
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 23.91137425104777,
+          "resource": 904.9922984056175,
+          "reproduction": 0
+        },
+        "score": 23.91137425104777
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 24.17203696568807,
+          "resource": 904.3520124778152,
+          "reproduction": 0
+        },
+        "score": 24.17203696568807
+      },
+      "counterfactual_flow_information_gain": 0.002048535984135569
+    }
+  }
+}

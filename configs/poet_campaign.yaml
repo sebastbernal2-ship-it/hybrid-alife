@@ -3,7 +3,7 @@ height: 8
 terrain_channels: 1
 population_size: 2
 policy_hidden: 16
-action_count: 5
+action_count: 8
 rollout_steps: 8
 transfer_steps: 8
 avida_lifecycle: reset
@@ -11,6 +11,8 @@ track: poet
 minimal_criterion: -10.0
 heldout_environments: 4
 heldout_seed_offset: 1000003
+archive_selection_limit: 16
+causal_validity_limit: 16
 environment_mutation_std: 0.06
 terrain_mutation_std: 0.08
 terrain_mutation_prob: 0.08

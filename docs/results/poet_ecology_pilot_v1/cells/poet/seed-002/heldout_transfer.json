@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "source_commit": "209c0cc64972c066f806f250309fb8873e4e8a11",
+  "seed": 2,
+  "effective_seed": 2,
+  "generations": 3,
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 12,
+    "action_count": 8,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.003,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 2
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.08,
+    "terrain_mutation_std": 0.12,
+    "terrain_mutation_prob": 0.2,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": false,
+    "avida_lifecycle": "reset",
+    "track": "poet",
+    "minimal_criterion": -10.0,
+    "heldout_environments": 4,
+    "heldout_seed_offset": 1000003
+  },
+  "replication_metadata": {
+    "replication_id": "pilot-final",
+    "seed_offset": 0,
+    "operator": "pi",
+    "machine_label": "local-cpu",
+    "cache_cleared": true
+  },
+  "mode": "heldout_transfer",
+  "frozen_policy": true,
+  "excluded_from_training": true,
+  "matrix": [
+    [
+      0.08167744427919388,
+      0.5530073046684265,
+      0.8182255625724792,
+      1.565913200378418
+    ],
+    [
+      -0.033122241497039795,
+      0.6050958633422852,
+      0.6681614518165588,
+      2.075984001159668
+    ]
+  ],
+  "history": [
+    [
+      [
+        0.08167744427919388,
+        0.5530073046684265,
+        0.8182255625724792,
+        1.565913200378418
+      ],
+      [
+        -0.033122241497039795,
+        0.6050958633422852,
+        0.6681614518165588,
+        2.075984001159668
+      ]
+    ]
+  ],
+  "environment_count": 4
+}

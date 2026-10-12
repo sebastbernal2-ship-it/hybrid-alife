@@ -8,6 +8,7 @@ simple to keep mutation closed-form, but the controller has gated recurrence
 Observation layout:
   patch  : (2r+1)^2 * patch_channels
   sense  : 9 sixth-sense channels (1 + 2 + 1 + 2 + 2 + 3 -- see sensing.sixth_sense_dim)
+  probe  : 2 local flow channels when active probing is enabled
   prop   : 6 + message_size proprioception channels (pos, energy, age, alive, hidden-norm, message)
 
 Action layout (continuous):
@@ -18,7 +19,9 @@ Action layout (continuous):
   5:    terraform-resource gate
   6:    terraform-hazard gate
   7:    emit-message gate
-  8..:  message vector (message_size)
+  8:    active-probe gate when probe_enabled
+  8..:  message vector (message_size) when probing is disabled
+  9..:  message vector (message_size) when probing is enabled
 """
 
 from __future__ import annotations
@@ -83,12 +86,13 @@ def embodied_observation_dim(embodied_cfg: EmbodiedConfig, world_cfg: WorldConfi
     patch_side = 2 * embodied_cfg.obs_radius + 1
     patch_size = patch_side * patch_side * patch_channels(world_cfg)
     sense = sixth_sense_dim(world_cfg)
+    probe = 2 if embodied_cfg.probe_enabled else 0
     proprio = 6 + embodied_cfg.message_size
-    return patch_size + sense + proprio
+    return patch_size + sense + probe + proprio
 
 
 def embodied_action_dim(cfg: EmbodiedConfig) -> int:
-    return 8 + cfg.message_size
+    return 8 + int(cfg.probe_enabled) + cfg.message_size
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +143,9 @@ def initialize_embodied_population(
         last_action=last_action,
         action_history=action_history,
         behavior_descriptor=behavior_descriptor,
+        probe_result=(
+            jnp.zeros((n, 2), dtype=jnp.float32) if cfg.probe_enabled else None
+        ),
     )
 
 
@@ -159,21 +166,48 @@ def initialize_embodied_genomes(
 # ---------------------------------------------------------------------------
 
 
-def build_world_field(world: WorldState, world_cfg: WorldConfig) -> jax.Array:
-    """Concatenate all per-cell channels in a fixed order matching patch_channels()."""
-    parts = [
-        world.terrain,
-        world.resources,
-        world.hazards,
-        world.flow,
-        world.curvature,
-        world.shear,
-        world.shear_grad,
-        world.enrichment,
-        world.lift,
-        world.concentration,
-        world.metabolites,
-    ]
+_FIELD_GROUP_NAMES = (
+    "terrain",
+    "resources",
+    "hazards",
+    "flow",
+    "curvature",
+    "shear",
+    "shear_grad",
+    "enrichment",
+    "lift",
+    "concentration",
+    "metabolites",
+)
+
+
+def _hidden_field_groups(cfg: EmbodiedConfig) -> frozenset[str]:
+    hidden = frozenset(cfg.hidden_field_groups)
+    unknown = hidden.difference((*_FIELD_GROUP_NAMES, "all"))
+    if unknown:
+        raise ValueError(f"unknown hidden field groups: {sorted(unknown)}")
+    return frozenset(_FIELD_GROUP_NAMES if "all" in hidden else hidden)
+
+
+def build_world_field(
+    world: WorldState,
+    world_cfg: WorldConfig,
+    hidden_field_groups: tuple[str, ...] = (),
+    *,
+    shuffle_flow_observation: bool = False,
+) -> jax.Array:
+    """Build the fixed-width patch and zero selected fields without changing dynamics."""
+    hidden = frozenset(hidden_field_groups)
+    parts = []
+    for name in _FIELD_GROUP_NAMES:
+        value = getattr(world, name)
+        if name == "flow" and shuffle_flow_observation:
+            value = jnp.roll(
+                value,
+                shift=(world_cfg.height // 2, world_cfg.width // 2),
+                axis=(0, 1),
+            )
+        parts.append(jnp.zeros_like(value) if name in hidden or "all" in hidden else value)
     return jnp.concatenate(parts, axis=-1)
 
 
@@ -186,7 +220,13 @@ def observe_embodied(
 ) -> jax.Array:
     """Build observation tensor [N, obs_dim]."""
     h, w = world_cfg.height, world_cfg.width
-    field = build_world_field(world, world_cfg)
+    hidden = _hidden_field_groups(embodied_cfg)
+    field = build_world_field(
+        world,
+        world_cfg,
+        tuple(hidden),
+        shuffle_flow_observation=embodied_cfg.shuffle_flow_observation,
+    )
     if embodied_cfg.blind:
         n = pop.positions.shape[0]
         side = 2 * embodied_cfg.obs_radius + 1
@@ -206,6 +246,11 @@ def observe_embodied(
             key,
         )
 
+    probe = (
+        pop.probe_result
+        if embodied_cfg.probe_enabled and pop.probe_result is not None
+        else jnp.zeros((pop.positions.shape[0], 2), dtype=jnp.float32)
+    )
     proprio = jnp.concatenate(
         [
             pop.positions,
@@ -217,8 +262,11 @@ def observe_embodied(
         ],
         axis=-1,
     )
-
-    return jnp.concatenate([patch_flat, sense, proprio], axis=-1).astype(jnp.float32)
+    parts = [patch_flat, sense]
+    if embodied_cfg.probe_enabled:
+        parts.append(probe)
+    parts.append(proprio)
+    return jnp.concatenate(parts, axis=-1).astype(jnp.float32)
 
 
 def act_embodied(
@@ -280,13 +328,27 @@ def apply_embodied_actions(
     alive_f = pop.alive.astype(jnp.float32)
 
     move = actions[..., 0:2] * 0.05  # max 5% of world per step
+    flow_grid = positions_to_grid(pop.positions, h, w)
+    local_flow = world.flow[flow_grid[:, 0], flow_grid[:, 1]]
+    probe = (
+        actions[..., 8]
+        if embodied_cfg.probe_enabled
+        else jnp.zeros_like(actions[..., 0])
+    )
+    probe_result = (
+        probe[:, None] * local_flow * embodied_cfg.probe_signal_scale
+        if embodied_cfg.probe_enabled
+        else None
+    )
+    move = move + embodied_cfg.flow_movement_scale * local_flow
     eat = actions[..., 2]
     attack = actions[..., 3]
     repro = actions[..., 4]
     terra_r = actions[..., 5]
     terra_h = actions[..., 6]
     emit = actions[..., 7]
-    msg_vec = actions[..., 8:]
+    msg_start = 8 + int(embodied_cfg.probe_enabled)
+    msg_vec = actions[..., msg_start:]
 
     # Move with toroidal wrap
     new_pos = pop.positions + move * alive_f[:, None]
@@ -303,6 +365,10 @@ def apply_embodied_actions(
     new_resources = world.resources.at[grid[:, 0], grid[:, 1]].add(-take_per_channel)
     new_resources = jnp.clip(new_resources, 0.0, 1.0)
     energy_gained = jnp.sum(take_per_channel, axis=-1) * 5.0  # scaling
+    flow_alignment = jnp.maximum(
+        jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
+    )
+    energy_gained = energy_gained + embodied_cfg.flow_alignment_reward * flow_alignment
 
     # Hazard damage (always applies, gated by attack to "fight"=halve damage)
     haz = hazard_damage(world.hazards, new_pos, pop.alive, h, w)
@@ -347,6 +413,11 @@ def apply_embodied_actions(
         + embodied_cfg.cost_reproduce * repro
         + embodied_cfg.cost_terraform * (terra_r + terra_h)
         + embodied_cfg.cost_emit * emit_hard
+        + (
+            embodied_cfg.probe_cost * probe
+            if embodied_cfg.probe_enabled
+            else 0.0
+        )
     )
     new_energy = (
         pop.energy
@@ -385,6 +456,7 @@ def apply_embodied_actions(
             terra_r,
             terra_h,
             emit,
+            probe,
         ],
         axis=-1,
     )
@@ -418,6 +490,7 @@ def apply_embodied_actions(
     pop.last_action = actions
     pop.action_history = new_history
     pop.behavior_descriptor = new_bd
+    pop.probe_result = probe_result
     return pop, new_world, repro
 
 
@@ -502,6 +575,15 @@ def apply_reproduction(
     new_messages = pop.messages.at[children].set(
         jnp.where(use[:, None], jnp.zeros_like(pop.messages[children]), pop.messages[children])
     )
+    new_probe_result = pop.probe_result
+    if pop.probe_result is not None:
+        new_probe_result = pop.probe_result.at[children].set(
+            jnp.where(
+                use[:, None],
+                jnp.zeros_like(pop.probe_result[children]),
+                pop.probe_result[children],
+            )
+        )
 
     # Lineage
     new_lineage_ids = next_lineage_start + jnp.arange(n, dtype=jnp.int32)
@@ -522,6 +604,7 @@ def apply_reproduction(
     pop.age = new_age
     pop.hidden = new_hidden
     pop.messages = new_messages
+    pop.probe_result = new_probe_result
     pop.lineage_id = new_lineage_id
     pop.parent_id = new_parent_id
     pop.lineage_depth = new_lineage_depth

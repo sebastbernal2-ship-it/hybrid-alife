@@ -1,0 +1,410 @@
+{
+  "schema_version": 5,
+  "seed": 7,
+  "steps": 4,
+  "training_generations": 1,
+  "conditions": {
+    "direct": {
+      "config": {
+        "file": "field_discovery_direct.yaml",
+        "seed": 7,
+        "held_out_seed": 1000010,
+        "steps": 4,
+        "training_generations": 1,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05,
+        "flow_alignment_reward": 0.5,
+        "probe_enabled": true,
+        "probe_cost": 0.02,
+        "probe_signal_scale": 1.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 21.99867820739746,
+        "resource": 885.119767293334,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 20.884533564249676,
+          "resource": 874.1744633279741,
+          "reproduction": 0
+        },
+        "score": 20.884533564249676
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.99867820739746,
+          "resource": 885.119767293334,
+          "reproduction": 0
+        },
+        "score": 21.99867820739746
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.22656472524007,
+          "resource": 890.819516543299,
+          "reproduction": 0
+        },
+        "score": 22.22656472524007
+      },
+      "counterfactual_flow_information_gain": 0.022607699736713678,
+      "probe_diagnostics": {
+        "probe_rate": 0.5036365545044342,
+        "probe_events": 27,
+        "probe_signal_mean": 0.12106285001338683,
+        "probe_outcome_information": 0.6920186494900451,
+        "choice_events": 48,
+        "choice_alignment": 0.04800821017216552,
+        "choice_accuracy": 0.5208333333333334,
+        "probe_choice_alignment": -0.011473164479774723,
+        "nonprobe_choice_alignment": 0.12448426329608868
+      },
+      "transfer_probe_diagnostics": {
+        "probe_rate": 0.5059895738959312,
+        "probe_events": 28,
+        "probe_signal_mean": 0.16913325206168278,
+        "probe_outcome_information": 0.6112700318189324,
+        "choice_events": 48,
+        "choice_alignment": -0.09289123083114405,
+        "choice_accuracy": 0.4166666666666667,
+        "probe_choice_alignment": -0.12655658081702803,
+        "nonprobe_choice_alignment": -0.04575974085090648
+      }
+    },
+    "indirect": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 7,
+        "held_out_seed": 1000010,
+        "steps": 4,
+        "training_generations": 1,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "curvature",
+          "shear",
+          "shear_grad",
+          "enrichment",
+          "lift",
+          "concentration",
+          "metabolites"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05,
+        "flow_alignment_reward": 0.5,
+        "probe_enabled": true,
+        "probe_cost": 0.02,
+        "probe_signal_scale": 1.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 21.97852102915446,
+        "resource": 885.1820452101529,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 20.924801508585613,
+          "resource": 874.0700550414622,
+          "reproduction": 0
+        },
+        "score": 20.924801508585613
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.97852102915446,
+          "resource": 885.1820452101529,
+          "reproduction": 0
+        },
+        "score": 21.97852102915446
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.210628668467205,
+          "resource": 890.8810804784298,
+          "reproduction": 0
+        },
+        "score": 22.210628668467205
+      },
+      "counterfactual_flow_information_gain": 0.0385568876236831,
+      "probe_diagnostics": {
+        "probe_rate": 0.49865578797956306,
+        "probe_events": 24,
+        "probe_signal_mean": 0.13897290168379606,
+        "probe_outcome_information": 0.6248569347126287,
+        "choice_events": 48,
+        "choice_alignment": 0.03567612097441067,
+        "choice_accuracy": 0.5416666666666666,
+        "probe_choice_alignment": 0.0961359523265145,
+        "nonprobe_choice_alignment": -0.02478371037769315
+      },
+      "transfer_probe_diagnostics": {
+        "probe_rate": 0.49762573341528576,
+        "probe_events": 28,
+        "probe_signal_mean": 0.17958431193429858,
+        "probe_outcome_information": 0.7715746062547547,
+        "choice_events": 48,
+        "choice_alignment": -0.08669233368096563,
+        "choice_accuracy": 0.4583333333333333,
+        "probe_choice_alignment": -0.14833637516578937,
+        "nonprobe_choice_alignment": -0.0003906756022123592
+      }
+    },
+    "decorrelated": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 7,
+        "held_out_seed": 1000010,
+        "steps": 4,
+        "training_generations": 1,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "shear",
+          "shear_grad",
+          "lift"
+        ],
+        "shuffle_flow_observation": true,
+        "flow_movement_scale": 0.05,
+        "flow_alignment_reward": 0.5,
+        "probe_enabled": true,
+        "probe_cost": 0.02,
+        "probe_signal_scale": 1.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 22.003881613413494,
+        "resource": 885.1479626148939,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 20.959627469380695,
+          "resource": 874.0105378590524,
+          "reproduction": 0
+        },
+        "score": 20.959627469380695
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.003881613413494,
+          "resource": 885.1479626148939,
+          "reproduction": 0
+        },
+        "score": 22.003881613413494
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.189637343088787,
+          "resource": 890.8892584554851,
+          "reproduction": 0
+        },
+        "score": 22.189637343088787
+      },
+      "counterfactual_flow_information_gain": 0.018734595432190408,
+      "probe_diagnostics": {
+        "probe_rate": 0.4973399781932433,
+        "probe_events": 26,
+        "probe_signal_mean": 0.12630068401861777,
+        "probe_outcome_information": 0.6350024877037372,
+        "choice_events": 48,
+        "choice_alignment": 0.03441595306743087,
+        "choice_accuracy": 0.5,
+        "probe_choice_alignment": -0.12718920409332218,
+        "nonprobe_choice_alignment": 0.2254038660755936
+      },
+      "transfer_probe_diagnostics": {
+        "probe_rate": 0.4982704520225525,
+        "probe_events": 28,
+        "probe_signal_mean": 0.16468466073776988,
+        "probe_outcome_information": 0.7711782144188978,
+        "choice_events": 48,
+        "choice_alignment": -0.16452902571318484,
+        "choice_accuracy": 0.375,
+        "probe_choice_alignment": -0.2648682596939817,
+        "nonprobe_choice_alignment": -0.02405409814006911
+      }
+    },
+    "no_field": {
+      "config": {
+        "file": "field_discovery_indirect.yaml",
+        "seed": 7,
+        "held_out_seed": 1000010,
+        "steps": 4,
+        "training_generations": 1,
+        "intervention_step": null,
+        "flow_reversed": false,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "shear",
+          "shear_grad",
+          "lift"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.0,
+        "flow_alignment_reward": 0.0,
+        "probe_enabled": true,
+        "probe_cost": 0.02,
+        "probe_signal_scale": 0.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 21.895761013031006,
+        "resource": 890.9623221941292,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.069979826609295,
+          "resource": 876.9869093587622,
+          "reproduction": 0
+        },
+        "score": 21.069979826609295
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.895761013031006,
+          "resource": 890.9623221941292,
+          "reproduction": 0
+        },
+        "score": 21.895761013031006
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.803819179534912,
+          "resource": 893.9192794635892,
+          "reproduction": 0
+        },
+        "score": 21.803819179534912
+      },
+      "counterfactual_flow_information_gain": -0.00664153193280629,
+      "probe_diagnostics": {
+        "probe_rate": 0.5007186625152826,
+        "probe_events": 25,
+        "probe_signal_mean": 0.0,
+        "probe_outcome_information": 0.0,
+        "choice_events": 0,
+        "choice_alignment": 0.0,
+        "choice_accuracy": 0.0,
+        "probe_choice_alignment": 0.0,
+        "nonprobe_choice_alignment": 0.0
+      },
+      "transfer_probe_diagnostics": {
+        "probe_rate": 0.5029763293763002,
+        "probe_events": 29,
+        "probe_signal_mean": 0.0,
+        "probe_outcome_information": 0.0,
+        "choice_events": 0,
+        "choice_alignment": 0.0,
+        "choice_accuracy": 0.0,
+        "probe_choice_alignment": 0.0,
+        "nonprobe_choice_alignment": 0.0
+      }
+    },
+    "intervention": {
+      "config": {
+        "file": "field_discovery_intervention.yaml",
+        "seed": 7,
+        "held_out_seed": 1000010,
+        "steps": 4,
+        "training_generations": 1,
+        "intervention_step": 2,
+        "flow_reversed": true,
+        "held_out_flow_scale": 1.5,
+        "hidden_field_groups": [
+          "flow",
+          "curvature",
+          "shear",
+          "shear_grad",
+          "enrichment",
+          "lift",
+          "concentration",
+          "metabolites"
+        ],
+        "shuffle_flow_observation": false,
+        "flow_movement_scale": 0.05,
+        "flow_alignment_reward": 0.5,
+        "probe_enabled": true,
+        "probe_cost": 0.02,
+        "probe_signal_scale": 1.0
+      },
+      "final_metrics": {
+        "survival": 1.0,
+        "energy": 21.82954200108846,
+        "resource": 891.4523213580251,
+        "reproduction": 0
+      },
+      "pre_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 20.924801508585613,
+          "resource": 874.0700550414622,
+          "reproduction": 0
+        },
+        "score": 20.924801508585613
+      },
+      "post_intervention": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 21.82954200108846,
+          "resource": 891.4523213580251,
+          "reproduction": 0
+        },
+        "score": 21.82954200108846
+      },
+      "transfer": {
+        "metrics": {
+          "survival": 1.0,
+          "energy": 22.210628668467205,
+          "resource": 890.8810804784298,
+          "reproduction": 0
+        },
+        "score": 22.210628668467205
+      },
+      "counterfactual_flow_information_gain": 0.0385568876236831,
+      "probe_diagnostics": {
+        "probe_rate": 0.4987005355457465,
+        "probe_events": 24,
+        "probe_signal_mean": 0.1492085353074029,
+        "probe_outcome_information": 0.8522757226336484,
+        "choice_events": 48,
+        "choice_alignment": -0.06422529273980704,
+        "choice_accuracy": 0.4791666666666667,
+        "probe_choice_alignment": -0.18041679220692383,
+        "nonprobe_choice_alignment": 0.05196620672730973
+      },
+      "transfer_probe_diagnostics": {
+        "probe_rate": 0.49762573341528576,
+        "probe_events": 28,
+        "probe_signal_mean": 0.17958431193429858,
+        "probe_outcome_information": 0.7715746062547547,
+        "choice_events": 48,
+        "choice_alignment": -0.08669233368096563,
+        "choice_accuracy": 0.4583333333333333,
+        "probe_choice_alignment": -0.14833637516578937,
+        "nonprobe_choice_alignment": -0.0003906756022123592
+      }
+    }
+  }
+}

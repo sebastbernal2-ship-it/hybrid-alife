@@ -35,6 +35,10 @@ def discover_summary_paths(root: Path) -> list[Path]:
     return sorted(root.rglob("summary.json"))
 
 
+def _condition_name(summary: dict) -> str:
+    return str(summary.get("condition", summary["track"]))
+
+
 def _campaign_cell_key(summary: dict, path: Path) -> tuple[str, str, int]:
     missing = _REQUIRED_SUMMARY_FIELDS - summary.keys()
     if missing:
@@ -50,7 +54,7 @@ def _campaign_cell_key(summary: dict, path: Path) -> tuple[str, str, int]:
     missing = _REQUIRED_REPLICATION_FIELDS - metadata.keys()
     if missing:
         raise ValueError(f"{path}: missing replication metadata: {sorted(missing)}")
-    return (str(metadata["replication_id"]), str(summary["track"]), int(summary["seed"]))
+    return (str(metadata["replication_id"]), _condition_name(summary), int(summary["seed"]))
 
 
 def load_campaign_summaries(root: Path) -> list[dict]:
@@ -78,7 +82,7 @@ def _group_summaries(summaries: list[dict]) -> dict[str, dict[str, dict[int, dic
         metadata = summary.get("replication_metadata", {})
         key = (
             str(metadata.get("replication_id", "unknown")),
-            str(summary.get("track")),
+            _condition_name(summary),
             int(summary["seed"]),
         )
         if key in seen:
@@ -217,6 +221,42 @@ def assess_success(
     }
 
 
+def summarize_pilot_diagnostics(summaries: list[dict]) -> dict:
+    """Aggregate additive ecology, coupling, and archive validity diagnostics."""
+    ecology: dict[str, list[float]] = defaultdict(list)
+    archive: dict[str, list[float]] = defaultdict(list)
+    baseline: dict[str, list[float]] = defaultdict(list)
+    causal: dict[str, list[float]] = defaultdict(list)
+    for summary in summaries:
+        for name, value in summary.get("ecology_diagnostics", {}).items():
+            ecology[name].append(float(value))
+        for name in ("archive_size", "archive_admissions", "archive_rejections"):
+            if name in summary:
+                archive[name].append(float(summary[name]))
+        for validity in summary.get("environment_causal_validity", {}).values():
+            for name, result in validity.items():
+                causal[name].append(float(bool(result.get("changed"))))
+        for record in summary.get("admission_diagnostics", []):
+            for name, value in record.get("baselines", {}).items():
+                baseline[name].append(float(value))
+    def aggregate(values: dict[str, list[float]]) -> dict[str, dict[str, float]]:
+        return {
+            name: {
+                "mean": float(np.mean(items)),
+                "median": float(np.median(items)),
+                "iqr": [float(np.percentile(items, 25)), float(np.percentile(items, 75))],
+            }
+            for name, items in sorted(values.items())
+            if items
+        }
+    return {
+        "ecology": aggregate(ecology),
+        "archive": aggregate(archive),
+        "admission_baselines": aggregate(baseline),
+        "causal_validity_rate": aggregate(causal),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_dir")
@@ -234,7 +274,7 @@ def main() -> None:
     summaries = load_campaign_summaries(root)
     grouped: dict[str, list[dict]] = defaultdict(list)
     for summary in summaries:
-        grouped[summary["track"]].append(summary)
+        grouped[_condition_name(summary)].append(summary)
     table = {}
     for track, rows in sorted(grouped.items()):
         values = np.asarray([row["final_transfer_mean"] for row in rows], dtype=float)
@@ -275,6 +315,7 @@ def main() -> None:
             primary_track=args.primary_track,
             baseline_track=args.baseline_track,
         ),
+        "pilot_diagnostics": summarize_pilot_diagnostics(summaries),
     }
     if len(comparisons) == 1:
         result["comparison"] = next(iter(comparisons.values()))

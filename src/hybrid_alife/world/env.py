@@ -350,7 +350,12 @@ def step_world(state: SimState, cfg: WorldConfig) -> SimState:
         toroidal=cfg.toroidal,
     )
 
-    resources = jnp.clip(world.resources + cfg.resource_regen, 0.0, 1.0)
+    resources = world.resources
+    if cfg.resource_advection_strength > 0.0:
+        resources = advect_field(
+            resources, flow, cfg.resource_advection_strength, cfg.toroidal
+        )
+    resources = jnp.clip(resources + cfg.resource_regen, 0.0, 1.0)
     hazards = world.hazards * cfg.hazard_decay
 
     enrichment = _compute_enrichment_proxy(resources, hazards, lift, world.occupancy, cfg)

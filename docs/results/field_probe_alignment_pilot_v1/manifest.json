@@ -1,0 +1,21 @@
+{
+  "schema_version": 4,
+  "source_commit": "a9dcdd6",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "steps": 8,
+  "training_generations": 10,
+  "resource_advection_strength": 0.25,
+  "flow_alignment_reward": 0.5,
+  "status": "engineering_diagnostic_only",
+  "conditions": [
+    "direct",
+    "indirect",
+    "decorrelated",
+    "no_field",
+    "intervention"
+  ]
+}

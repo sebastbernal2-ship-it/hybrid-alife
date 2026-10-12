@@ -12,7 +12,13 @@ from hybrid_alife.agents.avida_vm import initialize_avida_population
 from hybrid_alife.poet import (
     POETConfig,
     PPOConfig,
+    _archive_indices,
+    _archive_informed_transfer,
+    _archive_parent_index,
+    _archive_training_transfer,
+    _evaluate_policy_reference,
     _poet_avida_config,
+    _select_archive_parent,
     _step_avida_fast,
     collect_rollout,
     evaluate_policy,
@@ -73,6 +79,39 @@ def test_environment_mutation_is_bounded_and_changes_dynamics():
     assert np.all(child.params <= np.asarray(cfg.environment_param_high))
     assert not np.array_equal(child.terrain, state.environments[0].terrain)
     assert child.dynamics_signature(cfg) != state.environments[0].dynamics_signature(cfg)
+
+
+def test_fast_frozen_policy_evaluation_matches_reference():
+    cfg = replace(tiny_config(), transfer_steps=4)
+    state = initialize_poet_state(cfg, seed=2)
+    seed = 17
+    fast = evaluate_policy(state.policies[0], state.environments[0], cfg, seed)
+    reference = _evaluate_policy_reference(
+        state.policies[0], state.environments[0], cfg, seed
+    )
+    np.testing.assert_allclose(fast, reference, rtol=1e-5, atol=1e-5)
+
+
+def test_fast_transfer_matrix_matches_individual_evaluation():
+    cfg = replace(tiny_config(), transfer_steps=4)
+    state = initialize_poet_state(cfg, seed=2)
+    matrix = evaluate_transfer_matrix(
+        state.policies,
+        state.environments,
+        cfg,
+        seed=17,
+    )
+    expected = np.asarray(
+        [
+            [
+                evaluate_policy(policy, env, cfg, seed=17 + policy_index * 1009 + env_index)
+                for env_index, env in enumerate(state.environments)
+            ]
+            for policy_index, policy in enumerate(state.policies)
+        ],
+        dtype=np.float32,
+    )
+    np.testing.assert_allclose(matrix, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_environment_genome_is_injected_into_existing_world_state():
@@ -143,6 +182,8 @@ def test_transfer_evaluation_reports_raw_reward_return():
     np.testing.assert_allclose(
         evaluate_policy(state.policies[0], state.environments[0], cfg, seed=4),
         np.sum(np.asarray(batch.rewards)),
+        rtol=1e-6,
+        atol=1e-6,
     )
 
 
@@ -191,11 +232,72 @@ def test_avida_comparator_horizon_is_recorded(tmp_path: Path):
     assert payload["avida_comparator_steps"] == 4
 
 
+def test_archive_transfer_influences_training_parent_selection():
+    current_transfer = np.asarray([[10.0, 0.0], [0.0, 10.0]])
+    archive_transfer = np.asarray([[0.0], [11.0]])
+
+    adjusted = _archive_informed_transfer(current_transfer, archive_transfer)
+
+    np.testing.assert_array_equal(np.argmax(current_transfer, axis=0), [0, 1])
+    np.testing.assert_array_equal(np.argmax(adjusted, axis=0), [1, 1])
+
+
+def test_archive_parent_selection_uses_retained_stepping_stones():
+    archive_transfer = np.asarray([[1.0, 4.0, 2.0], [3.0, 2.0, 8.0]])
+    assert _select_archive_parent(archive_transfer, 0) == 1
+    assert _select_archive_parent(archive_transfer, 1) == 2
+
+
+def test_archive_indices_are_deterministic_and_bounded():
+    np.testing.assert_array_equal(_archive_indices(4, None), [0, 1, 2, 3])
+    np.testing.assert_array_equal(_archive_indices(10, 3), [0, 4, 9])
+    np.testing.assert_array_equal(_archive_indices(2, 5), [0, 1])
+
+
+def test_archive_controls_have_distinct_training_and_parent_semantics():
+    transfer = np.asarray([[10.0, 0.0], [0.0, 10.0]])
+    archive_transfer = np.asarray([[1.0, 5.0], [2.0, 3.0]])
+    np.testing.assert_array_equal(
+        _archive_training_transfer(transfer, archive_transfer, "disabled"), transfer
+    )
+    assert _archive_parent_index(archive_transfer, transfer, 0, "disabled", seed=4) is None
+    assert _archive_parent_index(archive_transfer, transfer, 0, "enabled", seed=4) == 1
+    assert _archive_parent_index(archive_transfer, transfer, 0, "oracle", seed=4) == 1
+    assert _archive_parent_index(archive_transfer, transfer, 0, "random", seed=4) in {0, 1}
+
+
+def test_archive_selection_and_causal_reports_can_be_bounded(tmp_path: Path):
+    cfg = replace(
+        tiny_config(),
+        archive_selection_limit=1,
+        causal_validity_limit=1,
+    )
+    result = run_poet(cfg, seed=2, generations=2, out_dir=tmp_path)
+    assert result.archive_decisions
+    payload = json.loads((tmp_path / "environment_validity.json").read_text())
+    assert len(payload["environments"]) == 1
+    assert payload["evaluated_archive_indices"] == [0]
+
+
+def test_archive_disabled_mode_preserves_same_environment_budget():
+    cfg = replace(tiny_config(), archive_mode="disabled")
+    result = run_poet(cfg, seed=2, generations=2)
+    assert result.archive_mode == "disabled"
+    assert result.policy_updates == cfg.population_size * 2
+    assert all(item["mode"] == "disabled" for item in result.archive_decisions)
+    assert all(item["archive_index"] == -1 for item in result.archive_decisions)
+
+
 def test_archive_records_lineage_and_stepping_stone_transfer(tmp_path: Path):
     cfg = POETConfig(**{**tiny_config().__dict__, "minimal_criterion": -100.0})
     result = run_poet(cfg, seed=0, generations=2, out_dir=tmp_path)
     assert len(result.environment_archive) > cfg.population_size
     assert any(entry.parent_id is not None for entry in result.environment_archive)
+    archived_ids = {entry.environment_id for entry in result.environment_archive}
+    assert all(
+        entry.parent_id is None or entry.parent_id in archived_ids
+        for entry in result.environment_archive
+    )
     assert result.archive_transfer_history
     archive_transfer = json.loads((tmp_path / "archive_transfer.json").read_text())
     assert archive_transfer["mode"] == "stepping_stone_archive_transfer"

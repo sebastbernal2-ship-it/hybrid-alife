@@ -57,14 +57,14 @@ for replication in 1 2; do
     --seeds 0 1 2 3 4 5 6 7 8 9 \
     --replication-id replication-$replication \
     --seed-offset "$offset" \
-    --operator NAME \
-    --machine-label MACHINE \
+    --operator sebas \
+    --machine-label local-cpu-1 \
     --cache-cleared \
     --generations 200 \
-    --out-dir docs/results/poet_campaign_final_v3/replication-$replication
+    --out-dir outputs/poet_campaign_final_v6/replication-$replication
 done
 
-venv/bin/python scripts/analyze_poet_campaign.py docs/results/poet_campaign_final_v3 \
+venv/bin/python scripts/analyze_poet_campaign.py outputs/poet_campaign_final_v6 \
   --primary-track poet --baseline-track static
 ```
 

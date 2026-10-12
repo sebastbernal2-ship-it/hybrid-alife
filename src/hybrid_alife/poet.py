@@ -12,7 +12,7 @@ import json
 import pickle
 import platform
 import subprocess
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -40,6 +40,14 @@ from hybrid_alife.world.env import (
 
 OBS_DIM = 8
 POET_ARTIFACT_SCHEMA_VERSION = 2
+ENVIRONMENT_GENE_NAMES = (
+    "goal_x",
+    "goal_y",
+    "resource_regeneration",
+    "hazard_rate",
+    "flow_x",
+    "flow_y",
+)
 
 
 @dataclass(frozen=True)
@@ -60,7 +68,7 @@ class POETConfig:
     terrain_channels: int = 1
     population_size: int = 4
     policy_hidden: int = 16
-    action_count: int = 5
+    action_count: int = 8
     rollout_steps: int = 16
     ppo: PPOConfig = field(default_factory=PPOConfig)
     environment_param_low: tuple[float, ...] = (0.1, 0.1, 0.1, 0.0, -0.2, -0.2)
@@ -77,6 +85,10 @@ class POETConfig:
     minimal_criterion: float = -10.0
     heldout_environments: int = 4
     heldout_seed_offset: int = 1_000_003
+    archive_mode: str = "enabled"
+    condition: str = ""
+    archive_selection_limit: int | None = None
+    causal_validity_limit: int | None = None
 
     def __post_init__(self) -> None:
         if self.heldout_environments < 0:
@@ -85,6 +97,16 @@ class POETConfig:
             raise ValueError("avida_lifecycle must be reset or persistent")
         if self.avida_lifecycle == "persistent" and not self.avida_enabled:
             raise ValueError("persistent Avida requires avida_enabled=True")
+        if self.archive_mode not in {"enabled", "disabled", "random", "oracle"}:
+            raise ValueError(
+                "archive_mode must be enabled, disabled, random, or oracle"
+            )
+        for name, value in (
+            ("archive_selection_limit", self.archive_selection_limit),
+            ("causal_validity_limit", self.causal_validity_limit),
+        ):
+            if value is not None and value < 1:
+                raise ValueError(f"{name} must be positive when set")
 
 
 class PolicyParams(NamedTuple):
@@ -107,6 +129,97 @@ class EnvironmentGenome(NamedTuple):
             float(self.params[3]),
             float(jnp.mean(self.terrain)),
         )
+
+
+def terrain_spatial_structure(terrain: jax.Array) -> float:
+    """Measure spatial structure, not only the terrain mean."""
+    vertical = jnp.mean(jnp.abs(terrain[1:, :] - terrain[:-1, :]))
+    horizontal = jnp.mean(jnp.abs(terrain[:, 1:] - terrain[:, :-1]))
+    return float(0.5 * (vertical + horizontal))
+
+
+def _environment_effect_signature(env: EnvironmentGenome, cfg: POETConfig) -> dict[str, np.ndarray]:
+    """Return only downstream fields, observations, and fixed-seed behavior."""
+    world, _ = initialize_environment_world(env, cfg, jax.random.PRNGKey(0))
+    observation = _world_observation(
+        env, world, jnp.asarray([0.37, 0.61], dtype=jnp.float32), 0, cfg
+    )
+    batch, _, _ = _collect_rollout(
+        _init_policy(cfg, jax.random.PRNGKey(17)),
+        env,
+        cfg,
+        jax.random.PRNGKey(23),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
+    )
+    return {
+        "terrain": np.asarray(world.terrain),
+        "resources": np.asarray(world.resources),
+        "hazards": np.asarray(world.hazards),
+        "flow": np.asarray(world.flow),
+        "observation": np.asarray(observation),
+        "rollout_observations": np.asarray(batch.observations),
+        "rollout_rewards": np.asarray(batch.rewards),
+    }
+
+
+def environment_causal_validity(
+    env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
+) -> dict[str, dict[str, float | bool]]:
+    """Perturb each gene and check its intended downstream mechanism."""
+    del seed
+    baseline = _environment_effect_signature(env, cfg)
+    mechanism = {
+        "goal_x": ("observation", 6),
+        "goal_y": ("observation", 6),
+        "resource_regeneration": ("rollout_observations", 3),
+        "hazard_rate": ("hazards", None),
+        "flow_x": ("flow", 0),
+        "flow_y": ("flow", 1),
+        "terrain": ("terrain", None),
+    }
+    low = jnp.asarray(cfg.environment_param_low, dtype=jnp.float32)
+    high = jnp.asarray(cfg.environment_param_high, dtype=jnp.float32)
+    report: dict[str, dict[str, float | bool]] = {}
+    for index, name in enumerate(ENVIRONMENT_GENE_NAMES):
+        params = env.params.at[index].set(
+            jnp.clip(env.params[index] + 0.15, low[index], high[index])
+        )
+        if bool(params[index] == env.params[index]):
+            params = params.at[index].set(
+                jnp.clip(env.params[index] - 0.15, low[index], high[index])
+            )
+        changed = env._replace(params=params)
+        report[name] = _causal_intervention_report(
+            baseline, _environment_effect_signature(changed, cfg), mechanism[name]
+        )
+    terrain = env.terrain.at[0, 0].set(1.0 - env.terrain[0, 0])
+    changed_terrain = env._replace(terrain=terrain)
+    report["terrain"] = _causal_intervention_report(
+        baseline, _environment_effect_signature(changed_terrain, cfg), mechanism["terrain"]
+    )
+    return report
+
+
+def _causal_intervention_report(
+    baseline: dict[str, np.ndarray],
+    changed: dict[str, np.ndarray],
+    mechanism: tuple[str, int | None],
+) -> dict[str, float | bool]:
+    deltas = {
+        name: float(np.max(np.abs(changed[name] - value)))
+        for name, value in baseline.items()
+    }
+    field, axis = mechanism
+    target = changed[field] - baseline[field]
+    if axis is not None:
+        target = target[..., axis] if field in {"flow", "rollout_observations"} else target[axis]
+    mechanism_delta = float(np.max(np.abs(target)))
+    return {
+        "changed": max(deltas.values()) > 1e-7,
+        "max_delta": max(deltas.values()),
+        "mechanism_changed": mechanism_delta > 1e-7,
+    }
 
 
 @dataclass(frozen=True)
@@ -133,17 +246,22 @@ class POETState:
     initial_environment_terrain: np.ndarray
     final_environment_terrain: np.ndarray
     track: str
+    archive_mode: str
+    condition: str
     avida_enabled: bool
     avida_lifecycle: str
     environment_ids: tuple[str, ...]
     environment_archive: list[EnvironmentArchiveEntry]
     archive_transfer_history: list[np.ndarray]
+    archive_decisions: list[dict[str, Any]]
     heldout_environments: tuple[EnvironmentGenome, ...]
     heldout_transfer_history: list[np.ndarray]
     environment_candidates: int
     environment_admissions: int
     environment_rejections: int
     replication_metadata: dict[str, Any]
+    ecology_diagnostics: dict[str, float]
+    admission_diagnostics: list[dict[str, Any]]
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -153,6 +271,8 @@ class POETState:
             "policy_mutations": self.policy_mutations,
             "environment_mutations": self.environment_mutations,
             "track": self.track,
+            "archive_mode": self.archive_mode,
+            "condition": self.condition or self.track,
             "avida_enabled": self.avida_enabled,
             "avida_lifecycle": self.avida_lifecycle,
             "metrics": self.metrics,
@@ -161,6 +281,8 @@ class POETState:
             "archive_admissions": self.environment_admissions,
             "archive_rejections": self.environment_rejections,
             "environment_candidates": self.environment_candidates,
+            "ecology_diagnostics": self.ecology_diagnostics,
+            "admission_diagnostics": self.admission_diagnostics,
             "archive_lineage": [
                 {
                     "environment_id": entry.environment_id,
@@ -173,6 +295,7 @@ class POETState:
             "archive_transfer_history": [
                 matrix.round(8).tolist() for matrix in self.archive_transfer_history
             ],
+            "archive_decisions": self.archive_decisions,
             "heldout_transfer_history": [
                 matrix.round(8).tolist() for matrix in self.heldout_transfer_history
             ],
@@ -258,6 +381,7 @@ def _poet_world_config(cfg: POETConfig) -> WorldConfig:
         metabolite_decay=0.95,
         metabolite_diffusion=0.05,
         flow_advection_strength=0.25,
+        resource_regen=0.0,
     )
 
 
@@ -319,6 +443,7 @@ def initialize_environment_world(
 ) -> tuple[WorldState, WorldConfig]:
     """Inject an environment genome into the existing microfluidic world model."""
     world_cfg = _poet_world_config(cfg)
+    world_cfg = replace(world_cfg, resource_regen=0.005 * float(env.params[2]))
     world = initialize_world(world_cfg, key)
     terrain = world.terrain.at[..., 0].set(env.terrain)
     terrain = terrain.at[..., 1].set(0.5 * terrain[..., 1] + 0.5 * env.terrain)
@@ -435,17 +560,31 @@ def initialize_poet_state(
         initial_environment_terrain=initial_terrain,
         final_environment_terrain=initial_terrain.copy(),
         track=cfg.track,
+        archive_mode=cfg.archive_mode,
+        condition=cfg.condition or cfg.track,
         avida_enabled=cfg.avida_enabled,
         avida_lifecycle=cfg.avida_lifecycle,
         environment_ids=tuple(entry.environment_id for entry in archive),
         environment_archive=archive,
         archive_transfer_history=[],
+        archive_decisions=[],
         heldout_environments=initialize_heldout_environments(cfg, seed),
         heldout_transfer_history=[],
         environment_candidates=0,
         environment_admissions=0,
         environment_rejections=0,
         replication_metadata=normalize_replication_metadata(replication_metadata),
+        ecology_diagnostics={
+            "resource_gather_events": 0.0,
+            "interaction_events": 0.0,
+            "reproduction_events": 0.0,
+            "success_events": 0.0,
+            "failure_events": 0.0,
+            "energy_cost": 0.0,
+            "avida_feedback": 0.0,
+            "controller_to_avida_events": 0.0,
+        },
+        admission_diagnostics=[],
     )
 
 
@@ -565,24 +704,160 @@ def _world_observation(
     step: int,
     cfg: POETConfig,
     horizon: int | None = None,
+    energy: jax.Array | float = 1.0,
 ) -> jax.Array:
     horizon = cfg.rollout_steps if horizon is None else horizon
     terrain = _grid_value(world.terrain[..., 0], position)
     resource = _grid_vector(world.resources[..., 0], position)
     hazard = _grid_vector(world.hazards[..., 0], position)
+    goal_distance = jnp.linalg.norm(position - env.params[:2])
     return jnp.asarray(
         [
             position[0],
             position[1],
-            env.params[0],
-            env.params[1],
             terrain,
-            resource - hazard,
-            1.0 - step / max(horizon, 1),
+            resource,
+            hazard,
+            jnp.clip(jnp.asarray(energy), 0.0, 1.0),
+            goal_distance,
             jnp.mean(world.metabolites) + jnp.mean(world.concentration),
         ],
         dtype=jnp.float32,
     )
+
+
+def _initialize_environment_world_fast(
+    env_params: jax.Array,
+    terrain_genome: jax.Array,
+    key: jax.Array,
+    cfg: POETConfig,
+) -> WorldState:
+    """Initialize an environment genome with tracer-safe JAX operations."""
+    world_cfg = _poet_world_config(cfg)
+    world = initialize_world(world_cfg, key)
+    terrain = world.terrain.at[..., 0].set(terrain_genome)
+    terrain = terrain.at[..., 1].set(0.5 * terrain[..., 1] + 0.5 * terrain_genome)
+    resources = world.resources.at[..., 0].set(
+        jnp.clip(world.resources[..., 0] * env_params[2] + 0.35 * terrain_genome, 0.0, 1.0)
+    )
+    hazards = world.hazards.at[..., 0].set(
+        jnp.clip(world.hazards[..., 0] * env_params[3] + 0.08 * (1.0 - terrain_genome), 0.0, 1.0)
+    )
+    flow = world.flow + env_params[4:6]
+    shear = _compute_shear(flow)
+    shear_grad = _compute_shear_gradient(shear)
+    lift = _compute_lift_proxy(flow, shear, world.curvature, world_cfg)
+    enrichment = _compute_enrichment_proxy(
+        resources, hazards, lift, world.occupancy, world_cfg
+    )
+    metabolite_seed = jnp.clip(0.05 * resources[..., 0] + 0.05 * terrain_genome, 0.0, 1.0)
+    metabolites = jnp.broadcast_to(metabolite_seed[..., None], world.metabolites.shape)
+    return WorldState(
+        terrain=terrain,
+        resources=resources,
+        hazards=hazards,
+        flow=flow,
+        curvature=world.curvature,
+        shear=shear,
+        shear_grad=shear_grad,
+        enrichment=enrichment,
+        lift=lift,
+        concentration=world.concentration,
+        metabolites=metabolites,
+        occupancy=world.occupancy,
+        time=world.time,
+    )
+
+
+def _evaluate_policy_fast(
+    params: PolicyParams,
+    env_params: jax.Array,
+    terrain_genome: jax.Array,
+    key: jax.Array,
+    cfg: POETConfig,
+) -> jax.Array:
+    """Evaluate a deterministic no-Avida rollout with one compiled scan."""
+    key, world_key, _ = jax.random.split(key, 3)
+    world_cfg = _poet_world_config(cfg)
+    world = _initialize_environment_world_fast(env_params, terrain_genome, world_key, cfg)
+    initial_position = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
+    initial_energy = jnp.asarray(1.0, dtype=jnp.float32)
+    moves = jnp.asarray(
+        [[0.0, 0.08], [0.0, -0.08], [-0.08, 0.0], [0.08, 0.0], [0.0, 0.0]],
+        dtype=jnp.float32,
+    )
+
+    def body(carry, step):
+        key, world, position, energy = carry
+        key, _ = jax.random.split(key)
+        observation = _world_observation(
+            EnvironmentGenome(params=env_params, terrain=terrain_genome),
+            world,
+            position,
+            step,
+            cfg,
+            cfg.transfer_steps,
+            energy,
+        )
+        logits, _ = policy_forward(params, observation)
+        action = jnp.argmax(logits).astype(jnp.int32)
+        move = moves[jnp.mod(action, 5)]
+        world, key = _step_world_jitted(world, key, world_cfg)
+        world = replace(
+            world,
+            resources=jnp.clip(
+                world.resources + 0.005 * env_params[2], 0.0, 1.0
+            ),
+        )
+        flow = _grid_vector(world.flow, position)
+        next_position = jnp.clip(position + move + 0.02 * flow, 0.0, 0.999)
+        grid_x = jnp.clip(
+            jnp.floor(next_position[0] * cfg.width).astype(jnp.int32), 0, cfg.width - 1
+        )
+        grid_y = jnp.clip(
+            jnp.floor(next_position[1] * cfg.height).astype(jnp.int32), 0, cfg.height - 1
+        )
+        terrain = world.terrain[grid_y, grid_x, 0]
+        resource = world.resources[grid_y, grid_x, 0]
+        hazard = world.hazards[grid_y, grid_x, 0]
+        gather = resource * jnp.where((action == 4) | (action == 5), 0.4, 0.0)
+        world = replace(
+            world,
+            resources=world.resources.at[grid_y, grid_x, 0].set(resource - gather),
+            concentration=world.concentration.at[grid_y, grid_x].add(
+                0.01 * (action >= 4)
+            ),
+        )
+        interaction = (action == 6).astype(jnp.float32)
+        reproduce = ((action >= 7) & (energy + gather > 0.65)).astype(jnp.float32)
+        world = replace(
+            world,
+            resources=world.resources.at[grid_y, grid_x, 0].add(0.05 * reproduce),
+        )
+        movement_cost = 0.02 * jnp.linalg.norm(move)
+        energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
+        hazard_cost = hazard * 0.25
+        next_energy = energy + 1.5 * gather - energy_cost - hazard_cost
+        distance = jnp.linalg.norm(next_position - env_params[:2])
+        success = (distance < 0.12) & (next_energy > 0.0)
+        failure = next_energy <= 0.0
+        done = success | failure
+        reward = 1.5 * gather + 0.2 * terrain + 0.2 * interaction
+        reward = reward - hazard_cost - energy_cost - 0.1 * distance
+        reward = reward + jnp.where(success, 1.0, 0.0) - jnp.where(failure, 1.0, 0.0)
+        next_position = jnp.where(done, initial_position, next_position)
+        next_energy = jnp.where(done, initial_energy, next_energy)
+        return (key, world, next_position, next_energy), reward.astype(jnp.float32)
+
+    _, rewards = jax.lax.scan(
+        body,
+        (key, world, initial_position, initial_energy),
+        jnp.arange(cfg.transfer_steps, dtype=jnp.int32),
+    )
+    return jnp.sum(rewards)
+
+
+_evaluate_policy_fast_jitted = jax.jit(_evaluate_policy_fast, static_argnums=4)
 
 
 def _rollout_step(
@@ -593,15 +868,29 @@ def _rollout_step(
     cfg: POETConfig,
     world_cfg: WorldConfig,
     lineage_counter: int,
-) -> tuple[SimState, jax.Array, jax.Array, bool, int]:
+    energy: float,
+) -> tuple[SimState, jax.Array, jax.Array, bool, int, float, dict[str, float]]:
+    """Advance one focal forager and the optional digital population.
+
+    Actions 0-3 move, action 4 rests and gathers, action 5 gathers, action 6
+    interacts, and action 7 attempts reproduction. Smaller legacy action heads
+    retain movement plus action 4 gathering.
+    """
     state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
-    move = jnp.asarray(
+    moves = jnp.asarray(
         [[0.0, 0.08], [0.0, -0.08], [-0.08, 0.0], [0.08, 0.0], [0.0, 0.0]],
         dtype=jnp.float32,
-    )[jnp.asarray(action, dtype=jnp.int32)]
+    )
+    action_index = int(action)
+    move = moves[action_index % 5]
     flow = _grid_vector(state.world.flow, position)
     next_position = jnp.clip(position + move + 0.02 * flow, 0.0, 0.999)
+    controller_event = float(action_index >= 4)
+    avida_feedback = 0.0
     if state.avida is not None:
+        before = jnp.asarray(
+            [jnp.mean(state.world.metabolites), jnp.mean(state.world.concentration)]
+        )
         state.rng, avida_key = jax.random.split(state.rng)
         avida_positions = jnp.broadcast_to(next_position, (state.avida.alive.shape[0], 2))
         state.avida, state.world, lineage_counter = _step_avida_fast(
@@ -612,21 +901,56 @@ def _rollout_step(
             avida_key,
             avida_positions,
         )
-    terrain = _grid_vector(state.world.terrain[..., 0], next_position)
-    resource = _grid_vector(state.world.resources[..., 0], next_position)
-    hazard = _grid_vector(state.world.hazards[..., 0], next_position)
+        after = jnp.asarray(
+            [jnp.mean(state.world.metabolites), jnp.mean(state.world.concentration)]
+        )
+        avida_feedback = float(jnp.mean(jnp.abs(after - before)))
+
+    grid_x = int(jnp.clip(jnp.floor(next_position[0] * cfg.width), 0, cfg.width - 1))
+    grid_y = int(jnp.clip(jnp.floor(next_position[1] * cfg.height), 0, cfg.height - 1))
+    terrain = state.world.terrain[grid_y, grid_x, 0]
+    resource = state.world.resources[grid_y, grid_x, 0]
+    hazard = state.world.hazards[grid_y, grid_x, 0]
+    gather = float(resource * (0.4 if action_index in {4, 5} else 0.0))
+    state.world.resources = state.world.resources.at[grid_y, grid_x, 0].set(resource - gather)
+    interaction = float(action_index == 6)
+    reproduce = float(action_index >= 7 and energy + gather > 0.65)
+    signal = 0.01 * controller_event
+    if signal:
+        state.world.concentration = state.world.concentration.at[grid_y, grid_x].add(signal)
+    movement_cost = 0.02 * float(jnp.linalg.norm(move))
+    energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
+    hazard_cost = float(hazard) * 0.25
+    energy = energy + 1.5 * gather - energy_cost - hazard_cost
+    if reproduce:
+        state.world.resources = state.world.resources.at[grid_y, grid_x, 0].add(0.05)
     distance = jnp.linalg.norm(next_position - env.params[:2])
-    reward = (
-        0.35 * resource
-        + 0.25 * terrain
-        + 0.1 * jnp.mean(state.world.concentration)
-        + 0.1 * jnp.mean(state.world.metabolites)
-        - hazard
-        - distance
+    success = bool(distance < 0.12 and energy > 0.0)
+    failure = bool(energy <= 0.0)
+    done = success or failure
+    reward = 1.5 * gather + 0.2 * float(terrain) + 0.2 * interaction
+    reward -= hazard_cost + energy_cost + 0.1 * float(distance)
+    reward += 1.0 if success else 0.0
+    reward -= 1.0 if failure else 0.0
+    diagnostics = {
+        "resource_gather_events": float(gather > 0.0),
+        "interaction_events": interaction,
+        "reproduction_events": reproduce,
+        "success_events": float(success),
+        "failure_events": float(failure),
+        "energy_cost": energy_cost + hazard_cost,
+        "avida_feedback": avida_feedback,
+        "controller_to_avida_events": controller_event,
+    }
+    return (
+        state,
+        next_position,
+        jnp.asarray(reward, dtype=jnp.float32),
+        done,
+        lineage_counter,
+        float(energy),
+        diagnostics,
     )
-    done = bool(distance < 0.12)
-    reward = reward + jnp.where(done, 1.0, 0.0)
-    return state, next_position, reward.astype(jnp.float32), done, lineage_counter
 
 
 def _collect_rollout(
@@ -638,7 +962,8 @@ def _collect_rollout(
     stochastic: bool,
     horizon: int | None,
     initial_avida: AvidaPopulationState | None = None,
-) -> tuple[_Batch, AvidaPopulationState | None]:
+    action_selector: Any | None = None,
+) -> tuple[_Batch, AvidaPopulationState | None, dict[str, float]]:
     horizon = cfg.rollout_steps if horizon is None else horizon
     if horizon < 1:
         raise ValueError("rollout horizon must be positive")
@@ -662,18 +987,46 @@ def _collect_rollout(
     old_log_probs: list[jax.Array] = []
     rewards: list[jax.Array] = []
     values: list[jax.Array] = []
+    diagnostics = {
+        "resource_gather_events": 0.0,
+        "interaction_events": 0.0,
+        "reproduction_events": 0.0,
+        "success_events": 0.0,
+        "failure_events": 0.0,
+        "energy_cost": 0.0,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 0.0,
+    }
+    energy = 1.0
     for step in range(horizon):
         key, action_key = jax.random.split(key)
-        observation = _world_observation(env, state.world, positions, step, cfg, horizon)
+        observation = _world_observation(
+            env, state.world, positions, step, cfg, horizon, energy
+        )
         logits, value = policy_forward(params, observation)
-        if stochastic:
+        if action_selector is not None:
+            action = jnp.asarray(
+                action_selector(observation, env, step, action_key), dtype=jnp.int32
+            )
+            log_prob = jax.nn.log_softmax(logits)[action]
+        elif stochastic:
             action, log_prob = _categorical_action(logits, action_key)
         else:
             action = jnp.argmax(logits)
             log_prob = jax.nn.log_softmax(logits)[action]
-        state, positions, reward, done, lineage_counter = _rollout_step(
-            state, env, positions, int(action), cfg, world_cfg, lineage_counter
+        (
+            state,
+            positions,
+            reward,
+            done,
+            lineage_counter,
+            energy,
+            step_diagnostics,
+        ) = _rollout_step(
+            state, env, positions, int(action), cfg, world_cfg, lineage_counter, energy
         )
+        for name, value_delta in step_diagnostics.items():
+            diagnostics[name] += value_delta
         observations.append(observation)
         actions.append(action)
         old_log_probs.append(log_prob)
@@ -681,8 +1034,9 @@ def _collect_rollout(
         values.append(value)
         if done:
             positions = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
+            energy = 1.0
     last_value = policy_forward(
-        params, _world_observation(env, state.world, positions, horizon, cfg, horizon)
+        params, _world_observation(env, state.world, positions, horizon, cfg, horizon, energy)
     )[1]
     advantages = _gae(rewards, values, last_value, cfg)
     returns = advantages + jnp.stack(values)
@@ -694,7 +1048,7 @@ def _collect_rollout(
         advantages=advantages,
         returns=returns,
         rewards=jnp.stack(rewards),
-    ), state.avida
+    ), state.avida, diagnostics
 
 
 def collect_rollout(
@@ -706,7 +1060,7 @@ def collect_rollout(
     stochastic: bool = True,
     horizon: int | None = None,
 ) -> _Batch:
-    batch, _ = _collect_rollout(
+    batch, _, _ = _collect_rollout(
         params,
         env,
         cfg,
@@ -715,6 +1069,76 @@ def collect_rollout(
         horizon=horizon,
     )
     return batch
+
+
+def _baseline_score(
+    env: EnvironmentGenome,
+    cfg: POETConfig,
+    seed: int,
+    selector: Any,
+) -> float:
+    batch, _, _ = _collect_rollout(
+        _init_policy(cfg, jax.random.PRNGKey(seed + 991)),
+        env,
+        cfg,
+        jax.random.PRNGKey(seed),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
+        action_selector=selector,
+    )
+    return float(jnp.sum(batch.rewards))
+
+
+def admission_calibration(
+    env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
+) -> dict[str, Any]:
+    """Score matched baselines; the default -10 criterion remains uncalibrated."""
+    def random_policy(
+        _obs: jax.Array, _env: EnvironmentGenome, _step: int, key: jax.Array
+    ) -> jax.Array:
+        return jax.random.randint(key, (), 0, cfg.action_count)
+
+    def fixed_policy(_obs: jax.Array, _env: EnvironmentGenome, _step: int, _key: jax.Array) -> int:
+        return min(4, cfg.action_count - 1)
+
+    def hand_coded_policy(
+        obs: jax.Array,
+        candidate: EnvironmentGenome,
+        _step: int,
+        _key: jax.Array,
+    ) -> int:
+        if float(obs[3]) > float(obs[4]) + 0.05 and float(obs[5]) < 0.8:
+            return min(4, cfg.action_count - 1)
+        dx = float(candidate.params[0] - obs[0])
+        dy = float(candidate.params[1] - obs[1])
+        if abs(dx) >= abs(dy):
+            return 3 if dx >= 0 else 2
+        return 0 if dy >= 0 else 1
+
+    calibration_seeds = [seed, seed + 1, seed + 2]
+    selectors = {
+        "random": random_policy,
+        "fixed_policy": fixed_policy,
+        "hand_coded": hand_coded_policy,
+    }
+    repeated_baselines = {
+        name: [
+            _baseline_score(env, cfg, calibration_seed, selector)
+            for calibration_seed in calibration_seeds
+        ]
+        for name, selector in selectors.items()
+    }
+    baselines = {
+        name: scores[0] for name, scores in repeated_baselines.items()
+    }
+    return {
+        "criterion": float(cfg.minimal_criterion),
+        "criterion_calibrated": False,
+        "calibration_seeds": calibration_seeds,
+        "baselines": baselines,
+        "repeated_baselines": repeated_baselines,
+        "best_baseline": max(baselines.values()),
+    }
 
 
 def ppo_update(
@@ -744,7 +1168,7 @@ def ppo_update(
     return params, float(final_loss)
 
 
-def evaluate_policy(
+def _evaluate_policy_reference(
     params: PolicyParams, env: EnvironmentGenome, cfg: POETConfig, seed: int
 ) -> float:
     batch = collect_rollout(
@@ -758,6 +1182,25 @@ def evaluate_policy(
     return float(jnp.sum(batch.rewards))
 
 
+def evaluate_policy(
+    params: PolicyParams, env: EnvironmentGenome, cfg: POETConfig, seed: int
+) -> float:
+    if cfg.avida_enabled:
+        return _evaluate_policy_reference(params, env, cfg, seed)
+    return float(
+        np.asarray(
+            _evaluate_policy_fast_jitted(
+                params,
+                env.params,
+                env.terrain,
+                jax.random.PRNGKey(seed),
+                cfg,
+            ),
+            dtype=np.float32,
+        )
+    )
+
+
 def evaluate_transfer_matrix(
     policies: tuple[PolicyParams, ...] | list[PolicyParams],
     environments: tuple[EnvironmentGenome, ...] | list[EnvironmentGenome],
@@ -765,6 +1208,17 @@ def evaluate_transfer_matrix(
     seed: int,
 ) -> np.ndarray:
     """Evaluate every frozen policy on every environment without updates."""
+    if not policies or not environments:
+        return np.zeros((len(policies), len(environments)), dtype=np.float32)
+    if cfg.avida_enabled:
+        matrix = np.zeros((len(policies), len(environments)), dtype=np.float32)
+        for policy_index, policy in enumerate(policies):
+            for env_index, env in enumerate(environments):
+                matrix[policy_index, env_index] = evaluate_policy(
+                    policy, env, cfg, seed + policy_index * 1009 + env_index
+                )
+        return matrix
+
     matrix = np.zeros((len(policies), len(environments)), dtype=np.float32)
     for policy_index, policy in enumerate(policies):
         for env_index, env in enumerate(environments):
@@ -784,6 +1238,59 @@ def evaluate_archive_transfer(
     return evaluate_transfer_matrix(
         policies, [entry.environment for entry in archive], cfg, seed
     )
+
+
+def _archive_indices(size: int, limit: int | None) -> np.ndarray:
+    """Return deterministic archive columns used for bounded selection."""
+    if size < 1:
+        return np.zeros(0, dtype=np.int64)
+    if limit is None or limit >= size:
+        return np.arange(size, dtype=np.int64)
+    return np.unique(np.rint(np.linspace(0, size - 1, limit)).astype(np.int64))
+
+
+def _archive_informed_transfer(
+    transfer: np.ndarray, archive_transfer: np.ndarray
+) -> np.ndarray:
+    """Add each policy's mean admitted-environment score to current scores."""
+    archive_scores = archive_transfer.mean(axis=1)
+    return transfer + archive_scores[:, None]
+
+
+def _select_archive_parent(archive_transfer: np.ndarray, policy_index: int) -> int:
+    """Select the best retained stepping stone for a policy."""
+    return int(np.argmax(archive_transfer[policy_index]))
+
+
+def _archive_training_transfer(
+    transfer: np.ndarray, archive_transfer: np.ndarray, mode: str
+) -> np.ndarray:
+    """Return the policy-selection scores for one archive control."""
+    if mode == "enabled":
+        return _archive_informed_transfer(transfer, archive_transfer)
+    if mode in {"disabled", "random", "oracle"}:
+        return np.asarray(transfer).copy()
+    raise ValueError(f"unknown archive mode: {mode}")
+
+
+def _archive_parent_index(
+    archive_transfer: np.ndarray,
+    transfer: np.ndarray,
+    policy_index: int,
+    mode: str,
+    *,
+    seed: int,
+) -> int | None:
+    """Choose an archive stepping stone without using held-out environments."""
+    if mode == "disabled":
+        return None
+    if mode == "enabled":
+        return _select_archive_parent(archive_transfer, policy_index)
+    if mode == "oracle":
+        return int(np.unravel_index(np.argmax(archive_transfer), archive_transfer.shape)[1])
+    if mode == "random":
+        return int(np.random.default_rng(seed).integers(0, archive_transfer.shape[1]))
+    raise ValueError(f"unknown archive mode: {mode}")
 
 
 def _avida_comparison_score(matrix: np.ndarray) -> float:
@@ -852,26 +1359,44 @@ def run_poet(
             state.policies, state.environments, cfg, effective_seed + generation
         )
         state.transfer_history.append(transfer)
-        policy_scores = transfer.mean(axis=1)
+        selection_indices = _archive_indices(
+            len(state.environment_archive), cfg.archive_selection_limit
+        )
+        if cfg.archive_mode == "disabled":
+            archive_transfer = np.zeros((len(state.policies), 0), dtype=np.float32)
+        else:
+            archive_transfer = evaluate_archive_transfer(
+                state.policies,
+                [state.environment_archive[index] for index in selection_indices],
+                cfg,
+                effective_seed + 700_000 + generation,
+            )
+        training_transfer = _archive_training_transfer(
+            transfer, archive_transfer, cfg.archive_mode
+        )
+        policy_scores = training_transfer.mean(axis=1)
         best_policy_index = int(np.argmax(policy_scores))
         trained_policies = list(state.policies)
         for index, env in enumerate(state.environments):
-            parent_index = int(np.argmax(transfer[:, index]))
+            parent_index = int(np.argmax(training_transfer[:, index]))
             key, rollout_key = jax.random.split(key)
+            batch, next_avida, rollout_diagnostics = _collect_rollout(
+                trained_policies[parent_index],
+                env,
+                cfg,
+                rollout_key,
+                stochastic=True,
+                horizon=None,
+                initial_avida=(
+                    persistent_avida[index]
+                    if cfg.avida_enabled and cfg.avida_lifecycle == "persistent"
+                    else None
+                ),
+            )
             if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
-                batch, persistent_avida[index] = _collect_rollout(
-                    trained_policies[parent_index],
-                    env,
-                    cfg,
-                    rollout_key,
-                    stochastic=True,
-                    horizon=None,
-                    initial_avida=persistent_avida[index],
-                )
-            else:
-                batch = collect_rollout(
-                    trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
-                )
+                persistent_avida[index] = next_avida
+            for name, value_delta in rollout_diagnostics.items():
+                state.ecology_diagnostics[name] += value_delta
             trained_policies[parent_index], loss = ppo_update(
                 trained_policies[parent_index], batch, cfg.ppo
             )
@@ -894,16 +1419,93 @@ def run_poet(
         state.policy_mutations += 1
 
         # Candidate worlds enter the archive only after the raw-reward criterion.
+        local_archive_index = _archive_parent_index(
+            archive_transfer,
+            transfer,
+            best_policy_index,
+            cfg.archive_mode,
+            seed=effective_seed + generation + 910_000,
+        )
+        source_archive_index = (
+            int(selection_indices[local_archive_index])
+            if local_archive_index is not None
+            else None
+        )
+        source_environment_index = -1
+        if source_archive_index is not None:
+            source_entry = state.environment_archive[source_archive_index]
+            source_environment_index = next(
+                (
+                    index
+                    for index, environment_id in enumerate(state.environment_ids)
+                    if environment_id == source_entry.environment_id
+                ),
+                -1,
+            )
+        state.archive_decisions.append(
+            {
+                "generation": generation,
+                "mode": cfg.archive_mode,
+                "policy_index": best_policy_index,
+                "archive_index": (
+                    source_archive_index if source_archive_index is not None else -1
+                ),
+                "source_environment_index": source_environment_index,
+                "heldout_excluded": True,
+            }
+        )
         if cfg.track != "static":
             worst_environment_index = int(np.argmin(transfer[best_policy_index]))
+            if source_archive_index is None:
+                source_environment_index = int(np.argmax(transfer[best_policy_index]))
+                parent_id = state.environment_ids[source_environment_index]
+                parent_environment = state.environments[source_environment_index]
+            else:
+                source_entry = state.environment_archive[source_archive_index]
+                parent_id = source_entry.environment_id
+                parent_environment = source_entry.environment
             key, mutation_key = jax.random.split(key)
-            parent_id = state.environment_ids[best_policy_index]
-            child = mutate_environment(state.environments[best_policy_index], cfg, mutation_key)
+            child = mutate_environment(parent_environment, cfg, mutation_key)
+            candidate_seed = effective_seed + 500_000 + generation
             candidate_score = evaluate_policy(
-                state.policies[best_policy_index], child, cfg, effective_seed + 500_000 + generation
+                state.policies[best_policy_index], child, cfg, candidate_seed
+            )
+            calibration_seeds = [candidate_seed, candidate_seed + 1, candidate_seed + 2]
+            repeated_candidate_scores = [
+                evaluate_policy(
+                    state.policies[best_policy_index], child, cfg, score_seed
+                )
+                for score_seed in calibration_seeds
+            ]
+            parent_score = evaluate_policy(
+                state.policies[best_policy_index], parent_environment, cfg, candidate_seed
+            )
+            calibration = admission_calibration(child, cfg, candidate_seed)
+            minimal_pass = minimal_criterion_admits(candidate_score, cfg)
+            state.admission_diagnostics.append(
+                {
+                    "generation": generation,
+                    "source_environment_index": source_environment_index,
+                    "source_archive_index": source_archive_index,
+                    "candidate_score": candidate_score,
+                    "candidate_score_seeds": calibration_seeds,
+                    "candidate_scores": repeated_candidate_scores,
+                    "candidate_score_mean": float(np.mean(repeated_candidate_scores)),
+                    "candidate_score_std": float(np.std(repeated_candidate_scores)),
+                    "parent_score": parent_score,
+                    "minimal_criterion": cfg.minimal_criterion,
+                    "minimal_pass": minimal_pass,
+                    "baselines": calibration["baselines"],
+                    "best_baseline": calibration["best_baseline"],
+                    "calibration_seeds": calibration["calibration_seeds"],
+                    "repeated_baselines": calibration["repeated_baselines"],
+                    "criterion_calibrated": calibration["criterion_calibrated"],
+                    "admitted": minimal_pass,
+                    "reason": "criterion_pass" if minimal_pass else "criterion_fail",
+                }
             )
             state.environment_candidates += 1
-            if minimal_criterion_admits(candidate_score, cfg):
+            if minimal_pass:
                 child_id = f"env-{len(state.environment_archive):06d}"
                 state.environment_archive.append(
                     EnvironmentArchiveEntry(
@@ -1088,6 +1690,26 @@ def write_poet_artifacts(
         if cfg.avida_enabled
         else None
     )
+    validity_indices = _archive_indices(
+        len(state.environment_archive), cfg.causal_validity_limit
+    )
+    causal_validity = {
+        state.environment_archive[index].environment_id: environment_causal_validity(
+            state.environment_archive[index].environment, cfg
+        )
+        for index in validity_indices
+    }
+    (out_dir / "environment_validity.json").write_text(
+        json.dumps(
+            {
+                **metadata,
+                "environments": causal_validity,
+                "evaluated_archive_indices": validity_indices.tolist(),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     summary = state.to_jsonable()
     summary.update(
         {
@@ -1107,6 +1729,7 @@ def write_poet_artifacts(
             "comparison_score": comparison_score,
             "avida_comparator_steps": avida_comparator_steps,
             "avida_mean_merit": avida_mean_merit,
+            "environment_causal_validity": causal_validity,
             "final_transfer_mean": float(np.mean(final_matrix)),
             "final_transfer_std": float(np.std(final_matrix)),
         }
@@ -1134,7 +1757,13 @@ def _write_progress_figure(state: POETState, path: Path) -> None:
     plt.close(figure)
 
 
-def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfig:
+def load_poet_config(
+    path: str | Path,
+    *,
+    track: str | None = None,
+    archive_mode: str | None = None,
+    condition: str | None = None,
+) -> POETConfig:
     import yaml
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -1143,5 +1772,11 @@ def load_poet_config(path: str | Path, *, track: str | None = None) -> POETConfi
         raw["track"] = track
         raw["avida_enabled"] = track in {"avida_enabled", "avida_persistent"}
         raw["avida_lifecycle"] = "persistent" if track == "avida_persistent" else "reset"
+        if archive_mode is None:
+            archive_mode = "disabled" if track == "static" else "enabled"
+    if archive_mode is not None:
+        raw["archive_mode"] = archive_mode
+    if condition is not None:
+        raw["condition"] = condition
     raw["ppo"] = ppo
     return POETConfig(**raw)

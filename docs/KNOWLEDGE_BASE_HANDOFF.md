@@ -10,12 +10,48 @@
 
 - **Name:** hybrid-alife — Hybrid Artificial-Life Simulator.
 - **Repository:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip at handoff:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
-- **Validation branch:** `feat/solidness-performance` at
-  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
-- **Date of handoff:** 2026-09-28.
-- **Integration status:** the corrected implementation is on the validation branch; the v3 campaign archive and refreshed handoffs are the current working-tree deliverables for the next PR.
+- **Current branch:** `feat-complete-research-direction` at `68bd190`.
+- **Date of handoff:** 2026-10-12.
+- **Integration status:** the research-direction branch is open in PR #11: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/11.
+- **Campaign status:** the declared 40-cell PPO-POET campaign is running in tmux `poet-preregistered-final-v6`.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
+
+## Current research-direction status
+
+- Combined branch: `feat-complete-research-direction`.
+- Field controls include direct, indirect, spatially decorrelated, no-field, reversal, held-out flow-strength transfer, and counterfactual information-gain diagnostics.
+- PPO-POET now retains admitted environment lineage, uses archive transfer in policy parent selection, and mutates archive-selected stepping stones.
+- The bounded ecology contract records resources, hazards, interaction, reproduction, energy, and Avida field coupling.
+- Causal checks now compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
+- Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
+- Final branch verification reports 278 passing tests and one expected GPU fallback warning.
+- Ruff and diff checks pass.
+- The three-seed field pilot used two training generations and eight evaluation steps.
+- The three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
+- The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
+- The pilot is engineering evidence only, not evidence of field understanding, consciousness, or open-ended evolution.
+- Scientific completion still requires the preregistered 10-seed campaigns, independent replication, a captain-approved calibrated admission threshold, and longer horizons.
+- Do not merge the final PR without captain approval.
+- A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
+- Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
+- PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
+- Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
+- The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
+- The three-seed active-probe pilot is archived in `docs/results/field_probe_pilot_v1/`; probe rate stayed near 0.50 in every condition, so it found no evidence of selective probing.
+- A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
+- Field-discovery configs now add a bounded flow-alignment reward, disabled in the no-field control, to create a direct task payoff for using hidden flow.
+- The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
+- Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
+- The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
+- The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
+- The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
+- Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
+- A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
+- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` in tmux session `poet-preregistered-final-v6` with a four-hour wall-clock cap.
+- Its output is under `outputs/poet_campaign_final_v6/`; do not interpret results until the run and aggregate analysis complete.
+- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
+- A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.
+- The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## Mission (one paragraph)
 
@@ -58,18 +94,13 @@ tests/            CPU-feasible pytest suite
 
 ## Validation status (current)
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 passed** in the validated CPU environment.
-- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v3/`.
-- Transfer scores now use the undiscounted sum of deterministic frozen-policy rewards.
-- The Avida sidecar and persistent Avida lifecycle are both represented.
-- Communication benchmark: compositional control hits topsim / posdis / bosdis
-  = 1.0.
-- QD-active smoke (`configs/qd_active.yaml`, gen 5): coverage 0.4375,
-  qd_score 77.9649, novelty archive size 72.
-- Compute scaling (budget 6, gen 5): coverage 0.5, qd_score 15.4245, novelty 36.
-- Headline numbers above come from gen-5 / smoke configs. Anything publishable
-  needs ≥10 seeds and longer horizons (see `SCIENTIFIC_INTERPRETATION_GUIDE.md`).
+- The current branch passes 278 tests, with one expected GPU fallback warning.
+- Ruff and diff checks pass.
+- The deterministic awareness benchmark validity gate passes on seeds 0-2.
+- The held-out choice pilot is diagnostic only and found below-chance directional accuracy.
+- The full PPO-POET campaign is running with two tracks, two replications, ten seeds per replication, and 200 generations per cell.
+- Do not interpret the campaign until all cells finish and the aggregate success gate passes.
+- Historical smoke and campaign artifacts remain labeled as historical or diagnostic.
 
 ## Documentation map (final)
 
@@ -88,8 +119,11 @@ tests/            CPU-feasible pytest suite
 | [`lineage_growth.md`](lineage_growth.md) | Lineage tree, Hill 1D effective count. |
 | [`poet_transfer.md`](poet_transfer.md) | Fixed-policy transfer matrix + compute scaling. |
 | [`poet_ppo_campaign.md`](poet_ppo_campaign.md) | PPO-POET campaign design and outputs. |
-| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Superseded 20-cell campaign archive. |
-| [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Corrected 30-cell campaign evidence, statistics, and checksums. |
+| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Historical superseded campaign archive. |
+| [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Historical corrected campaign archive. |
+| [`results/field_choice_pilot_v1/`](results/field_choice_pilot_v1/) | Held-out directional-choice diagnostic. |
+| [`results/poet_runtime_profile_v1/`](results/poet_runtime_profile_v1/) | PPO-POET evaluator timing profile. |
+| [`results/poet_runtime_multicell_smoke_v1/`](results/poet_runtime_multicell_smoke_v1/) | Bounded multi-cell timing smoke. |
 | [`campaign_cache_acceleration.md`](campaign_cache_acceleration.md) | Cache-accelerated campaigns. |
 | [`experiment_campaign_quickstart.md`](experiment_campaign_quickstart.md) | Multi-config sweep quickstart. |
 | [`visualization_quickstart.md`](visualization_quickstart.md) | `visualize_run.py` usage. |
@@ -107,7 +141,7 @@ tests/            CPU-feasible pytest suite
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 220-test suite to pass on CPU)
+# Tests (expect the current 278-test suite to pass on CPU)
 JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Preflight before any multi-hour campaign
@@ -210,7 +244,7 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 - Reseeding hides extinction; embodied alive-fraction stays at 1.0, so
   selection pressure must be measured via lineage depth and Hill 1D, not
   survival fraction.
-- The full pytest suite currently reports 220 passed in the validated CPU environment.
+- The full pytest suite currently reports 278 passed in the validated CPU environment.
 - GitHub Actions CI runs the full pytest suite on every push; merges into
   `main` require a green CI.
 - Sprint branches use the pattern `sprint/<topic>-fast`; they land via merge
@@ -251,21 +285,11 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Next priorities (in order)
 
-1. **PR integration:** open and validate the corrected PPO-POET feature branch before
-   merging it into `main`. Keep CI green and update this handoff after merge.
-2. **Archive validation:** preserve the v3 campaign manifest, complete configurations,
-   source commit, generated statistics, and checksums with every headline result.
-3. **Surrogate-assisted QD:** small regression head over behaviour-descriptor
-   → fitness to gate full rollouts. Acceptance: ≥30% reduction in rollouts to
-   reach current smoke200 coverage at matched seeds.
-4. **Continuous-channel compositionality:** non-discretising estimator (e.g.
-   kernel topsim) reported alongside the argmax-discretised baseline.
-5. **Bounded coevolution extension:** add a minimal criterion, environment
-   archive, and stepping-stone selection to PPO-POET before making an
-   open-ended coevolution claim.
-5. **Headline at scale:** rerun smoke200 and one ablation at ≥10 seeds and the
-   longest horizon CI can absorb; report seeds + horizon + compute budget with
-   every number.
+1. Monitor `poet-preregistered-final-v6` and analyze only after completion.
+2. Preserve the final campaign manifest, source commit, metadata, statistics, and checksums.
+3. Compare the archive-control factorial only after the primary `poet` versus `static` result is complete.
+4. Extend held-out choice training only if the current campaign does not produce evidence of selective causal inquiry.
+5. Keep all scientific claims bounded by the declared seeds, horizons, controls, and compute budget.
 
 ## Success criteria for "continuation succeeded"
 

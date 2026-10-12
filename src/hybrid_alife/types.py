@@ -63,6 +63,8 @@ class WorldConfig:
     # Coupling between flow and concentration: per-step advection coefficient
     # in [0, 1]; 0 disables advection.
     flow_advection_strength: float = 0.25
+    # Optional flow advection of resources. Zero preserves legacy dynamics.
+    resource_advection_strength: float = 0.0
     # Smooth temporal drift parameters (sinusoidal rotation + low-frequency
     # modulation, in addition to the existing Gaussian flow_noise_std term).
     drift_rotation_rate: float = 0.01
@@ -89,7 +91,12 @@ class EmbodiedConfig:
     use_memory: bool = True
     use_comms: bool = True
     blind: bool = False
+    # Hide named world fields from the observation while keeping their dynamics.
+    # Empty means that all existing fields remain visible.
+    hidden_field_groups: tuple[str, ...] = ()
     shuffle_sixth_sense: bool = False
+    # Spatially translate observed flow vectors while preserving their values.
+    shuffle_flow_observation: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
     # ---- sensing uncertainty / delay modes (from world-sixth-sense-depth) ----
@@ -109,6 +116,13 @@ class EmbodiedConfig:
     cost_emit: float = 0.02
     metabolite_deposit_scale: float = 1.0
     hazard_deposit_scale: float = 1.0
+    flow_movement_scale: float = 0.0
+    # Optional reward for moving with the hidden local flow direction.
+    flow_alignment_reward: float = 0.0
+    # Optional active-probe gate. Disabled by default to preserve legacy shapes.
+    probe_enabled: bool = False
+    probe_cost: float = 0.02
+    probe_signal_scale: float = 1.0
     # Controller architecture: "gru" (default) or "mlp" for ablations.
     controller_arch: str = "gru"
     # Fraction of slots initialized alive. Setting < 1.0 leaves dead slots
@@ -238,6 +252,8 @@ class EmbodiedPopulationState:
     last_action: Array  # [N, action_dim]
     action_history: Array  # [N, K] int discretized indices
     behavior_descriptor: Array  # [N, 2] for novelty/map-elites
+    # Flow signal returned by the previous active probe, or None for legacy states.
+    probe_result: Array | None = None
 
 
 @dataclass

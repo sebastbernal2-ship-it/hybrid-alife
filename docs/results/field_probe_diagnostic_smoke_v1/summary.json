@@ -1,0 +1,38 @@
+{
+  "schema_version": 4,
+  "seed": 0,
+  "steps": 4,
+  "training_generations": 1,
+  "conditions": {
+    "direct": {
+      "probe_rate": 0.5163774496565262,
+      "probe_signal_mean": 0.1631313154132423,
+      "probe_outcome_information": 0.6861314719729998,
+      "post_score": 22.19857184092204
+    },
+    "indirect": {
+      "probe_rate": 0.5127480781326691,
+      "probe_signal_mean": 0.1647730023833212,
+      "probe_outcome_information": 0.7421343958784894,
+      "post_score": 22.187326431274414
+    },
+    "decorrelated": {
+      "probe_rate": 0.520183902233839,
+      "probe_signal_mean": 0.16859106961119813,
+      "probe_outcome_information": 0.5591278693870073,
+      "post_score": 22.273845354715984
+    },
+    "no_field": {
+      "probe_rate": 0.5165464586267868,
+      "probe_signal_mean": 0.0,
+      "probe_outcome_information": 0.0,
+      "post_score": 21.789846897125244
+    },
+    "intervention": {
+      "probe_rate": 0.512750988205274,
+      "probe_signal_mean": 0.16811170467510184,
+      "probe_outcome_information": 0.588958496054788,
+      "post_score": 21.98551877339681
+    }
+  }
+}

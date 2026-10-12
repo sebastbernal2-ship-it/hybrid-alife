@@ -1,0 +1,212 @@
+{
+  "schema_version": 2,
+  "source_commit": "209c0cc64972c066f806f250309fb8873e4e8a11",
+  "seed": 2,
+  "effective_seed": 2,
+  "generations": 3,
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 12,
+    "action_count": 8,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.003,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 2
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.08,
+    "terrain_mutation_std": 0.12,
+    "terrain_mutation_prob": 0.2,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": true,
+    "avida_lifecycle": "reset",
+    "track": "avida_enabled",
+    "minimal_criterion": -10.0,
+    "heldout_environments": 4,
+    "heldout_seed_offset": 1000003
+  },
+  "replication_metadata": {
+    "replication_id": "pilot-final",
+    "seed_offset": 0,
+    "operator": "pi",
+    "machine_label": "local-cpu",
+    "cache_cleared": true
+  },
+  "environments": {
+    "env-000000": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.13444340229034424
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000002086162567
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.0014296770095825195
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.0029061734676361084
+      }
+    },
+    "env-000001": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.1499999761581421
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000003576278687
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.11830329895019531
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.00298449769616127
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.047949761152267456
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.004937857389450073
+      }
+    },
+    "env-000002": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.10994219779968262
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.02343761920928955
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.14999999105930328
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.00485113263130188
+      }
+    },
+    "env-000003": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.03381168842315674
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000003576278687
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.05574941635131836
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.0029941461980342865
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.007276713848114014
+      }
+    },
+    "env-000004": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.1499999761581421
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.07289505004882812
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.14999999105930328
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.004851102828979492
+      }
+    }
+  }
+}

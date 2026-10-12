@@ -15,11 +15,46 @@
 ## Pointers
 
 - **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip before this sprint:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
-- **Validation branch:** `feat/solidness-performance` at
-  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
-- **Date of handoff:** 2026-09-28.
-- **Integration status:** the corrected implementation and v3 campaign archive are on the validation branch and await a PR into `main`.
+- **Current branch:** `feat-complete-research-direction` at the latest pushed documentation update.
+- **Date of handoff:** 2026-10-12.
+- **Integration status:** PR #11 is open: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/11.
+- **Campaign:** the declared 40-cell run is active in tmux `poet-preregistered-final-v6` with a four-hour cap.
+
+## Current research-direction status
+
+- The implementation masks selected fields from ordinary patches and sixth-sense channels.
+- Each condition trains with the existing evolutionary runner before frozen-policy evaluation.
+- The field controls are direct, indirect, spatially decorrelated, no-field, reversal, held-out flow-strength transfer, and counterfactual information gain.
+- PPO-POET now retains admitted environment lineage, uses archive transfer in policy parent selection, and mutates archive-selected stepping stones.
+- Causal checks compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
+- Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
+- Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
+- The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
+- The three-seed active-probe pilot is archived in `docs/results/field_probe_pilot_v1/`; probe rate stayed near 0.50 in every condition, so it found no evidence of selective probing.
+- A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
+- Field-discovery configs now add a bounded flow-alignment reward, disabled in the no-field control, to create a direct task payoff for using hidden flow.
+- The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
+- Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
+- The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
+- Final verification reports 278 passing tests and one expected GPU fallback warning.
+- A three-seed field pilot used two training generations and eight evaluation steps.
+- A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
+- The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
+- The pilot is engineering evidence only, not evidence of functional field understanding, consciousness, or open-ended evolution.
+- Remaining work is the preregistered 10-seed campaigns, independent replication, calibrated admission thresholds, and longer horizons.
+- Do not merge the final PR without captain approval.
+- A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
+- Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
+- PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
+- The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
+- The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
+- Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
+- A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
+- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` in tmux session `poet-preregistered-final-v6` with a four-hour wall-clock cap.
+- Its output is under `outputs/poet_campaign_final_v6/`; do not interpret results until the run and aggregate analysis complete.
+- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
+- A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.
+- The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## TL;DR project state
 
@@ -32,20 +67,14 @@ scaling harness exist as scripts. The legacy transfer harness remains fixed-poli
 The standalone PPO-POET module adds a bounded paired policy and environment
 population loop, but it does not establish open-ended coevolution.
 
-## Known validation (snapshot at handoff)
+## Known validation (current snapshot)
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 tests passed** in the validated CPU environment.
-- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v3/`.
-- Transfer evaluation uses undiscounted raw reward sums from deterministic frozen-policy rollouts.
-- The campaign includes reset-per-rollout and persistent Avida lifecycle tracks.
-- QD-active smoke (`configs/qd_active.yaml`) at gen 5:
-  - coverage `0.4375`, qd_score `77.9649`, novelty archive size `72`.
-- Communication benchmark acceptance:
-  - compositional protocol topsim / posdis / bosdis all `1.0`.
-- Compute-scaling, budget 6, gen 5:
-  - coverage `0.5`, qd_score `15.4245`, novelty archive size `36`.
-- Transfer/scaling artifacts exist under `outputs/` from prior sprints.
+- The current branch passes 278 tests with one expected GPU fallback warning.
+- Ruff and diff checks pass.
+- The awareness benchmark validity gate passes on seeds 0-2.
+- The held-out directional-choice pilot is diagnostic only and found below-chance transfer accuracy.
+- The current PPO-POET campaign has two tracks, two replications, ten seeds per replication, and 200 generations per cell.
+- No campaign result is valid until all cells finish and the declared success gate is evaluated.
 
 ## Architecture map
 
@@ -93,7 +122,7 @@ scripts/
 configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
             comm_task, lineage_growth, scaling_tiny, transfer_{source,target},
             poet_{smoke,campaign})
-tests/      CPU-feasible pytest suite with 220 validated tests
+tests/      CPU-feasible pytest suite with 278 validated tests
 docs/       architecture, world_model, agent_branches, scientific_validation,
             qd_active, comm_benchmark, transfer, poet_ppo_campaign,
             lineage_growth, preregistration_template, CONTINUATION_HANDOFF (this file)
@@ -147,9 +176,9 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
 ## Not implemented / experimental (what is **not** real yet)
 
 - **Open-ended environment-agent coevolution.** The standalone PPO-POET
-  module provides a bounded paired policy and environment population loop.
-  Environment archives, minimal-criterion filtering, and stepping-stone
-  selection are not implemented, so the results do not establish open-ended
+  module provides a bounded paired policy and environment population loop with
+  archive lineage, minimal-criterion filtering, stepping-stone selection, and
+  held-out transfer. It remains bounded and does not establish open-ended
   coevolution.
 - **Compositionality on the continuous emergent channel.** Currently
   discretised via argmax; numbers should be read as a lower bound.
@@ -196,7 +225,8 @@ that guide before publication.
 
 ### Next 20 minutes
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` to confirm the current 220-test suite still passes locally.
+- Review the final combined PR and keep it open until the captain approves merging.
+- Run the preregistered campaigns only after admission calibration and artifact preflight pass.
 - `python scripts/run_sim.py --config configs/base.yaml` (2-gen smoke) to
   confirm runner + JSONL writer are healthy end-to-end.
 - Skim `outputs/` for prior sprint artifacts (transfer / scaling); confirm
@@ -244,7 +274,7 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 220-test suite to pass on CPU)
+# Tests (expect the current 278-test suite to pass on CPU)
 JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Lint
@@ -328,7 +358,7 @@ Compare the validation branch against that commit when reviewing the pending PR.
 
 A future chat has successfully continued this project if and only if:
 
-1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 220 passing tests (or more, never fewer
+1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 278 passing tests (or more, never fewer
    without an explicit deletion memo).
 2. The smokes in the **Next 20 minutes** section run to completion on CPU
    and produce the same shape of JSONL output as today.

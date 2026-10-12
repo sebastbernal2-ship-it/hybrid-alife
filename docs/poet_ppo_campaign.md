@@ -42,11 +42,12 @@ Their `summary.json` files record the lifecycle and the actual `avida_comparator
 
 `configs/poet_campaign_manifest.json` is the campaign manifest.
 
-It contains three tracks, ten seeds per track, and 200 generations per cell.
+The current declaration contains two tracks, two replications, ten seeds per replication, and 200 generations per cell.
+It has 40 cells in total.
+The primary comparison is `poet` versus `static`.
+The archive-control factorial remains a separate protocol in `configs/poet_archive_control_manifest.json`.
 
-The manifest has 30 cells in total.
-The original 20-cell design is rerun with corrected raw-reward transfer scores, and the persistent Avida track adds 10 comparison cells.
-
+The current launch uses `outputs/poet_campaign_final_v6/` and has a four-hour wall-clock cap.
 Run a campaign with `configs/poet_campaign.yaml` and the same `scripts/run_poet.py` entrypoint.
 
 ## Outputs
@@ -70,17 +71,8 @@ Each cell records the source Git commit, complete configuration, and replication
 
 ## Profiling rule
 
-Record a full-run profile before adopting optimization changes:
-
-```bash
-JAX_PLATFORMS=cpu venv/bin/python scripts/profile_full_run.py \
-  --config configs/poet_smoke.yaml \
-  --generations 2 \
-  --out /tmp/hybrid-alife-full-profile.json
-```
-
-The first 200-generation profile recorded JAX dispatch overhead in world and Avida steps.
-
-JIT boundaries were adopted only after that profile and the post-change profile records the adoption.
+The deterministic no-Avida frozen-policy transfer evaluator uses a compiled JAX scan.
+The timing record is in `docs/results/poet_runtime_profile_v1/` and the bounded multi-cell smoke is in `docs/results/poet_runtime_multicell_smoke_v1/`.
+The Avida-enabled path retains the reference evaluator.
 
 The legacy runner remains unchanged by this module.
