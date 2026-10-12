@@ -12,6 +12,7 @@ from hybrid_alife.agents.avida_vm import initialize_avida_population
 from hybrid_alife.poet import (
     POETConfig,
     PPOConfig,
+    _archive_informed_transfer,
     _poet_avida_config,
     _step_avida_fast,
     collect_rollout,
@@ -191,11 +192,26 @@ def test_avida_comparator_horizon_is_recorded(tmp_path: Path):
     assert payload["avida_comparator_steps"] == 4
 
 
+def test_archive_transfer_influences_training_parent_selection():
+    current_transfer = np.asarray([[10.0, 0.0], [0.0, 10.0]])
+    archive_transfer = np.asarray([[0.0], [11.0]])
+
+    adjusted = _archive_informed_transfer(current_transfer, archive_transfer)
+
+    np.testing.assert_array_equal(np.argmax(current_transfer, axis=0), [0, 1])
+    np.testing.assert_array_equal(np.argmax(adjusted, axis=0), [1, 1])
+
+
 def test_archive_records_lineage_and_stepping_stone_transfer(tmp_path: Path):
     cfg = POETConfig(**{**tiny_config().__dict__, "minimal_criterion": -100.0})
     result = run_poet(cfg, seed=0, generations=2, out_dir=tmp_path)
     assert len(result.environment_archive) > cfg.population_size
     assert any(entry.parent_id is not None for entry in result.environment_archive)
+    archived_ids = {entry.environment_id for entry in result.environment_archive}
+    assert all(
+        entry.parent_id is None or entry.parent_id in archived_ids
+        for entry in result.environment_archive
+    )
     assert result.archive_transfer_history
     archive_transfer = json.loads((tmp_path / "archive_transfer.json").read_text())
     assert archive_transfer["mode"] == "stepping_stone_archive_transfer"

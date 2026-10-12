@@ -1001,6 +1001,14 @@ def evaluate_archive_transfer(
     )
 
 
+def _archive_informed_transfer(
+    transfer: np.ndarray, archive_transfer: np.ndarray
+) -> np.ndarray:
+    """Add each policy's mean admitted-environment score to current scores."""
+    archive_scores = archive_transfer.mean(axis=1)
+    return transfer + archive_scores[:, None]
+
+
 def _avida_comparison_score(matrix: np.ndarray) -> float:
     """Summarize positive transfer over each policy's own-environment score."""
     centered = matrix - np.mean(matrix, axis=1, keepdims=True)
@@ -1067,11 +1075,18 @@ def run_poet(
             state.policies, state.environments, cfg, effective_seed + generation
         )
         state.transfer_history.append(transfer)
-        policy_scores = transfer.mean(axis=1)
+        archive_transfer = evaluate_archive_transfer(
+            state.policies,
+            state.environment_archive,
+            cfg,
+            effective_seed + 700_000 + generation,
+        )
+        training_transfer = _archive_informed_transfer(transfer, archive_transfer)
+        policy_scores = training_transfer.mean(axis=1)
         best_policy_index = int(np.argmax(policy_scores))
         trained_policies = list(state.policies)
         for index, env in enumerate(state.environments):
-            parent_index = int(np.argmax(transfer[:, index]))
+            parent_index = int(np.argmax(training_transfer[:, index]))
             key, rollout_key = jax.random.split(key)
             batch, next_avida, rollout_diagnostics = _collect_rollout(
                 trained_policies[parent_index],
