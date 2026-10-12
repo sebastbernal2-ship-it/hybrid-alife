@@ -26,7 +26,7 @@
 - The bounded ecology contract records resources, hazards, interaction, reproduction, energy, and Avida field coupling.
 - Causal checks now compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Final branch verification reports 276 passing tests and one expected GPU fallback warning.
+- Final branch verification reports 278 passing tests and one expected GPU fallback warning.
 - Ruff and diff checks pass.
 - The three-seed field pilot used two training generations and eight evaluation steps.
 - The three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
@@ -50,7 +50,7 @@
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
 - A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
 - The next POET campaign needs a much smaller bounded validation run or additional vectorization before any 10-seed campaign.
-- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; two generations took 37.57 seconds and twenty generations took 2:23.34 for one seed across both tracks.
+- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## Mission (one paragraph)

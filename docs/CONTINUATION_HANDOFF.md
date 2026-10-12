@@ -38,7 +38,7 @@
 - The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
 - Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
 - The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
-- Final verification reports 276 passing tests and one expected GPU fallback warning.
+- Final verification reports 278 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
@@ -53,7 +53,7 @@
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
 - A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
 - The next POET campaign needs a much smaller bounded validation run or additional vectorization before any 10-seed campaign.
-- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; two generations took 37.57 seconds and twenty generations took 2:23.34 for one seed across both tracks.
+- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## TL;DR project state
