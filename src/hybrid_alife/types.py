@@ -112,6 +112,7 @@ class EmbodiedConfig:
     cost_emit: float = 0.02
     metabolite_deposit_scale: float = 1.0
     hazard_deposit_scale: float = 1.0
+    flow_movement_scale: float = 0.0
     # Controller architecture: "gru" (default) or "mlp" for ablations.
     controller_arch: str = "gru"
     # Fraction of slots initialized alive. Setting < 1.0 leaves dead slots
