@@ -159,21 +159,41 @@ def initialize_embodied_genomes(
 # ---------------------------------------------------------------------------
 
 
-def build_world_field(world: WorldState, world_cfg: WorldConfig) -> jax.Array:
-    """Concatenate all per-cell channels in a fixed order matching patch_channels()."""
-    parts = [
-        world.terrain,
-        world.resources,
-        world.hazards,
-        world.flow,
-        world.curvature,
-        world.shear,
-        world.shear_grad,
-        world.enrichment,
-        world.lift,
-        world.concentration,
-        world.metabolites,
-    ]
+_FIELD_GROUP_NAMES = (
+    "terrain",
+    "resources",
+    "hazards",
+    "flow",
+    "curvature",
+    "shear",
+    "shear_grad",
+    "enrichment",
+    "lift",
+    "concentration",
+    "metabolites",
+)
+
+
+def _hidden_field_groups(cfg: EmbodiedConfig) -> frozenset[str]:
+    hidden = frozenset(cfg.hidden_field_groups)
+    unknown = hidden.difference((*_FIELD_GROUP_NAMES, "all"))
+    if unknown:
+        raise ValueError(f"unknown hidden field groups: {sorted(unknown)}")
+    return frozenset(_FIELD_GROUP_NAMES if "all" in hidden else hidden)
+
+
+def build_world_field(
+    world: WorldState,
+    world_cfg: WorldConfig,
+    hidden_field_groups: tuple[str, ...] = (),
+) -> jax.Array:
+    """Build the fixed-width patch and zero selected fields without changing dynamics."""
+    del world_cfg
+    hidden = frozenset(hidden_field_groups)
+    parts = []
+    for name in _FIELD_GROUP_NAMES:
+        value = getattr(world, name)
+        parts.append(jnp.zeros_like(value) if name in hidden or "all" in hidden else value)
     return jnp.concatenate(parts, axis=-1)
 
 
@@ -186,7 +206,8 @@ def observe_embodied(
 ) -> jax.Array:
     """Build observation tensor [N, obs_dim]."""
     h, w = world_cfg.height, world_cfg.width
-    field = build_world_field(world, world_cfg)
+    hidden = _hidden_field_groups(embodied_cfg)
+    field = build_world_field(world, world_cfg, tuple(hidden))
     if embodied_cfg.blind:
         n = pop.positions.shape[0]
         side = 2 * embodied_cfg.obs_radius + 1
