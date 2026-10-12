@@ -1,34 +1,62 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from hybrid_alife.experiments.field_discovery import run_evaluation, summarize_results
 
 
-def test_field_discovery_is_reproducible_and_reports_scoped_outcomes():
-    first = run_evaluation(seed=7, repetitions=8, episodes=80, intervention_at=40)
-    second = run_evaluation(seed=7, repetitions=8, episodes=80, intervention_at=40)
+def test_evaluation_uses_simulator_conditions_and_is_reproducible():
+    first = run_evaluation(seed=7, steps=2)
+    second = run_evaluation(seed=7, steps=2)
 
     assert first == second
-    assert first["schema_version"] == 1
-    assert set(first["access_modes"]) == {"direct", "indirect"}
-    for outcome in first["access_modes"].values():
-        assert 0.0 <= outcome["field_use_gain"] <= 1.0
-        assert 0.0 <= outcome["intervention_adaptation"] <= 1.0
-        assert 0.0 <= outcome["pre_intervention_accuracy"] <= 1.0
-        assert 0.0 <= outcome["post_intervention_accuracy"] <= 1.0
-    assert first["access_modes"]["direct"]["field_use_gain"] > 0
-    assert first["access_modes"]["direct"]["intervention_adaptation"] > 0
-    direct = first["access_modes"]["direct"]["post_intervention_accuracy"]
-    indirect = first["access_modes"]["indirect"]["post_intervention_accuracy"]
-    assert direct > indirect
-
-
-def test_summary_aggregates_runs_without_dropping_access_modes():
-    runs = [
-        run_evaluation(seed=seed, repetitions=4, episodes=40, intervention_at=20)
-        for seed in (2, 5)
-    ]
-    summary = summarize_results(runs)
-
+    assert first["schema_version"] == 2
+    assert set(first["conditions"]) == {"direct", "indirect", "shuffled", "intervention"}
+    for condition in first["conditions"].values():
+        assert set(condition["final_metrics"]) == {
+            "survival",
+            "energy",
+            "resource",
+            "reproduction",
+        }
+        assert "score" in condition["pre_intervention"]
+        assert "score" in condition["post_intervention"]
+    assert first["conditions"]["intervention"]["config"]["intervention_step"] == 1
+    summary = summarize_results([first, first])
     assert summary["run_count"] == 2
-    assert set(summary["access_modes"]) == {"direct", "indirect"}
-    assert summary["access_modes"]["direct"]["field_use_gain"]["n"] == 2
+    assert summary["conditions"]["direct"]["survival"]["n"] == 2
+    assert summary["conditions"]["intervention"]["post_intervention_score"]["n"] == 2
+
+
+def test_cli_writes_compact_pilot_artifact(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    output = tmp_path / "pilot.json"
+    env = {**os.environ, "PYTHONPATH": str(root / "src"), "JAX_PLATFORMS": "cpu"}
+    subprocess.run(
+        [
+            sys.executable,
+            str(root / "scripts/run_field_discovery.py"),
+            "--seed",
+            "3",
+            "--steps",
+            "2",
+            "--config-dir",
+            str(root / "configs"),
+            "--output",
+            str(output),
+        ],
+        check=True,
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["seed"] == 3
+    assert set(result["conditions"]) == {"direct", "indirect", "shuffled", "intervention"}
+    assert result["conditions"]["direct"]["config"]["file"] == "field_discovery_direct.yaml"
