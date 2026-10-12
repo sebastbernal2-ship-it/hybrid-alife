@@ -12,6 +12,7 @@ from hybrid_alife.agents.avida_vm import initialize_avida_population
 from hybrid_alife.poet import (
     POETConfig,
     PPOConfig,
+    _archive_indices,
     _archive_informed_transfer,
     _archive_parent_index,
     _archive_training_transfer,
@@ -211,6 +212,12 @@ def test_archive_parent_selection_uses_retained_stepping_stones():
     assert _select_archive_parent(archive_transfer, 1) == 2
 
 
+def test_archive_indices_are_deterministic_and_bounded():
+    np.testing.assert_array_equal(_archive_indices(4, None), [0, 1, 2, 3])
+    np.testing.assert_array_equal(_archive_indices(10, 3), [0, 4, 9])
+    np.testing.assert_array_equal(_archive_indices(2, 5), [0, 1])
+
+
 def test_archive_controls_have_distinct_training_and_parent_semantics():
     transfer = np.asarray([[10.0, 0.0], [0.0, 10.0]])
     archive_transfer = np.asarray([[1.0, 5.0], [2.0, 3.0]])
@@ -221,6 +228,19 @@ def test_archive_controls_have_distinct_training_and_parent_semantics():
     assert _archive_parent_index(archive_transfer, transfer, 0, "enabled", seed=4) == 1
     assert _archive_parent_index(archive_transfer, transfer, 0, "oracle", seed=4) == 1
     assert _archive_parent_index(archive_transfer, transfer, 0, "random", seed=4) in {0, 1}
+
+
+def test_archive_selection_and_causal_reports_can_be_bounded(tmp_path: Path):
+    cfg = replace(
+        tiny_config(),
+        archive_selection_limit=1,
+        causal_validity_limit=1,
+    )
+    result = run_poet(cfg, seed=2, generations=2, out_dir=tmp_path)
+    assert result.archive_decisions
+    payload = json.loads((tmp_path / "environment_validity.json").read_text())
+    assert len(payload["environments"]) == 1
+    assert payload["evaluated_archive_indices"] == [0]
 
 
 def test_archive_disabled_mode_preserves_same_environment_budget():

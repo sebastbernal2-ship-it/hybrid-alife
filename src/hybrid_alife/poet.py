@@ -87,6 +87,8 @@ class POETConfig:
     heldout_seed_offset: int = 1_000_003
     archive_mode: str = "enabled"
     condition: str = ""
+    archive_selection_limit: int | None = None
+    causal_validity_limit: int | None = None
 
     def __post_init__(self) -> None:
         if self.heldout_environments < 0:
@@ -99,6 +101,12 @@ class POETConfig:
             raise ValueError(
                 "archive_mode must be enabled, disabled, random, or oracle"
             )
+        for name, value in (
+            ("archive_selection_limit", self.archive_selection_limit),
+            ("causal_validity_limit", self.causal_validity_limit),
+        ):
+            if value is not None and value < 1:
+                raise ValueError(f"{name} must be positive when set")
 
 
 class PolicyParams(NamedTuple):
@@ -1067,6 +1075,15 @@ def evaluate_archive_transfer(
     )
 
 
+def _archive_indices(size: int, limit: int | None) -> np.ndarray:
+    """Return deterministic archive columns used for bounded selection."""
+    if size < 1:
+        return np.zeros(0, dtype=np.int64)
+    if limit is None or limit >= size:
+        return np.arange(size, dtype=np.int64)
+    return np.unique(np.rint(np.linspace(0, size - 1, limit)).astype(np.int64))
+
+
 def _archive_informed_transfer(
     transfer: np.ndarray, archive_transfer: np.ndarray
 ) -> np.ndarray:
@@ -1177,12 +1194,18 @@ def run_poet(
             state.policies, state.environments, cfg, effective_seed + generation
         )
         state.transfer_history.append(transfer)
-        archive_transfer = evaluate_archive_transfer(
-            state.policies,
-            state.environment_archive,
-            cfg,
-            effective_seed + 700_000 + generation,
+        selection_indices = _archive_indices(
+            len(state.environment_archive), cfg.archive_selection_limit
         )
+        if cfg.archive_mode == "disabled":
+            archive_transfer = np.zeros((len(state.policies), 0), dtype=np.float32)
+        else:
+            archive_transfer = evaluate_archive_transfer(
+                state.policies,
+                [state.environment_archive[index] for index in selection_indices],
+                cfg,
+                effective_seed + 700_000 + generation,
+            )
         training_transfer = _archive_training_transfer(
             transfer, archive_transfer, cfg.archive_mode
         )
@@ -1231,12 +1254,17 @@ def run_poet(
         state.policy_mutations += 1
 
         # Candidate worlds enter the archive only after the raw-reward criterion.
-        source_archive_index = _archive_parent_index(
+        local_archive_index = _archive_parent_index(
             archive_transfer,
             transfer,
             best_policy_index,
             cfg.archive_mode,
             seed=effective_seed + generation + 910_000,
+        )
+        source_archive_index = (
+            int(selection_indices[local_archive_index])
+            if local_archive_index is not None
+            else None
         )
         source_environment_index = -1
         if source_archive_index is not None:
@@ -1497,12 +1525,24 @@ def write_poet_artifacts(
         if cfg.avida_enabled
         else None
     )
+    validity_indices = _archive_indices(
+        len(state.environment_archive), cfg.causal_validity_limit
+    )
     causal_validity = {
-        entry.environment_id: environment_causal_validity(entry.environment, cfg)
-        for entry in state.environment_archive
+        state.environment_archive[index].environment_id: environment_causal_validity(
+            state.environment_archive[index].environment, cfg
+        )
+        for index in validity_indices
     }
     (out_dir / "environment_validity.json").write_text(
-        json.dumps({**metadata, "environments": causal_validity}, indent=2),
+        json.dumps(
+            {
+                **metadata,
+                "environments": causal_validity,
+                "evaluated_archive_indices": validity_indices.tolist(),
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     summary = state.to_jsonable()
