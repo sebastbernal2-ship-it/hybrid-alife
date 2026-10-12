@@ -12,11 +12,12 @@ import numpy as np
 
 from hybrid_alife.experiments.runner import initialize_sim, load_config, run_experiment, step_sim
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _CONDITIONS = {
     "direct": "field_discovery_direct.yaml",
     "indirect": "field_discovery_indirect.yaml",
-    "shuffled": "field_discovery_indirect.yaml",
+    "decorrelated": "field_discovery_indirect.yaml",
+    "no_field": "field_discovery_indirect.yaml",
     "intervention": "field_discovery_intervention.yaml",
 }
 
@@ -42,13 +43,43 @@ def _score(metrics: dict[str, float | int]) -> float:
     return float(metrics["survival"]) * float(metrics["energy"])
 
 
+def _mutual_information(first: np.ndarray, second: np.ndarray, bins: int = 8) -> float:
+    joint, _, _ = np.histogram2d(first.ravel(), second.ravel(), bins=bins)
+    joint = joint / joint.sum()
+    marginal_first = joint.sum(axis=1, keepdims=True)
+    marginal_second = joint.sum(axis=0, keepdims=True)
+    expected = marginal_first @ marginal_second
+    nonzero = joint > 0
+    return float(np.sum(joint[nonzero] * np.log(joint[nonzero] / expected[nonzero])))
+
+
+def _counterfactual_information_gain(flow, outcome) -> float:
+    """Compare flow-outcome information with a same-statistics spatial counterfactual."""
+    flow_values = np.asarray(flow, dtype=np.float64)
+    outcome_values = np.asarray(outcome, dtype=np.float64).squeeze()
+    magnitude = np.linalg.norm(flow_values, axis=-1)
+    counterfactual = np.roll(
+        magnitude,
+        shift=(magnitude.shape[0] // 2, magnitude.shape[1] // 2),
+        axis=(0, 1),
+    )
+    return _mutual_information(magnitude, outcome_values) - _mutual_information(
+        counterfactual, outcome_values
+    )
+
+
 def _copy_trained_policy(trained_state, evaluation_state) -> None:
     if trained_state.embodied is None or evaluation_state.embodied is None:
         return
     evaluation_state.embodied.genomes = {
-        name: jnp.array(value)
-        for name, value in trained_state.embodied.genomes.items()
+        name: jnp.array(value) for name, value in trained_state.embodied.genomes.items()
     }
+
+
+def _evaluation_flow(initial_flow, *, step: int, split: int, reverse_flow: bool, flow_scale: float):
+    if reverse_flow and step >= split:
+        return -initial_flow
+    return initial_flow * flow_scale
 
 
 def _evaluate_trajectory(
@@ -57,17 +88,28 @@ def _evaluate_trajectory(
     post_cfg,
     *,
     steps: int,
+    reverse_flow: bool = False,
+    flow_scale: float = 1.0,
 ) -> tuple[dict[str, float | int], dict[str, float | int]]:
-    """Evaluate a frozen trained controller before and after one intervention."""
+    """Run frozen controllers through real simulator steps and an optional field change."""
     state = initialize_sim(pre_cfg)
     _copy_trained_policy(trained_state, state)
     lineage_counter = pre_cfg.embodied.population_size + (
         pre_cfg.avida.population_size if pre_cfg.avida.enabled else 0
     )
     split = max(1, steps // 2)
+    initial_flow = jnp.array(state.world.flow)
     pre_metrics = None
     for step in range(steps):
         active_cfg = pre_cfg if step < split else post_cfg
+        if reverse_flow or flow_scale != 1.0:
+            state.world.flow = _evaluation_flow(
+                initial_flow,
+                step=step,
+                split=split,
+                reverse_flow=reverse_flow,
+                flow_scale=flow_scale,
+            )
         state, lineage_counter = step_sim(
             state,
             active_cfg,
@@ -83,18 +125,29 @@ def _evaluate_trajectory(
 
 def _condition_configs(cfg, condition: str):
     train_cfg = cfg
-    if condition == "shuffled":
+    derived_flow_fields = ("flow", "shear", "shear_grad", "lift")
+    if condition == "decorrelated":
         train_cfg = replace(
             train_cfg,
-            embodied=replace(train_cfg.embodied, shuffle_sixth_sense=True),
+            embodied=replace(
+                train_cfg.embodied,
+                hidden_field_groups=("shear", "shear_grad", "lift"),
+                shuffle_flow_observation=True,
+            ),
         )
-    if condition == "intervention":
+    elif condition == "no_field":
         train_cfg = replace(
             train_cfg,
-            world=replace(train_cfg.world, drifting=False),
+            world=replace(train_cfg.world, flow_advection_strength=0.0),
+            embodied=replace(
+                train_cfg.embodied,
+                hidden_field_groups=derived_flow_fields,
+                flow_movement_scale=0.0,
+            ),
         )
-    post_cfg = cfg if condition == "intervention" else train_cfg
-    return train_cfg, post_cfg
+    elif condition == "intervention":
+        train_cfg = replace(train_cfg, world=replace(train_cfg.world, drifting=False))
+    return train_cfg
 
 
 def run_evaluation(
@@ -104,7 +157,7 @@ def run_evaluation(
     training_generations: int = 2,
     config_dir: str | Path = "configs",
 ) -> dict[str, Any]:
-    """Train each condition, then evaluate a frozen policy under an intervention."""
+    """Train conditions and evaluate frozen policies under causal controls and transfer."""
     if steps < 2:
         raise ValueError("steps must be at least 2")
     if training_generations < 1:
@@ -113,7 +166,7 @@ def run_evaluation(
     conditions = {}
     for condition, config_name in _CONDITIONS.items():
         cfg = replace(load_config(config_dir / config_name), seed=seed)
-        train_cfg, post_cfg = _condition_configs(cfg, condition)
+        train_cfg = _condition_configs(cfg, condition)
         evolution = replace(train_cfg.evolution, generations=training_generations)
         train_cfg = replace(train_cfg, evolution=evolution)
         with TemporaryDirectory(prefix=f"field-discovery-{condition}-") as output_dir:
@@ -123,11 +176,24 @@ def run_evaluation(
                 run_name=f"train-{condition}-{seed}",
             )
             trained_state = run_experiment(train_cfg)
+        reverse = condition == "intervention"
         pre_metrics, post_metrics = _evaluate_trajectory(
             trained_state,
             train_cfg,
-            post_cfg,
+            train_cfg,
             steps=steps,
+            reverse_flow=reverse,
+        )
+        _, transfer_metrics = _evaluate_trajectory(
+            trained_state,
+            train_cfg,
+            train_cfg,
+            steps=steps,
+            flow_scale=1.5,
+        )
+        information_gain = _counterfactual_information_gain(
+            trained_state.world.flow,
+            trained_state.world.enrichment,
         )
         conditions[condition] = {
             "config": {
@@ -135,19 +201,18 @@ def run_evaluation(
                 "seed": seed,
                 "steps": steps,
                 "training_generations": training_generations,
-                "intervention_step": steps // 2 if condition == "intervention" else None,
+                "intervention_step": steps // 2 if reverse else None,
+                "flow_reversed": reverse,
+                "held_out_flow_scale": 1.5,
                 "hidden_field_groups": list(train_cfg.embodied.hidden_field_groups),
-                "shuffle_sixth_sense": train_cfg.embodied.shuffle_sixth_sense,
+                "shuffle_flow_observation": train_cfg.embodied.shuffle_flow_observation,
+                "flow_movement_scale": train_cfg.embodied.flow_movement_scale,
             },
             "final_metrics": post_metrics,
-            "pre_intervention": {
-                "metrics": pre_metrics,
-                "score": _score(pre_metrics),
-            },
-            "post_intervention": {
-                "metrics": post_metrics,
-                "score": _score(post_metrics),
-            },
+            "pre_intervention": {"metrics": pre_metrics, "score": _score(pre_metrics)},
+            "post_intervention": {"metrics": post_metrics, "score": _score(post_metrics)},
+            "transfer": {"metrics": transfer_metrics, "score": _score(transfer_metrics)},
+            "counterfactual_flow_information_gain": information_gain,
         }
     return {
         "schema_version": SCHEMA_VERSION,
@@ -166,32 +231,35 @@ def summarize_results(results: list[dict]) -> dict[str, Any]:
         if result.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("unsupported field-discovery schema version")
         if set(result.get("conditions", {})) != set(_CONDITIONS):
-            raise ValueError("each result must contain all four conditions")
+            raise ValueError("each result must contain all five conditions")
     conditions = {}
     for condition in _CONDITIONS:
         conditions[condition] = {}
         for metric in ("survival", "energy", "resource", "reproduction"):
             values = [
-                float(run["conditions"][condition]["final_metrics"][metric])
-                for run in results
+                float(run["conditions"][condition]["final_metrics"][metric]) for run in results
             ]
             conditions[condition][metric] = {
                 "mean": float(np.mean(values)),
                 "std": float(np.std(values)),
                 "n": len(values),
             }
-        for phase in ("pre_intervention", "post_intervention"):
+        for phase in ("pre_intervention", "post_intervention", "transfer"):
             values = [
-                float(run["conditions"][condition][phase]["score"])
-                for run in results
+                float(run["conditions"][condition][phase]["score"]) for run in results
             ]
             conditions[condition][phase + "_score"] = {
                 "mean": float(np.mean(values)),
                 "std": float(np.std(values)),
                 "n": len(values),
             }
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "run_count": len(results),
-        "conditions": conditions,
-    }
+        information_gain = [
+            float(run["conditions"][condition]["counterfactual_flow_information_gain"])
+            for run in results
+        ]
+        conditions[condition]["counterfactual_flow_information_gain"] = {
+            "mean": float(np.mean(information_gain)),
+            "std": float(np.std(information_gain)),
+            "n": len(information_gain),
+        }
+    return {"schema_version": SCHEMA_VERSION, "run_count": len(results), "conditions": conditions}

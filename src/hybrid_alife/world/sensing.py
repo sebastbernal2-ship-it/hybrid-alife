@@ -180,7 +180,7 @@ def sample_sixth_sense(
         curv = jnp.zeros_like(curv)
     if {"flow", "shear", "shear_grad"} & hidden:
         sgrad = jnp.zeros_like(sgrad)
-    if "flow" in hidden:
+    if "flow" in hidden or embodied_cfg.shuffle_flow_observation:
         lft = jnp.zeros_like(lft)
         crowd = crowd.at[:, 1].set(0.0)
     if "enrichment" in hidden:

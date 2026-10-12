@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run the seeded hybrid-alife field-discovery pilot."""
+"""Run the seeded schema-v4 hybrid-alife field-discovery pilot."""
 
 from __future__ import annotations
 
