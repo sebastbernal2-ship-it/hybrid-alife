@@ -204,6 +204,7 @@ def _condition_configs(cfg, condition: str):
                 train_cfg.embodied,
                 hidden_field_groups=derived_flow_fields,
                 flow_movement_scale=0.0,
+                flow_alignment_reward=0.0,
                 probe_signal_scale=0.0,
             ),
         )
@@ -269,6 +270,7 @@ def run_evaluation(
                 "hidden_field_groups": list(train_cfg.embodied.hidden_field_groups),
                 "shuffle_flow_observation": train_cfg.embodied.shuffle_flow_observation,
                 "flow_movement_scale": train_cfg.embodied.flow_movement_scale,
+                "flow_alignment_reward": train_cfg.embodied.flow_alignment_reward,
                 "probe_enabled": train_cfg.embodied.probe_enabled,
                 "probe_cost": train_cfg.embodied.probe_cost,
                 "probe_signal_scale": train_cfg.embodied.probe_signal_scale,

@@ -365,6 +365,10 @@ def apply_embodied_actions(
     new_resources = world.resources.at[grid[:, 0], grid[:, 1]].add(-take_per_channel)
     new_resources = jnp.clip(new_resources, 0.0, 1.0)
     energy_gained = jnp.sum(take_per_channel, axis=-1) * 5.0  # scaling
+    flow_alignment = jnp.maximum(
+        jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
+    )
+    energy_gained = energy_gained + embodied_cfg.flow_alignment_reward * flow_alignment
 
     # Hazard damage (always applies, gated by attack to "fight"=halve damage)
     haz = hazard_damage(world.hazards, new_pos, pop.alive, h, w)

@@ -48,6 +48,26 @@ def test_resource_advection_is_disabled_by_default_and_causally_uses_flow():
     assert bool(jnp.any(coupled.world.resources != pattern))
 
 
+def test_flow_alignment_reward_is_optional_and_causal():
+    cfg = load_config("configs/base.yaml")
+    reward_cfg = _replace_embodied(cfg, flow_alignment_reward=1.0)
+    key = jax.random.PRNGKey(71)
+    world = initialize_world(cfg.world, key)
+    world.flow = jnp.ones_like(world.flow) * jnp.array([0.2, 0.0])
+    aligned = initialize_embodied_population(reward_cfg, cfg.world, key)
+    opposed = initialize_embodied_population(reward_cfg, cfg.world, key)
+    action_dim = embodied_action_dim(reward_cfg)
+    aligned_actions = jnp.zeros((reward_cfg.population_size, action_dim)).at[:, 0].set(1.0)
+    opposed_actions = jnp.zeros((reward_cfg.population_size, action_dim)).at[:, 0].set(-1.0)
+    aligned, _, _ = apply_embodied_actions(
+        aligned, aligned_actions, world, reward_cfg, cfg.world, key
+    )
+    opposed, _, _ = apply_embodied_actions(
+        opposed, opposed_actions, world, reward_cfg, cfg.world, key
+    )
+    assert bool(jnp.mean(aligned.energy) > jnp.mean(opposed.energy))
+
+
 def test_flow_advection_only_changes_movement_when_enabled():
     cfg = load_config("configs/base.yaml")
     key = jax.random.PRNGKey(70)

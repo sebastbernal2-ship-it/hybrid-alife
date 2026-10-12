@@ -117,6 +117,8 @@ class EmbodiedConfig:
     metabolite_deposit_scale: float = 1.0
     hazard_deposit_scale: float = 1.0
     flow_movement_scale: float = 0.0
+    # Optional reward for moving with the hidden local flow direction.
+    flow_alignment_reward: float = 0.0
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
