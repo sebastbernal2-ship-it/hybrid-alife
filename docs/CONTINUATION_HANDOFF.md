@@ -32,10 +32,15 @@
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
 - Final verification reports 253 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
+- A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
 - The pilot is engineering evidence only, not evidence of functional field understanding, consciousness, or open-ended evolution.
 - Remaining work is the preregistered 10-seed campaigns, independent replication, calibrated admission thresholds, and longer horizons.
 - Do not merge the final PR without captain approval.
+- A preregistered campaign is running from source commit `62367a7` in tmux session `poet-preregistered-final`.
+- It runs two replications of `poet` versus `static`, ten seeds per replication, and 200 generations per cell.
+- Campaign output is under `outputs/poet_campaign_final_v4/`.
+- No campaign result exists yet; do not interpret or report a result until analysis completes.
 
 ## TL;DR project state
 
