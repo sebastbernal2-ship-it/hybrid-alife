@@ -26,7 +26,7 @@
 - The bounded ecology contract records resources, hazards, interaction, reproduction, energy, and Avida field coupling.
 - Causal checks now compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Final branch verification reports 253 passing tests and one expected GPU fallback warning.
+- Final branch verification reports 271 passing tests and one expected GPU fallback warning.
 - Ruff and diff checks pass.
 - The three-seed field pilot used two training generations and eight evaluation steps.
 - The three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
@@ -37,6 +37,8 @@
 - A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
 - Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
 - PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
+- Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
+- The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
 - The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
 - A preregistered campaign is running from source commit `62367a7` in tmux session `poet-preregistered-final`.
 - It runs two replications of `poet` versus `static`, ten seeds per replication, and 200 generations per cell.

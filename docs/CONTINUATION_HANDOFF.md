@@ -30,7 +30,9 @@
 - PPO-POET now retains admitted environment lineage, uses archive transfer in policy parent selection, and mutates archive-selected stepping stones.
 - Causal checks compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Final verification reports 253 passing tests and one expected GPU fallback warning.
+- Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
+- The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
+- Final verification reports 271 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
