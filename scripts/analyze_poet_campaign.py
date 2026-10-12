@@ -217,6 +217,42 @@ def assess_success(
     }
 
 
+def summarize_pilot_diagnostics(summaries: list[dict]) -> dict:
+    """Aggregate additive ecology, coupling, and archive validity diagnostics."""
+    ecology: dict[str, list[float]] = defaultdict(list)
+    archive: dict[str, list[float]] = defaultdict(list)
+    baseline: dict[str, list[float]] = defaultdict(list)
+    causal: dict[str, list[float]] = defaultdict(list)
+    for summary in summaries:
+        for name, value in summary.get("ecology_diagnostics", {}).items():
+            ecology[name].append(float(value))
+        for name in ("archive_size", "archive_admissions", "archive_rejections"):
+            if name in summary:
+                archive[name].append(float(summary[name]))
+        for validity in summary.get("environment_causal_validity", {}).values():
+            for name, result in validity.items():
+                causal[name].append(float(bool(result.get("changed"))))
+        for record in summary.get("admission_diagnostics", []):
+            for name, value in record.get("baselines", {}).items():
+                baseline[name].append(float(value))
+    def aggregate(values: dict[str, list[float]]) -> dict[str, dict[str, float]]:
+        return {
+            name: {
+                "mean": float(np.mean(items)),
+                "median": float(np.median(items)),
+                "iqr": [float(np.percentile(items, 25)), float(np.percentile(items, 75))],
+            }
+            for name, items in sorted(values.items())
+            if items
+        }
+    return {
+        "ecology": aggregate(ecology),
+        "archive": aggregate(archive),
+        "admission_baselines": aggregate(baseline),
+        "causal_validity_rate": aggregate(causal),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_dir")
@@ -275,6 +311,7 @@ def main() -> None:
             primary_track=args.primary_track,
             baseline_track=args.baseline_track,
         ),
+        "pilot_diagnostics": summarize_pilot_diagnostics(summaries),
     }
     if len(comparisons) == 1:
         result["comparison"] = next(iter(comparisons.values()))

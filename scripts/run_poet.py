@@ -34,11 +34,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--operator", default="unspecified")
     parser.add_argument("--machine-label", default=platform.node() or "unknown")
     parser.add_argument("--cache-cleared", action="store_true")
+    parser.add_argument(
+        "--pilot",
+        action="store_true",
+        help="run the bounded three-seed validity pilot",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.pilot:
+        args.seeds = [0, 1, 2]
+        args.tracks = ("poet", "avida_enabled")
+        if args.generations is None:
+            args.generations = 3
     root = Path(args.out_dir)
     replication_metadata = {
         "replication_id": args.replication_id,
@@ -55,6 +65,7 @@ def main() -> None:
         "seeds": args.seeds,
         "generations": args.generations,
         "replication_metadata": replication_metadata,
+        "pilot": args.pilot,
         "cells": [],
     }
     root.mkdir(parents=True, exist_ok=True)

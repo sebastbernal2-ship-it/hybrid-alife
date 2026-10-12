@@ -12,7 +12,7 @@ import json
 import pickle
 import platform
 import subprocess
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -40,6 +40,14 @@ from hybrid_alife.world.env import (
 
 OBS_DIM = 8
 POET_ARTIFACT_SCHEMA_VERSION = 2
+ENVIRONMENT_GENE_NAMES = (
+    "goal_x",
+    "goal_y",
+    "resource_regeneration",
+    "hazard_rate",
+    "flow_x",
+    "flow_y",
+)
 
 
 @dataclass(frozen=True)
@@ -60,7 +68,7 @@ class POETConfig:
     terrain_channels: int = 1
     population_size: int = 4
     policy_hidden: int = 16
-    action_count: int = 5
+    action_count: int = 8
     rollout_steps: int = 16
     ppo: PPOConfig = field(default_factory=PPOConfig)
     environment_param_low: tuple[float, ...] = (0.1, 0.1, 0.1, 0.0, -0.2, -0.2)
@@ -109,6 +117,60 @@ class EnvironmentGenome(NamedTuple):
         )
 
 
+def terrain_spatial_structure(terrain: jax.Array) -> float:
+    """Measure spatial structure, not only the terrain mean."""
+    vertical = jnp.mean(jnp.abs(terrain[1:, :] - terrain[:-1, :]))
+    horizontal = jnp.mean(jnp.abs(terrain[:, 1:] - terrain[:, :-1]))
+    return float(0.5 * (vertical + horizontal))
+
+
+def _environment_effect_signature(env: EnvironmentGenome, cfg: POETConfig) -> np.ndarray:
+    world, _ = initialize_environment_world(env, cfg, jax.random.PRNGKey(0))
+    observation = _world_observation(
+        env, world, jnp.asarray([0.37, 0.61], dtype=jnp.float32), 0, cfg
+    )
+    return np.asarray(
+        jnp.concatenate(
+            [
+                jnp.asarray(env.params[:2]),
+                jnp.asarray([jnp.mean(world.resources), jnp.mean(world.hazards)]),
+                jnp.mean(world.flow, axis=(0, 1)),
+                observation,
+            ]
+        )
+    )
+
+
+def environment_causal_validity(
+    env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
+) -> dict[str, dict[str, float | bool]]:
+    """Perturb each environment gene and report an observable causal change."""
+    del seed
+    baseline = _environment_effect_signature(env, cfg)
+    low = jnp.asarray(cfg.environment_param_low, dtype=jnp.float32)
+    high = jnp.asarray(cfg.environment_param_high, dtype=jnp.float32)
+    report: dict[str, dict[str, float | bool]] = {}
+    for index, name in enumerate(ENVIRONMENT_GENE_NAMES):
+        params = env.params.at[index].set(
+            jnp.clip(env.params[index] + 0.15, low[index], high[index])
+        )
+        if bool(params[index] == env.params[index]):
+            params = params.at[index].set(
+                jnp.clip(env.params[index] - 0.15, low[index], high[index])
+            )
+        changed = env._replace(params=params)
+        delta = float(np.max(np.abs(_environment_effect_signature(changed, cfg) - baseline)))
+        report[name] = {"changed": delta > 1e-7, "max_delta": delta}
+    terrain = env.terrain.at[0, 0].set(1.0 - env.terrain[0, 0])
+    changed_terrain = env._replace(terrain=terrain)
+    delta = abs(
+        terrain_spatial_structure(changed_terrain.terrain)
+        - terrain_spatial_structure(env.terrain)
+    )
+    report["terrain"] = {"changed": delta > 1e-7, "max_delta": delta}
+    return report
+
+
 @dataclass(frozen=True)
 class EnvironmentArchiveEntry:
     environment_id: str
@@ -144,6 +206,8 @@ class POETState:
     environment_admissions: int
     environment_rejections: int
     replication_metadata: dict[str, Any]
+    ecology_diagnostics: dict[str, float]
+    admission_diagnostics: list[dict[str, Any]]
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -161,6 +225,8 @@ class POETState:
             "archive_admissions": self.environment_admissions,
             "archive_rejections": self.environment_rejections,
             "environment_candidates": self.environment_candidates,
+            "ecology_diagnostics": self.ecology_diagnostics,
+            "admission_diagnostics": self.admission_diagnostics,
             "archive_lineage": [
                 {
                     "environment_id": entry.environment_id,
@@ -319,6 +385,7 @@ def initialize_environment_world(
 ) -> tuple[WorldState, WorldConfig]:
     """Inject an environment genome into the existing microfluidic world model."""
     world_cfg = _poet_world_config(cfg)
+    world_cfg = replace(world_cfg, resource_regen=0.005 * float(env.params[2]))
     world = initialize_world(world_cfg, key)
     terrain = world.terrain.at[..., 0].set(env.terrain)
     terrain = terrain.at[..., 1].set(0.5 * terrain[..., 1] + 0.5 * env.terrain)
@@ -446,6 +513,17 @@ def initialize_poet_state(
         environment_admissions=0,
         environment_rejections=0,
         replication_metadata=normalize_replication_metadata(replication_metadata),
+        ecology_diagnostics={
+            "resource_gather_events": 0.0,
+            "interaction_events": 0.0,
+            "reproduction_events": 0.0,
+            "success_events": 0.0,
+            "failure_events": 0.0,
+            "energy_cost": 0.0,
+            "avida_feedback": 0.0,
+            "controller_to_avida_events": 0.0,
+        },
+        admission_diagnostics=[],
     )
 
 
@@ -565,20 +643,22 @@ def _world_observation(
     step: int,
     cfg: POETConfig,
     horizon: int | None = None,
+    energy: jax.Array | float = 1.0,
 ) -> jax.Array:
     horizon = cfg.rollout_steps if horizon is None else horizon
     terrain = _grid_value(world.terrain[..., 0], position)
     resource = _grid_vector(world.resources[..., 0], position)
     hazard = _grid_vector(world.hazards[..., 0], position)
+    goal_distance = jnp.linalg.norm(position - env.params[:2])
     return jnp.asarray(
         [
             position[0],
             position[1],
-            env.params[0],
-            env.params[1],
             terrain,
-            resource - hazard,
-            1.0 - step / max(horizon, 1),
+            resource,
+            hazard,
+            jnp.clip(jnp.asarray(energy), 0.0, 1.0),
+            goal_distance,
             jnp.mean(world.metabolites) + jnp.mean(world.concentration),
         ],
         dtype=jnp.float32,
@@ -593,15 +673,29 @@ def _rollout_step(
     cfg: POETConfig,
     world_cfg: WorldConfig,
     lineage_counter: int,
-) -> tuple[SimState, jax.Array, jax.Array, bool, int]:
+    energy: float,
+) -> tuple[SimState, jax.Array, jax.Array, bool, int, float, dict[str, float]]:
+    """Advance one focal forager and the optional digital population.
+
+    Actions 0-3 move, action 4 rests and gathers, action 5 gathers, action 6
+    interacts, and action 7 attempts reproduction. Smaller legacy action heads
+    retain movement plus action 4 gathering.
+    """
     state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
-    move = jnp.asarray(
+    moves = jnp.asarray(
         [[0.0, 0.08], [0.0, -0.08], [-0.08, 0.0], [0.08, 0.0], [0.0, 0.0]],
         dtype=jnp.float32,
-    )[jnp.asarray(action, dtype=jnp.int32)]
+    )
+    action_index = int(action)
+    move = moves[action_index % 5]
     flow = _grid_vector(state.world.flow, position)
     next_position = jnp.clip(position + move + 0.02 * flow, 0.0, 0.999)
+    controller_event = float(action_index >= 4)
+    avida_feedback = 0.0
     if state.avida is not None:
+        before = jnp.asarray(
+            [jnp.mean(state.world.metabolites), jnp.mean(state.world.concentration)]
+        )
         state.rng, avida_key = jax.random.split(state.rng)
         avida_positions = jnp.broadcast_to(next_position, (state.avida.alive.shape[0], 2))
         state.avida, state.world, lineage_counter = _step_avida_fast(
@@ -612,21 +706,56 @@ def _rollout_step(
             avida_key,
             avida_positions,
         )
-    terrain = _grid_vector(state.world.terrain[..., 0], next_position)
-    resource = _grid_vector(state.world.resources[..., 0], next_position)
-    hazard = _grid_vector(state.world.hazards[..., 0], next_position)
+        after = jnp.asarray(
+            [jnp.mean(state.world.metabolites), jnp.mean(state.world.concentration)]
+        )
+        avida_feedback = float(jnp.mean(jnp.abs(after - before)))
+
+    grid_x = int(jnp.clip(jnp.floor(next_position[0] * cfg.width), 0, cfg.width - 1))
+    grid_y = int(jnp.clip(jnp.floor(next_position[1] * cfg.height), 0, cfg.height - 1))
+    terrain = state.world.terrain[grid_y, grid_x, 0]
+    resource = state.world.resources[grid_y, grid_x, 0]
+    hazard = state.world.hazards[grid_y, grid_x, 0]
+    gather = float(resource * (0.4 if action_index in {4, 5} else 0.0))
+    state.world.resources = state.world.resources.at[grid_y, grid_x, 0].set(resource - gather)
+    interaction = float(action_index == 6)
+    reproduce = float(action_index >= 7 and energy + gather > 0.65)
+    signal = 0.01 * controller_event
+    if signal:
+        state.world.concentration = state.world.concentration.at[grid_y, grid_x].add(signal)
+    movement_cost = 0.02 * float(jnp.linalg.norm(move))
+    energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
+    hazard_cost = float(hazard) * 0.25
+    energy = energy + 1.5 * gather - energy_cost - hazard_cost
+    if reproduce:
+        state.world.resources = state.world.resources.at[grid_y, grid_x, 0].add(0.05)
     distance = jnp.linalg.norm(next_position - env.params[:2])
-    reward = (
-        0.35 * resource
-        + 0.25 * terrain
-        + 0.1 * jnp.mean(state.world.concentration)
-        + 0.1 * jnp.mean(state.world.metabolites)
-        - hazard
-        - distance
+    success = bool(distance < 0.12 and energy > 0.0)
+    failure = bool(energy <= 0.0)
+    done = success or failure
+    reward = 1.5 * gather + 0.2 * float(terrain) + 0.2 * interaction
+    reward -= hazard_cost + energy_cost + 0.1 * float(distance)
+    reward += 1.0 if success else 0.0
+    reward -= 1.0 if failure else 0.0
+    diagnostics = {
+        "resource_gather_events": float(gather > 0.0),
+        "interaction_events": interaction,
+        "reproduction_events": reproduce,
+        "success_events": float(success),
+        "failure_events": float(failure),
+        "energy_cost": energy_cost + hazard_cost,
+        "avida_feedback": avida_feedback,
+        "controller_to_avida_events": controller_event,
+    }
+    return (
+        state,
+        next_position,
+        jnp.asarray(reward, dtype=jnp.float32),
+        done,
+        lineage_counter,
+        float(energy),
+        diagnostics,
     )
-    done = bool(distance < 0.12)
-    reward = reward + jnp.where(done, 1.0, 0.0)
-    return state, next_position, reward.astype(jnp.float32), done, lineage_counter
 
 
 def _collect_rollout(
@@ -638,7 +767,8 @@ def _collect_rollout(
     stochastic: bool,
     horizon: int | None,
     initial_avida: AvidaPopulationState | None = None,
-) -> tuple[_Batch, AvidaPopulationState | None]:
+    action_selector: Any | None = None,
+) -> tuple[_Batch, AvidaPopulationState | None, dict[str, float]]:
     horizon = cfg.rollout_steps if horizon is None else horizon
     if horizon < 1:
         raise ValueError("rollout horizon must be positive")
@@ -662,18 +792,46 @@ def _collect_rollout(
     old_log_probs: list[jax.Array] = []
     rewards: list[jax.Array] = []
     values: list[jax.Array] = []
+    diagnostics = {
+        "resource_gather_events": 0.0,
+        "interaction_events": 0.0,
+        "reproduction_events": 0.0,
+        "success_events": 0.0,
+        "failure_events": 0.0,
+        "energy_cost": 0.0,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 0.0,
+    }
+    energy = 1.0
     for step in range(horizon):
         key, action_key = jax.random.split(key)
-        observation = _world_observation(env, state.world, positions, step, cfg, horizon)
+        observation = _world_observation(
+            env, state.world, positions, step, cfg, horizon, energy
+        )
         logits, value = policy_forward(params, observation)
-        if stochastic:
+        if action_selector is not None:
+            action = jnp.asarray(
+                action_selector(observation, env, step, action_key), dtype=jnp.int32
+            )
+            log_prob = jax.nn.log_softmax(logits)[action]
+        elif stochastic:
             action, log_prob = _categorical_action(logits, action_key)
         else:
             action = jnp.argmax(logits)
             log_prob = jax.nn.log_softmax(logits)[action]
-        state, positions, reward, done, lineage_counter = _rollout_step(
-            state, env, positions, int(action), cfg, world_cfg, lineage_counter
+        (
+            state,
+            positions,
+            reward,
+            done,
+            lineage_counter,
+            energy,
+            step_diagnostics,
+        ) = _rollout_step(
+            state, env, positions, int(action), cfg, world_cfg, lineage_counter, energy
         )
+        for name, value_delta in step_diagnostics.items():
+            diagnostics[name] += value_delta
         observations.append(observation)
         actions.append(action)
         old_log_probs.append(log_prob)
@@ -681,8 +839,9 @@ def _collect_rollout(
         values.append(value)
         if done:
             positions = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
+            energy = 1.0
     last_value = policy_forward(
-        params, _world_observation(env, state.world, positions, horizon, cfg, horizon)
+        params, _world_observation(env, state.world, positions, horizon, cfg, horizon, energy)
     )[1]
     advantages = _gae(rewards, values, last_value, cfg)
     returns = advantages + jnp.stack(values)
@@ -694,7 +853,7 @@ def _collect_rollout(
         advantages=advantages,
         returns=returns,
         rewards=jnp.stack(rewards),
-    ), state.avida
+    ), state.avida, diagnostics
 
 
 def collect_rollout(
@@ -706,7 +865,7 @@ def collect_rollout(
     stochastic: bool = True,
     horizon: int | None = None,
 ) -> _Batch:
-    batch, _ = _collect_rollout(
+    batch, _, _ = _collect_rollout(
         params,
         env,
         cfg,
@@ -715,6 +874,62 @@ def collect_rollout(
         horizon=horizon,
     )
     return batch
+
+
+def _baseline_score(
+    env: EnvironmentGenome,
+    cfg: POETConfig,
+    seed: int,
+    selector: Any,
+) -> float:
+    batch, _, _ = _collect_rollout(
+        _init_policy(cfg, jax.random.PRNGKey(seed + 991)),
+        env,
+        cfg,
+        jax.random.PRNGKey(seed),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
+        action_selector=selector,
+    )
+    return float(jnp.sum(batch.rewards))
+
+
+def admission_calibration(
+    env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
+) -> dict[str, Any]:
+    """Score simple matched baselines for interpreting admission."""
+    def random_policy(
+        _obs: jax.Array, _env: EnvironmentGenome, _step: int, key: jax.Array
+    ) -> jax.Array:
+        return jax.random.randint(key, (), 0, cfg.action_count)
+
+    def fixed_policy(_obs: jax.Array, _env: EnvironmentGenome, _step: int, _key: jax.Array) -> int:
+        return min(4, cfg.action_count - 1)
+
+    def hand_coded_policy(
+        obs: jax.Array,
+        candidate: EnvironmentGenome,
+        _step: int,
+        _key: jax.Array,
+    ) -> int:
+        if float(obs[3]) > float(obs[4]) + 0.05 and float(obs[5]) < 0.8:
+            return min(4, cfg.action_count - 1)
+        dx = float(candidate.params[0] - obs[0])
+        dy = float(candidate.params[1] - obs[1])
+        if abs(dx) >= abs(dy):
+            return 3 if dx >= 0 else 2
+        return 0 if dy >= 0 else 1
+
+    baselines = {
+        "random": _baseline_score(env, cfg, seed, random_policy),
+        "fixed_policy": _baseline_score(env, cfg, seed, fixed_policy),
+        "hand_coded": _baseline_score(env, cfg, seed, hand_coded_policy),
+    }
+    return {
+        "criterion": float(cfg.minimal_criterion),
+        "baselines": baselines,
+        "best_baseline": max(baselines.values()),
+    }
 
 
 def ppo_update(
@@ -858,20 +1073,23 @@ def run_poet(
         for index, env in enumerate(state.environments):
             parent_index = int(np.argmax(transfer[:, index]))
             key, rollout_key = jax.random.split(key)
+            batch, next_avida, rollout_diagnostics = _collect_rollout(
+                trained_policies[parent_index],
+                env,
+                cfg,
+                rollout_key,
+                stochastic=True,
+                horizon=None,
+                initial_avida=(
+                    persistent_avida[index]
+                    if cfg.avida_enabled and cfg.avida_lifecycle == "persistent"
+                    else None
+                ),
+            )
             if cfg.avida_enabled and cfg.avida_lifecycle == "persistent":
-                batch, persistent_avida[index] = _collect_rollout(
-                    trained_policies[parent_index],
-                    env,
-                    cfg,
-                    rollout_key,
-                    stochastic=True,
-                    horizon=None,
-                    initial_avida=persistent_avida[index],
-                )
-            else:
-                batch = collect_rollout(
-                    trained_policies[parent_index], env, cfg, rollout_key, stochastic=True
-                )
+                persistent_avida[index] = next_avida
+            for name, value_delta in rollout_diagnostics.items():
+                state.ecology_diagnostics[name] += value_delta
             trained_policies[parent_index], loss = ppo_update(
                 trained_policies[parent_index], batch, cfg.ppo
             )
@@ -896,14 +1114,36 @@ def run_poet(
         # Candidate worlds enter the archive only after the raw-reward criterion.
         if cfg.track != "static":
             worst_environment_index = int(np.argmin(transfer[best_policy_index]))
+            source_environment_index = int(np.argmax(transfer[best_policy_index]))
             key, mutation_key = jax.random.split(key)
-            parent_id = state.environment_ids[best_policy_index]
-            child = mutate_environment(state.environments[best_policy_index], cfg, mutation_key)
+            parent_id = state.environment_ids[source_environment_index]
+            parent_environment = state.environments[source_environment_index]
+            child = mutate_environment(parent_environment, cfg, mutation_key)
+            candidate_seed = effective_seed + 500_000 + generation
             candidate_score = evaluate_policy(
-                state.policies[best_policy_index], child, cfg, effective_seed + 500_000 + generation
+                state.policies[best_policy_index], child, cfg, candidate_seed
+            )
+            parent_score = evaluate_policy(
+                state.policies[best_policy_index], parent_environment, cfg, candidate_seed
+            )
+            calibration = admission_calibration(child, cfg, candidate_seed)
+            minimal_pass = minimal_criterion_admits(candidate_score, cfg)
+            state.admission_diagnostics.append(
+                {
+                    "generation": generation,
+                    "source_environment_index": source_environment_index,
+                    "candidate_score": candidate_score,
+                    "parent_score": parent_score,
+                    "minimal_criterion": cfg.minimal_criterion,
+                    "minimal_pass": minimal_pass,
+                    "baselines": calibration["baselines"],
+                    "best_baseline": calibration["best_baseline"],
+                    "admitted": minimal_pass,
+                    "reason": "criterion_pass" if minimal_pass else "criterion_fail",
+                }
             )
             state.environment_candidates += 1
-            if minimal_criterion_admits(candidate_score, cfg):
+            if minimal_pass:
                 child_id = f"env-{len(state.environment_archive):06d}"
                 state.environment_archive.append(
                     EnvironmentArchiveEntry(
@@ -1088,6 +1328,14 @@ def write_poet_artifacts(
         if cfg.avida_enabled
         else None
     )
+    causal_validity = {
+        entry.environment_id: environment_causal_validity(entry.environment, cfg)
+        for entry in state.environment_archive
+    }
+    (out_dir / "environment_validity.json").write_text(
+        json.dumps({**metadata, "environments": causal_validity}, indent=2),
+        encoding="utf-8",
+    )
     summary = state.to_jsonable()
     summary.update(
         {
@@ -1107,6 +1355,7 @@ def write_poet_artifacts(
             "comparison_score": comparison_score,
             "avida_comparator_steps": avida_comparator_steps,
             "avida_mean_merit": avida_mean_merit,
+            "environment_causal_validity": causal_validity,
             "final_transfer_mean": float(np.mean(final_matrix)),
             "final_transfer_std": float(np.std(final_matrix)),
         }
