@@ -36,6 +36,8 @@
 - A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
 - Field-discovery configs now add a bounded flow-alignment reward, disabled in the no-field control, to create a direct task payoff for using hidden flow.
 - The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
+- Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
+- The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
 - Final verification reports 275 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
