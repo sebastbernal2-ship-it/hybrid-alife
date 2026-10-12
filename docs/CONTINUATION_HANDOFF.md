@@ -47,7 +47,8 @@
 - The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
 - The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
-- The next POET campaign needs a bounded runtime smoke and profiled configuration before the 10-seed replication.
+- A profiled rerun now runs from source commit `73931ea` in tmux session `poet-preregistered-v5`.
+- Its output is under `outputs/poet_campaign_final_v5/`; do not interpret results until both replications and analysis complete.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
 
 ## TL;DR project state
