@@ -1,0 +1,291 @@
+{
+  "schema_version": 4,
+  "run_count": 3,
+  "conditions": {
+    "direct": {
+      "survival": {
+        "mean": 1.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "energy": {
+        "mean": 24.231441868676082,
+        "std": 0.2492787234998525,
+        "n": 3
+      },
+      "resource": {
+        "mean": 928.8870265185833,
+        "std": 18.68632646567978,
+        "n": 3
+      },
+      "reproduction": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "pre_intervention_score": {
+        "mean": 22.28240670098199,
+        "std": 0.09991343563895816,
+        "n": 3
+      },
+      "post_intervention_score": {
+        "mean": 24.231441868676082,
+        "std": 0.2492787234998525,
+        "n": 3
+      },
+      "transfer_score": {
+        "mean": 24.37438530392117,
+        "std": 0.2709806082725959,
+        "n": 3
+      },
+      "counterfactual_flow_information_gain": {
+        "mean": 0.020895156706815635,
+        "std": 0.021474095916581153,
+        "n": 3
+      },
+      "probe_rate": {
+        "mean": 0.5116354726875821,
+        "std": 0.007277771749389317,
+        "n": 3
+      },
+      "probe_signal_mean": {
+        "mean": 0.14184692589322379,
+        "std": 0.015928298981171457,
+        "n": 3
+      },
+      "probe_outcome_information": {
+        "mean": 0.46509982855934817,
+        "std": 0.06872436836602669,
+        "n": 3
+      }
+    },
+    "indirect": {
+      "survival": {
+        "mean": 1.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "energy": {
+        "mean": 24.227501021491154,
+        "std": 0.1493813329259161,
+        "n": 3
+      },
+      "resource": {
+        "mean": 928.877159367005,
+        "std": 18.72177189039225,
+        "n": 3
+      },
+      "reproduction": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "pre_intervention_score": {
+        "mean": 22.307799869113495,
+        "std": 0.056549177658730486,
+        "n": 3
+      },
+      "post_intervention_score": {
+        "mean": 24.227501021491154,
+        "std": 0.1493813329259161,
+        "n": 3
+      },
+      "transfer_score": {
+        "mean": 24.338626437717014,
+        "std": 0.2830551098733469,
+        "n": 3
+      },
+      "counterfactual_flow_information_gain": {
+        "mean": 0.02362807865746862,
+        "std": 0.0184529027812917,
+        "n": 3
+      },
+      "probe_rate": {
+        "mean": 0.5049385962386926,
+        "std": 0.0066592548780990465,
+        "n": 3
+      },
+      "probe_signal_mean": {
+        "mean": 0.14639064758854417,
+        "std": 0.020725218536614822,
+        "n": 3
+      },
+      "probe_outcome_information": {
+        "mean": 0.4841005158675295,
+        "std": 0.025024136819761858,
+        "n": 3
+      }
+    },
+    "decorrelated": {
+      "survival": {
+        "mean": 1.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "energy": {
+        "mean": 24.197392622629803,
+        "std": 0.25459833072044136,
+        "n": 3
+      },
+      "resource": {
+        "mean": 928.9129833082358,
+        "std": 18.742965587821807,
+        "n": 3
+      },
+      "reproduction": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "pre_intervention_score": {
+        "mean": 22.291114701165096,
+        "std": 0.13668709520903688,
+        "n": 3
+      },
+      "post_intervention_score": {
+        "mean": 24.197392622629803,
+        "std": 0.25459833072044136,
+        "n": 3
+      },
+      "transfer_score": {
+        "mean": 24.339614073435467,
+        "std": 0.33511302295272727,
+        "n": 3
+      },
+      "counterfactual_flow_information_gain": {
+        "mean": 0.015757543459408534,
+        "std": 0.012514684346184761,
+        "n": 3
+      },
+      "probe_rate": {
+        "mean": 0.5128337967519959,
+        "std": 0.00787574335826217,
+        "n": 3
+      },
+      "probe_signal_mean": {
+        "mean": 0.14057210340689807,
+        "std": 0.020082505857650982,
+        "n": 3
+      },
+      "probe_outcome_information": {
+        "mean": 0.4546236474938305,
+        "std": 0.10243352252709755,
+        "n": 3
+      }
+    },
+    "no_field": {
+      "survival": {
+        "mean": 1.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "energy": {
+        "mean": 24.001503043704563,
+        "std": 0.20853397229430878,
+        "n": 3
+      },
+      "resource": {
+        "mean": 926.4789942403635,
+        "std": 16.479241941332177,
+        "n": 3
+      },
+      "reproduction": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "pre_intervention_score": {
+        "mean": 22.12812031639947,
+        "std": 0.23920961032340324,
+        "n": 3
+      },
+      "post_intervention_score": {
+        "mean": 24.001503043704563,
+        "std": 0.20853397229430878,
+        "n": 3
+      },
+      "transfer_score": {
+        "mean": 24.001503043704563,
+        "std": 0.20853397229430878,
+        "n": 3
+      },
+      "counterfactual_flow_information_gain": {
+        "mean": -0.009279917457156625,
+        "std": 0.005777804253429108,
+        "n": 3
+      },
+      "probe_rate": {
+        "mean": 0.5116499656190474,
+        "std": 0.008777898655875013,
+        "n": 3
+      },
+      "probe_signal_mean": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "probe_outcome_information": {
+        "mean": 7.401486830834375e-17,
+        "std": 1.0467283057891831e-16,
+        "n": 3
+      }
+    },
+    "intervention": {
+      "survival": {
+        "mean": 1.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "energy": {
+        "mean": 24.2331436475118,
+        "std": 0.20601428741696368,
+        "n": 3
+      },
+      "resource": {
+        "mean": 927.8319103692969,
+        "std": 16.492890074176415,
+        "n": 3
+      },
+      "reproduction": {
+        "mean": 0.0,
+        "std": 0.0,
+        "n": 3
+      },
+      "pre_intervention_score": {
+        "mean": 22.307799869113495,
+        "std": 0.056549177658730486,
+        "n": 3
+      },
+      "post_intervention_score": {
+        "mean": 24.2331436475118,
+        "std": 0.20601428741696368,
+        "n": 3
+      },
+      "transfer_score": {
+        "mean": 24.338626437717014,
+        "std": 0.2830551098733469,
+        "n": 3
+      },
+      "counterfactual_flow_information_gain": {
+        "mean": 0.02362807865746862,
+        "std": 0.0184529027812917,
+        "n": 3
+      },
+      "probe_rate": {
+        "mean": 0.5054484997979468,
+        "std": 0.006946735389728894,
+        "n": 3
+      },
+      "probe_signal_mean": {
+        "mean": 0.1468059571235566,
+        "std": 0.019540291084258702,
+        "n": 3
+      },
+      "probe_outcome_information": {
+        "mean": 0.47461842728807496,
+        "std": 0.019839016736960407,
+        "n": 3
+      }
+    }
+  }
+}
