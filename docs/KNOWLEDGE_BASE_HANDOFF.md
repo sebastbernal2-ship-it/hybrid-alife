@@ -24,7 +24,9 @@
 - Field controls include direct, indirect, spatially decorrelated, no-field, reversal, held-out flow-strength transfer, and counterfactual information-gain diagnostics.
 - PPO-POET now retains admitted environment lineage and uses archive transfer in policy parent selection.
 - The bounded ecology contract records resources, hazards, interaction, reproduction, energy, and Avida field coupling.
-- Final branch verification reports 251 passing tests and one expected GPU fallback warning.
+- Causal checks now compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
+- Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
+- Final branch verification reports 252 passing tests and one expected GPU fallback warning.
 - Ruff and diff checks pass.
 - The three-seed field pilot used two training generations and eight evaluation steps.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
