@@ -274,7 +274,7 @@ tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 220-test suite to pass on CPU)
+# Tests (expect the current 278-test suite to pass on CPU)
 JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Lint
@@ -358,7 +358,7 @@ Compare the validation branch against that commit when reviewing the pending PR.
 
 A future chat has successfully continued this project if and only if:
 
-1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 220 passing tests (or more, never fewer
+1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 278 passing tests (or more, never fewer
    without an explicit deletion memo).
 2. The smokes in the **Next 20 minutes** section run to completion on CPU
    and produce the same shape of JSONL output as today.

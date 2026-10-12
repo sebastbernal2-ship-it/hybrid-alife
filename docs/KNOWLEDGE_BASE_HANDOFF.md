@@ -244,7 +244,7 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 - Reseeding hides extinction; embodied alive-fraction stays at 1.0, so
   selection pressure must be measured via lineage depth and Hill 1D, not
   survival fraction.
-- The full pytest suite currently reports 220 passed in the validated CPU environment.
+- The full pytest suite currently reports 278 passed in the validated CPU environment.
 - GitHub Actions CI runs the full pytest suite on every push; merges into
   `main` require a green CI.
 - Sprint branches use the pattern `sprint/<topic>-fast`; they land via merge
