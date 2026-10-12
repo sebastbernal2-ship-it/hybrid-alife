@@ -26,7 +26,7 @@
 - The bounded ecology contract records resources, hazards, interaction, reproduction, energy, and Avida field coupling.
 - Causal checks now compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Final branch verification reports 271 passing tests and one expected GPU fallback warning.
+- Final branch verification reports 272 passing tests and one expected GPU fallback warning.
 - Ruff and diff checks pass.
 - The three-seed field pilot used two training generations and eight evaluation steps.
 - The three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
