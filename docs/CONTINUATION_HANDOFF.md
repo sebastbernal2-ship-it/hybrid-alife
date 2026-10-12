@@ -15,12 +15,10 @@
 ## Pointers
 
 - **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip before this sprint:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
-- **Validation branch:** `feat/solidness-performance` at
-  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
-- **Date of handoff:** 2026-09-28.
-- **Integration status:** bounded PPO-POET validation is on `feat/solidness-performance`; the combined research-direction branch is `feat-complete-research-direction`.
-- **Final PR:** open from `feat-complete-research-direction` after final verification.
+- **Current branch:** `feat-complete-research-direction` at the latest pushed documentation update.
+- **Date of handoff:** 2026-10-12.
+- **Integration status:** PR #11 is open: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/11.
+- **Campaign:** the declared 40-cell run is active in tmux `poet-preregistered-final-v6` with a four-hour cap.
 
 ## Current research-direction status
 
@@ -69,21 +67,14 @@ scaling harness exist as scripts. The legacy transfer harness remains fixed-poli
 The standalone PPO-POET module adds a bounded paired policy and environment
 population loop, but it does not establish open-ended coevolution.
 
-## Known validation (snapshot at handoff)
+## Known validation (current snapshot)
 
-- The established validation branch reports 220 passing tests.
-- The combined research-direction branch reports 253 passing tests.
-- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v3/`.
-- Transfer evaluation uses undiscounted raw reward sums from deterministic frozen-policy rollouts.
-- The campaign includes reset-per-rollout and persistent Avida lifecycle tracks.
-- QD-active smoke (`configs/qd_active.yaml`) at gen 5:
-  - coverage `0.4375`, qd_score `77.9649`, novelty archive size `72`.
-- Communication benchmark acceptance:
-  - compositional protocol topsim / posdis / bosdis all `1.0`.
-- Compute-scaling, budget 6, gen 5:
-  - coverage `0.5`, qd_score `15.4245`, novelty archive size `36`.
-- Transfer/scaling artifacts exist under `outputs/` from prior sprints.
+- The current branch passes 278 tests with one expected GPU fallback warning.
+- Ruff and diff checks pass.
+- The awareness benchmark validity gate passes on seeds 0-2.
+- The held-out directional-choice pilot is diagnostic only and found below-chance transfer accuracy.
+- The current PPO-POET campaign has two tracks, two replications, ten seeds per replication, and 200 generations per cell.
+- No campaign result is valid until all cells finish and the declared success gate is evaluated.
 
 ## Architecture map
 
@@ -131,7 +122,7 @@ scripts/
 configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
             comm_task, lineage_growth, scaling_tiny, transfer_{source,target},
             poet_{smoke,campaign})
-tests/      CPU-feasible pytest suite with 220 validated tests
+tests/      CPU-feasible pytest suite with 278 validated tests
 docs/       architecture, world_model, agent_branches, scientific_validation,
             qd_active, comm_benchmark, transfer, poet_ppo_campaign,
             lineage_growth, preregistration_template, CONTINUATION_HANDOFF (this file)
@@ -185,9 +176,9 @@ and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
 ## Not implemented / experimental (what is **not** real yet)
 
 - **Open-ended environment-agent coevolution.** The standalone PPO-POET
-  module provides a bounded paired policy and environment population loop.
-  Environment archives, minimal-criterion filtering, and stepping-stone
-  selection are not implemented, so the results do not establish open-ended
+  module provides a bounded paired policy and environment population loop with
+  archive lineage, minimal-criterion filtering, stepping-stone selection, and
+  held-out transfer. It remains bounded and does not establish open-ended
   coevolution.
 - **Compositionality on the continuous emergent channel.** Currently
   discretised via argmax; numbers should be read as a lower bound.

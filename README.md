@@ -230,8 +230,8 @@ Pre-register your descriptors and minimal criterion using
 - Neutral-shadow runner, transfer/robustness statistics, ablation matrix
   driver, anti-overclaim report sections.
 - CI runs the full pytest suite on every push.
-- The validated PPO-POET campaign is archived in
-  `docs/results/poet_campaign_final_v2/`.
+- Historical PPO-POET campaign archives are under `docs/results/poet_campaign_final_v2/` and `docs/results/poet_campaign_final_v3/`.
+- The current two-replication `poet` versus `static` campaign runs under `outputs/poet_campaign_final_v6/` and is not yet analyzed.
 
 **Experimental:**
 

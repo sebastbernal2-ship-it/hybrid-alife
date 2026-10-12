@@ -10,12 +10,10 @@
 
 - **Name:** hybrid-alife — Hybrid Artificial-Life Simulator.
 - **Repository:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Main branch tip at handoff:** `6364048` (`Merge PPO-POET validation and campaign evidence`).
-- **Validation branch:** `feat/solidness-performance` at
-  `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
-- **Date of handoff:** 2026-09-28.
-- **Integration status:** the bounded PPO-POET validation is on `feat/solidness-performance`; the combined research-direction branch is `feat-complete-research-direction`.
-- **Open final PR:** to be opened from `feat-complete-research-direction` after final verification.
+- **Current branch:** `feat-complete-research-direction` at `68bd190`.
+- **Date of handoff:** 2026-10-12.
+- **Integration status:** the research-direction branch is open in PR #11: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/11.
+- **Campaign status:** the declared 40-cell PPO-POET campaign is running in tmux `poet-preregistered-final-v6`.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
 
 ## Current research-direction status
@@ -96,19 +94,13 @@ tests/            CPU-feasible pytest suite
 
 ## Validation status (current)
 
-- The established validation branch reports 220 passing tests.
-- The combined research-direction branch reports 251 passing tests.
-- PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
-  cell are archived in `docs/results/poet_campaign_final_v3/`.
-- Transfer scores now use the undiscounted sum of deterministic frozen-policy rewards.
-- The Avida sidecar and persistent Avida lifecycle are both represented.
-- Communication benchmark: compositional control hits topsim / posdis / bosdis
-  = 1.0.
-- QD-active smoke (`configs/qd_active.yaml`, gen 5): coverage 0.4375,
-  qd_score 77.9649, novelty archive size 72.
-- Compute scaling (budget 6, gen 5): coverage 0.5, qd_score 15.4245, novelty 36.
-- Headline numbers above come from gen-5 / smoke configs. Anything publishable
-  needs ≥10 seeds and longer horizons (see `SCIENTIFIC_INTERPRETATION_GUIDE.md`).
+- The current branch passes 278 tests, with one expected GPU fallback warning.
+- Ruff and diff checks pass.
+- The deterministic awareness benchmark validity gate passes on seeds 0-2.
+- The held-out choice pilot is diagnostic only and found below-chance directional accuracy.
+- The full PPO-POET campaign is running with two tracks, two replications, ten seeds per replication, and 200 generations per cell.
+- Do not interpret the campaign until all cells finish and the aggregate success gate passes.
+- Historical smoke and campaign artifacts remain labeled as historical or diagnostic.
 
 ## Documentation map (final)
 
@@ -127,8 +119,11 @@ tests/            CPU-feasible pytest suite
 | [`lineage_growth.md`](lineage_growth.md) | Lineage tree, Hill 1D effective count. |
 | [`poet_transfer.md`](poet_transfer.md) | Fixed-policy transfer matrix + compute scaling. |
 | [`poet_ppo_campaign.md`](poet_ppo_campaign.md) | PPO-POET campaign design and outputs. |
-| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Superseded 20-cell campaign archive. |
-| [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Corrected 30-cell campaign evidence, statistics, and checksums. |
+| [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Historical superseded campaign archive. |
+| [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Historical corrected campaign archive. |
+| [`results/field_choice_pilot_v1/`](results/field_choice_pilot_v1/) | Held-out directional-choice diagnostic. |
+| [`results/poet_runtime_profile_v1/`](results/poet_runtime_profile_v1/) | PPO-POET evaluator timing profile. |
+| [`results/poet_runtime_multicell_smoke_v1/`](results/poet_runtime_multicell_smoke_v1/) | Bounded multi-cell timing smoke. |
 | [`campaign_cache_acceleration.md`](campaign_cache_acceleration.md) | Cache-accelerated campaigns. |
 | [`experiment_campaign_quickstart.md`](experiment_campaign_quickstart.md) | Multi-config sweep quickstart. |
 | [`visualization_quickstart.md`](visualization_quickstart.md) | `visualize_run.py` usage. |
@@ -146,7 +141,7 @@ tests/            CPU-feasible pytest suite
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Tests (expect the current 220-test suite to pass on CPU)
+# Tests (expect the current 278-test suite to pass on CPU)
 JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
 
 # Preflight before any multi-hour campaign
@@ -290,21 +285,11 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Next priorities (in order)
 
-1. **PR integration:** open and validate the corrected PPO-POET feature branch before
-   merging it into `main`. Keep CI green and update this handoff after merge.
-2. **Archive validation:** preserve the v3 campaign manifest, complete configurations,
-   source commit, generated statistics, and checksums with every headline result.
-3. **Surrogate-assisted QD:** small regression head over behaviour-descriptor
-   → fitness to gate full rollouts. Acceptance: ≥30% reduction in rollouts to
-   reach current smoke200 coverage at matched seeds.
-4. **Continuous-channel compositionality:** non-discretising estimator (e.g.
-   kernel topsim) reported alongside the argmax-discretised baseline.
-5. **Bounded coevolution extension:** add a minimal criterion, environment
-   archive, and stepping-stone selection to PPO-POET before making an
-   open-ended coevolution claim.
-5. **Headline at scale:** rerun smoke200 and one ablation at ≥10 seeds and the
-   longest horizon CI can absorb; report seeds + horizon + compute budget with
-   every number.
+1. Monitor `poet-preregistered-final-v6` and analyze only after completion.
+2. Preserve the final campaign manifest, source commit, metadata, statistics, and checksums.
+3. Compare the archive-control factorial only after the primary `poet` versus `static` result is complete.
+4. Extend held-out choice training only if the current campaign does not produce evidence of selective causal inquiry.
+5. Keep all scientific claims bounded by the declared seeds, horizons, controls, and compute budget.
 
 ## Success criteria for "continuation succeeded"
 
