@@ -33,6 +33,7 @@
 - Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
 - The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
 - The three-seed active-probe pilot is archived in `docs/results/field_probe_pilot_v1/`; probe rate stayed near 0.50 in every condition, so it found no evidence of selective probing.
+- A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
 - Final verification reports 271 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
