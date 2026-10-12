@@ -124,29 +124,46 @@ def terrain_spatial_structure(terrain: jax.Array) -> float:
     return float(0.5 * (vertical + horizontal))
 
 
-def _environment_effect_signature(env: EnvironmentGenome, cfg: POETConfig) -> np.ndarray:
+def _environment_effect_signature(env: EnvironmentGenome, cfg: POETConfig) -> dict[str, np.ndarray]:
+    """Return only downstream fields, observations, and fixed-seed behavior."""
     world, _ = initialize_environment_world(env, cfg, jax.random.PRNGKey(0))
     observation = _world_observation(
         env, world, jnp.asarray([0.37, 0.61], dtype=jnp.float32), 0, cfg
     )
-    return np.asarray(
-        jnp.concatenate(
-            [
-                jnp.asarray(env.params[:2]),
-                jnp.asarray([jnp.mean(world.resources), jnp.mean(world.hazards)]),
-                jnp.mean(world.flow, axis=(0, 1)),
-                observation,
-            ]
-        )
+    batch, _, _ = _collect_rollout(
+        _init_policy(cfg, jax.random.PRNGKey(17)),
+        env,
+        cfg,
+        jax.random.PRNGKey(23),
+        stochastic=False,
+        horizon=cfg.transfer_steps,
     )
+    return {
+        "terrain": np.asarray(world.terrain),
+        "resources": np.asarray(world.resources),
+        "hazards": np.asarray(world.hazards),
+        "flow": np.asarray(world.flow),
+        "observation": np.asarray(observation),
+        "rollout_observations": np.asarray(batch.observations),
+        "rollout_rewards": np.asarray(batch.rewards),
+    }
 
 
 def environment_causal_validity(
     env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
 ) -> dict[str, dict[str, float | bool]]:
-    """Perturb each environment gene and report an observable causal change."""
+    """Perturb each gene and check its intended downstream mechanism."""
     del seed
     baseline = _environment_effect_signature(env, cfg)
+    mechanism = {
+        "goal_x": ("observation", 6),
+        "goal_y": ("observation", 6),
+        "resource_regeneration": ("rollout_observations", 3),
+        "hazard_rate": ("hazards", None),
+        "flow_x": ("flow", 0),
+        "flow_y": ("flow", 1),
+        "terrain": ("terrain", None),
+    }
     low = jnp.asarray(cfg.environment_param_low, dtype=jnp.float32)
     high = jnp.asarray(cfg.environment_param_high, dtype=jnp.float32)
     report: dict[str, dict[str, float | bool]] = {}
@@ -159,16 +176,36 @@ def environment_causal_validity(
                 jnp.clip(env.params[index] - 0.15, low[index], high[index])
             )
         changed = env._replace(params=params)
-        delta = float(np.max(np.abs(_environment_effect_signature(changed, cfg) - baseline)))
-        report[name] = {"changed": delta > 1e-7, "max_delta": delta}
+        report[name] = _causal_intervention_report(
+            baseline, _environment_effect_signature(changed, cfg), mechanism[name]
+        )
     terrain = env.terrain.at[0, 0].set(1.0 - env.terrain[0, 0])
     changed_terrain = env._replace(terrain=terrain)
-    delta = abs(
-        terrain_spatial_structure(changed_terrain.terrain)
-        - terrain_spatial_structure(env.terrain)
+    report["terrain"] = _causal_intervention_report(
+        baseline, _environment_effect_signature(changed_terrain, cfg), mechanism["terrain"]
     )
-    report["terrain"] = {"changed": delta > 1e-7, "max_delta": delta}
     return report
+
+
+def _causal_intervention_report(
+    baseline: dict[str, np.ndarray],
+    changed: dict[str, np.ndarray],
+    mechanism: tuple[str, int | None],
+) -> dict[str, float | bool]:
+    deltas = {
+        name: float(np.max(np.abs(changed[name] - value)))
+        for name, value in baseline.items()
+    }
+    field, axis = mechanism
+    target = changed[field] - baseline[field]
+    if axis is not None:
+        target = target[..., axis] if field in {"flow", "rollout_observations"} else target[axis]
+    mechanism_delta = float(np.max(np.abs(target)))
+    return {
+        "changed": max(deltas.values()) > 1e-7,
+        "max_delta": max(deltas.values()),
+        "mechanism_changed": mechanism_delta > 1e-7,
+    }
 
 
 @dataclass(frozen=True)
@@ -897,7 +934,7 @@ def _baseline_score(
 def admission_calibration(
     env: EnvironmentGenome, cfg: POETConfig, seed: int = 0
 ) -> dict[str, Any]:
-    """Score simple matched baselines for interpreting admission."""
+    """Score matched baselines; the default -10 criterion remains uncalibrated."""
     def random_policy(
         _obs: jax.Array, _env: EnvironmentGenome, _step: int, key: jax.Array
     ) -> jax.Array:
@@ -920,14 +957,28 @@ def admission_calibration(
             return 3 if dx >= 0 else 2
         return 0 if dy >= 0 else 1
 
+    calibration_seeds = [seed, seed + 1, seed + 2]
+    selectors = {
+        "random": random_policy,
+        "fixed_policy": fixed_policy,
+        "hand_coded": hand_coded_policy,
+    }
+    repeated_baselines = {
+        name: [
+            _baseline_score(env, cfg, calibration_seed, selector)
+            for calibration_seed in calibration_seeds
+        ]
+        for name, selector in selectors.items()
+    }
     baselines = {
-        "random": _baseline_score(env, cfg, seed, random_policy),
-        "fixed_policy": _baseline_score(env, cfg, seed, fixed_policy),
-        "hand_coded": _baseline_score(env, cfg, seed, hand_coded_policy),
+        name: scores[0] for name, scores in repeated_baselines.items()
     }
     return {
         "criterion": float(cfg.minimal_criterion),
+        "criterion_calibrated": False,
+        "calibration_seeds": calibration_seeds,
         "baselines": baselines,
+        "repeated_baselines": repeated_baselines,
         "best_baseline": max(baselines.values()),
     }
 
@@ -1138,6 +1189,13 @@ def run_poet(
             candidate_score = evaluate_policy(
                 state.policies[best_policy_index], child, cfg, candidate_seed
             )
+            calibration_seeds = [candidate_seed, candidate_seed + 1, candidate_seed + 2]
+            repeated_candidate_scores = [
+                evaluate_policy(
+                    state.policies[best_policy_index], child, cfg, score_seed
+                )
+                for score_seed in calibration_seeds
+            ]
             parent_score = evaluate_policy(
                 state.policies[best_policy_index], parent_environment, cfg, candidate_seed
             )
@@ -1148,11 +1206,18 @@ def run_poet(
                     "generation": generation,
                     "source_environment_index": source_environment_index,
                     "candidate_score": candidate_score,
+                    "candidate_score_seeds": calibration_seeds,
+                    "candidate_scores": repeated_candidate_scores,
+                    "candidate_score_mean": float(np.mean(repeated_candidate_scores)),
+                    "candidate_score_std": float(np.std(repeated_candidate_scores)),
                     "parent_score": parent_score,
                     "minimal_criterion": cfg.minimal_criterion,
                     "minimal_pass": minimal_pass,
                     "baselines": calibration["baselines"],
                     "best_baseline": calibration["best_baseline"],
+                    "calibration_seeds": calibration["calibration_seeds"],
+                    "repeated_baselines": calibration["repeated_baselines"],
+                    "criterion_calibrated": calibration["criterion_calibrated"],
                     "admitted": minimal_pass,
                     "reason": "criterion_pass" if minimal_pass else "criterion_fail",
                 }
