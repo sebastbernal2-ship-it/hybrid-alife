@@ -89,6 +89,9 @@ class EmbodiedConfig:
     use_memory: bool = True
     use_comms: bool = True
     blind: bool = False
+    # Hide named world fields from the observation while keeping their dynamics.
+    # Empty means that all existing fields remain visible.
+    hidden_field_groups: tuple[str, ...] = ()
     shuffle_sixth_sense: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
