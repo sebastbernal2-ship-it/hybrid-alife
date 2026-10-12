@@ -1060,6 +1060,11 @@ def _archive_informed_transfer(
     return transfer + archive_scores[:, None]
 
 
+def _select_archive_parent(archive_transfer: np.ndarray, policy_index: int) -> int:
+    """Select the best retained stepping stone for a policy."""
+    return int(np.argmax(archive_transfer[policy_index]))
+
+
 def _avida_comparison_score(matrix: np.ndarray) -> float:
     """Summarize positive transfer over each policy's own-environment score."""
     centered = matrix - np.mean(matrix, axis=1, keepdims=True)
@@ -1180,10 +1185,21 @@ def run_poet(
         # Candidate worlds enter the archive only after the raw-reward criterion.
         if cfg.track != "static":
             worst_environment_index = int(np.argmin(transfer[best_policy_index]))
-            source_environment_index = int(np.argmax(transfer[best_policy_index]))
+            source_archive_index = _select_archive_parent(
+                archive_transfer, best_policy_index
+            )
+            source_entry = state.environment_archive[source_archive_index]
+            source_environment_index = next(
+                (
+                    index
+                    for index, environment_id in enumerate(state.environment_ids)
+                    if environment_id == source_entry.environment_id
+                ),
+                -1,
+            )
             key, mutation_key = jax.random.split(key)
-            parent_id = state.environment_ids[source_environment_index]
-            parent_environment = state.environments[source_environment_index]
+            parent_id = source_entry.environment_id
+            parent_environment = source_entry.environment
             child = mutate_environment(parent_environment, cfg, mutation_key)
             candidate_seed = effective_seed + 500_000 + generation
             candidate_score = evaluate_policy(
@@ -1205,6 +1221,7 @@ def run_poet(
                 {
                     "generation": generation,
                     "source_environment_index": source_environment_index,
+                    "source_archive_index": source_archive_index,
                     "candidate_score": candidate_score,
                     "candidate_score_seeds": calibration_seeds,
                     "candidate_scores": repeated_candidate_scores,

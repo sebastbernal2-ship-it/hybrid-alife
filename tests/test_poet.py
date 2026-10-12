@@ -14,6 +14,7 @@ from hybrid_alife.poet import (
     PPOConfig,
     _archive_informed_transfer,
     _poet_avida_config,
+    _select_archive_parent,
     _step_avida_fast,
     collect_rollout,
     evaluate_policy,
@@ -200,6 +201,12 @@ def test_archive_transfer_influences_training_parent_selection():
 
     np.testing.assert_array_equal(np.argmax(current_transfer, axis=0), [0, 1])
     np.testing.assert_array_equal(np.argmax(adjusted, axis=0), [1, 1])
+
+
+def test_archive_parent_selection_uses_retained_stepping_stones():
+    archive_transfer = np.asarray([[1.0, 4.0, 2.0], [3.0, 2.0, 8.0]])
+    assert _select_archive_parent(archive_transfer, 0) == 1
+    assert _select_archive_parent(archive_transfer, 1) == 2
 
 
 def test_archive_records_lineage_and_stepping_stone_transfer(tmp_path: Path):
