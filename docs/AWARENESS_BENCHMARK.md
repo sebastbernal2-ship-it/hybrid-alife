@@ -45,4 +45,5 @@ PYTHONPATH=src python scripts/run_awareness_benchmark.py \
 The artifact is marked `calibration_only`.
 The field-discovery simulator now has an optional probe gate and records probe rate, returned signal magnitude, and probe-outcome information in its rollout artifacts.
 Field-discovery configs also enable flow advection of resources and a bounded flow-alignment reward so hidden flow can affect the gathering task; the no-field control disables both couplings.
-The simulator metrics remain diagnostic until held-out procedural worlds, cue-scrambling controls, and preregistered uncertainty estimates are completed.
+The field-discovery evaluator now scores held-out directional choices on a separate procedural seed and reports probe-conditioned alignment without exposing hidden flow to the controller.
+The simulator metrics remain diagnostic until longer held-out runs, cue-scrambling controls, and preregistered uncertainty estimates are completed.
