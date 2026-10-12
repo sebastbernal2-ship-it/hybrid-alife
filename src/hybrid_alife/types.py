@@ -115,6 +115,10 @@ class EmbodiedConfig:
     metabolite_deposit_scale: float = 1.0
     hazard_deposit_scale: float = 1.0
     flow_movement_scale: float = 0.0
+    # Optional active-probe gate. Disabled by default to preserve legacy shapes.
+    probe_enabled: bool = False
+    probe_cost: float = 0.02
+    probe_signal_scale: float = 1.0
     # Controller architecture: "gru" (default) or "mlp" for ablations.
     controller_arch: str = "gru"
     # Fraction of slots initialized alive. Setting < 1.0 leaves dead slots
@@ -244,6 +248,8 @@ class EmbodiedPopulationState:
     last_action: Array  # [N, action_dim]
     action_history: Array  # [N, K] int discretized indices
     behavior_descriptor: Array  # [N, 2] for novelty/map-elites
+    # Flow signal returned by the previous active probe, or None for legacy states.
+    probe_result: Array | None = None
 
 
 @dataclass

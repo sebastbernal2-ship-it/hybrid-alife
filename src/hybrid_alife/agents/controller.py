@@ -21,12 +21,14 @@ Genome layout
 ``w_xh, w_hh, b_h`` — candidate-state weights
 ``w_act, b_act``    — action head (linear projection from hidden -> action)
 
-Action vector (length ``8 + message_size``)::
+Action vector (length ``8 + message_size`` or ``9 + message_size``)::
 
   [0, 1]   continuous movement in [-1, 1]
   [2..7]   six action gates in [0, 1] (eat, attack, reproduce,
            terraform-resource, terraform-hazard, emit-message)
-  [8..]    message payload (linear)
+  [8]      active-probe gate when enabled
+  [8..]    message payload when probing is disabled
+  [9..]    message payload when probing is enabled
 """
 
 from __future__ import annotations
@@ -109,5 +111,15 @@ def decode_actions(
         gates = jnp.where(sample > 0.5, gate_probs, jnp.zeros_like(gate_probs))
     else:
         gates = gate_probs
-    msg = raw[..., 8:]
-    return jnp.concatenate([move, gates, msg], axis=-1)
+    offset = 1 if cfg.probe_enabled else 0
+    probe = (
+        jax.nn.sigmoid(raw[..., 8] / jnp.maximum(cfg.action_temperature, 1e-6))
+        if cfg.probe_enabled
+        else jnp.zeros_like(raw[..., 0])
+    )
+    msg = raw[..., 8 + offset :]
+    parts = [move, gates]
+    if cfg.probe_enabled:
+        parts.append(probe[..., None])
+    parts.append(msg)
+    return jnp.concatenate(parts, axis=-1)

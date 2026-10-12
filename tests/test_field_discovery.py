@@ -12,6 +12,7 @@ from hybrid_alife.experiments.field_discovery import (
     _condition_configs,
     _counterfactual_information_gain,
     _evaluation_flow,
+    _probe_diagnostics,
     run_evaluation,
     summarize_results,
 )
@@ -24,6 +25,7 @@ def test_no_field_and_decorrelated_conditions_change_only_target_access():
     decorrelated = _condition_configs(cfg, "decorrelated")
 
     assert no_field.embodied.flow_movement_scale == 0.0
+    assert no_field.embodied.probe_signal_scale == 0.0
     assert "flow" in no_field.embodied.hidden_field_groups
     assert no_field.world.flow_advection_strength == 0.0
     assert no_field.world.resource_regen == cfg.world.resource_regen
@@ -39,6 +41,17 @@ def test_counterfactual_information_gain_detects_spatial_flow_outcome_coupling()
     flow = np.stack((magnitude, np.zeros_like(magnitude)), axis=-1)
     gain = _counterfactual_information_gain(flow, magnitude)
     assert gain > 0.0
+
+
+def test_probe_diagnostics_measure_signal_and_probe_cost():
+    diagnostics = _probe_diagnostics(
+        np.asarray([0.0, 1.0, 1.0]),
+        np.asarray([[0.0, 0.0], [2.0, 0.0], [0.0, 1.0]]),
+        np.asarray([0.0, 1.0, 2.0]),
+    )
+    assert diagnostics["probe_rate"] == 2.0 / 3.0
+    assert diagnostics["probe_signal_mean"] > 0.0
+    assert diagnostics["probe_outcome_information"] >= 0.0
 
 
 def test_intervention_flow_reverses_at_midpoint_and_transfer_scales():
@@ -83,6 +96,8 @@ def test_evaluation_uses_simulator_conditions_and_is_reproducible():
     ]
     assert "transfer" in first["conditions"]["direct"]
     assert "counterfactual_flow_information_gain" in first["conditions"]["direct"]
+    assert "probe_diagnostics" in first["conditions"]["direct"]
+    assert first["conditions"]["direct"]["probe_diagnostics"]["probe_rate"] >= 0.0
     summary = summarize_results([first, first])
     assert summary["run_count"] == 2
     assert summary["conditions"]["direct"]["survival"]["n"] == 2

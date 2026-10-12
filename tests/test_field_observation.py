@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from hybrid_alife.agents.embodied import (
+    apply_embodied_actions,
     build_world_field,
     initialize_embodied_population,
     observe_embodied,
@@ -106,3 +107,36 @@ def test_defaults_preserve_existing_observation_shape() -> None:
     pop = initialize_embodied_population(cfg.embodied, cfg.world, key)
     obs = observe_embodied(pop, world, cfg.embodied, cfg.world, key)
     assert obs.shape[-1] > 0
+
+
+def test_active_probe_reveals_hidden_local_flow_without_changing_defaults() -> None:
+    cfg = load_config("configs/base.yaml")
+    probe_cfg = replace(
+        cfg.embodied,
+        probe_enabled=True,
+        hidden_field_groups=("flow", "shear", "shear_grad", "lift"),
+    )
+    key = jax.random.PRNGKey(8)
+    world = initialize_world(cfg.world, key)
+    pop = initialize_embodied_population(probe_cfg, cfg.world, key)
+    grid = jnp.floor(
+        pop.positions * jnp.asarray([cfg.world.height, cfg.world.width])
+    ).astype(jnp.int32)
+    local_flow = world.flow[grid[:, 0], grid[:, 1]]
+    actions = jnp.zeros((probe_cfg.population_size, 9 + probe_cfg.message_size))
+    actions = actions.at[:, 8].set(1.0)
+    updated, _, _ = apply_embodied_actions(
+        pop, actions, world, probe_cfg, cfg.world, key
+    )
+    assert updated.probe_result is not None
+    assert jnp.allclose(updated.probe_result, local_flow)
+    observation = observe_embodied(updated, world, probe_cfg, cfg.world, key)
+    probe_start = observation.shape[-1] - (2 + 6 + probe_cfg.message_size)
+    assert jnp.allclose(observation[:, probe_start : probe_start + 2], local_flow)
+
+
+def test_probe_disabled_keeps_action_shape() -> None:
+    cfg = load_config("configs/base.yaml")
+    assert cfg.embodied.probe_enabled is False
+    pop = initialize_embodied_population(cfg.embodied, cfg.world, jax.random.PRNGKey(9))
+    assert pop.last_action.shape[-1] == 8 + cfg.embodied.message_size

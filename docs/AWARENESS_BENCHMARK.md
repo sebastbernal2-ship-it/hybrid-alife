@@ -43,4 +43,5 @@ PYTHONPATH=src python scripts/run_awareness_benchmark.py \
 ```
 
 The artifact is marked `calibration_only`.
-A future simulator campaign must add actual controller rollouts, held-out procedural worlds, cue-scrambling controls, and preregistered uncertainty estimates.
+The field-discovery simulator now has an optional probe gate and records probe rate, returned signal magnitude, and probe-outcome information in its rollout artifacts.
+The simulator metrics remain diagnostic until held-out procedural worlds, cue-scrambling controls, and preregistered uncertainty estimates are completed.

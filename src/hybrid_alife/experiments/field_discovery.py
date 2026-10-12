@@ -68,6 +68,43 @@ def _counterfactual_information_gain(flow, outcome) -> float:
     )
 
 
+def _probe_diagnostics(
+    probe_gates: np.ndarray, probe_signals: np.ndarray, outcome_deltas: np.ndarray
+) -> dict[str, float | int]:
+    """Summarize the controller's explicit sensorimotor probes.
+
+    The controller receives ``probe_signals`` only through the active-probe
+    observation channel. The evaluator uses them after the rollout to measure
+    signal access and outcome association, not to feed hidden fields into the
+    controller.
+    """
+    gates = np.asarray(probe_gates, dtype=np.float64).reshape(-1)
+    signals = np.asarray(probe_signals, dtype=np.float64)
+    deltas = np.asarray(outcome_deltas, dtype=np.float64).reshape(-1)
+    if gates.size == 0:
+        return {
+            "probe_rate": 0.0,
+            "probe_events": 0,
+            "probe_signal_mean": 0.0,
+            "probe_outcome_information": 0.0,
+        }
+    signal_norm = np.linalg.norm(signals, axis=-1).reshape(-1)
+    probe_mask = gates > 0.5
+    information = (
+        _mutual_information(signal_norm[probe_mask], deltas[probe_mask])
+        if int(probe_mask.sum()) >= 2
+        else 0.0
+    )
+    return {
+        "probe_rate": float(np.mean(gates)),
+        "probe_events": int(np.sum(probe_mask)),
+        "probe_signal_mean": float(np.mean(signal_norm[probe_mask]))
+        if probe_mask.any()
+        else 0.0,
+        "probe_outcome_information": float(information),
+    }
+
+
 def _copy_trained_policy(trained_state, evaluation_state) -> None:
     if trained_state.embodied is None or evaluation_state.embodied is None:
         return
@@ -90,7 +127,7 @@ def _evaluate_trajectory(
     steps: int,
     reverse_flow: bool = False,
     flow_scale: float = 1.0,
-) -> tuple[dict[str, float | int], dict[str, float | int]]:
+) -> tuple[dict[str, float | int], dict[str, float | int], dict[str, float | int]]:
     """Run frozen controllers through real simulator steps and an optional field change."""
     state = initialize_sim(pre_cfg)
     _copy_trained_policy(trained_state, state)
@@ -100,8 +137,16 @@ def _evaluate_trajectory(
     split = max(1, steps // 2)
     initial_flow = jnp.array(state.world.flow)
     pre_metrics = None
+    probe_gates = []
+    probe_signals = []
+    outcome_deltas = []
     for step in range(steps):
         active_cfg = pre_cfg if step < split else post_cfg
+        before_energy = (
+            np.asarray(state.embodied.energy, dtype=np.float64)
+            if state.embodied is not None
+            else np.zeros(0, dtype=np.float64)
+        )
         if reverse_flow or flow_scale != 1.0:
             state.world.flow = _evaluation_flow(
                 initial_flow,
@@ -116,11 +161,23 @@ def _evaluate_trajectory(
             lineage_counter,
             allow_reproduction=False,
         )
+        if state.embodied is not None and active_cfg.embodied.probe_enabled:
+            probe_gates.append(np.asarray(state.embodied.last_action[:, 8]))
+            probe_signals.append(np.asarray(state.embodied.probe_result))
+            outcome_deltas.append(
+                np.asarray(state.embodied.energy, dtype=np.float64) - before_energy
+            )
         if step + 1 == split:
             pre_metrics = _metrics(state)
     if pre_metrics is None:
         raise RuntimeError("pilot did not capture pre-intervention metrics")
-    return pre_metrics, _metrics(state)
+    final_metrics = _metrics(state)
+    diagnostics = _probe_diagnostics(
+        np.concatenate(probe_gates) if probe_gates else np.zeros(0),
+        np.concatenate(probe_signals) if probe_signals else np.zeros((0, 2)),
+        np.concatenate(outcome_deltas) if outcome_deltas else np.zeros(0),
+    )
+    return pre_metrics, final_metrics, diagnostics
 
 
 def _condition_configs(cfg, condition: str):
@@ -143,6 +200,7 @@ def _condition_configs(cfg, condition: str):
                 train_cfg.embodied,
                 hidden_field_groups=derived_flow_fields,
                 flow_movement_scale=0.0,
+                probe_signal_scale=0.0,
             ),
         )
     elif condition == "intervention":
@@ -177,14 +235,14 @@ def run_evaluation(
             )
             trained_state = run_experiment(train_cfg)
         reverse = condition == "intervention"
-        pre_metrics, post_metrics = _evaluate_trajectory(
+        pre_metrics, post_metrics, probe_diagnostics = _evaluate_trajectory(
             trained_state,
             train_cfg,
             train_cfg,
             steps=steps,
             reverse_flow=reverse,
         )
-        _, transfer_metrics = _evaluate_trajectory(
+        _, transfer_metrics, transfer_probe_diagnostics = _evaluate_trajectory(
             trained_state,
             train_cfg,
             train_cfg,
@@ -207,12 +265,17 @@ def run_evaluation(
                 "hidden_field_groups": list(train_cfg.embodied.hidden_field_groups),
                 "shuffle_flow_observation": train_cfg.embodied.shuffle_flow_observation,
                 "flow_movement_scale": train_cfg.embodied.flow_movement_scale,
+                "probe_enabled": train_cfg.embodied.probe_enabled,
+                "probe_cost": train_cfg.embodied.probe_cost,
+                "probe_signal_scale": train_cfg.embodied.probe_signal_scale,
             },
             "final_metrics": post_metrics,
             "pre_intervention": {"metrics": pre_metrics, "score": _score(pre_metrics)},
             "post_intervention": {"metrics": post_metrics, "score": _score(post_metrics)},
             "transfer": {"metrics": transfer_metrics, "score": _score(transfer_metrics)},
             "counterfactual_flow_information_gain": information_gain,
+            "probe_diagnostics": probe_diagnostics,
+            "transfer_probe_diagnostics": transfer_probe_diagnostics,
         }
     return {
         "schema_version": SCHEMA_VERSION,
@@ -262,4 +325,14 @@ def summarize_results(results: list[dict]) -> dict[str, Any]:
             "std": float(np.std(information_gain)),
             "n": len(information_gain),
         }
+        for metric in ("probe_rate", "probe_signal_mean", "probe_outcome_information"):
+            values = [
+                float(run["conditions"][condition]["probe_diagnostics"][metric])
+                for run in results
+            ]
+            conditions[condition][metric] = {
+                "mean": float(np.mean(values)),
+                "std": float(np.std(values)),
+                "n": len(values),
+            }
     return {"schema_version": SCHEMA_VERSION, "run_count": len(results), "conditions": conditions}
