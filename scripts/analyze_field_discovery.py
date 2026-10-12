@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Aggregate field-discovery JSON results from files or directories."""
+"""Aggregate hybrid-alife field-discovery pilot artifacts."""
 
 from __future__ import annotations
 
@@ -27,13 +27,11 @@ def main() -> None:
     parser.add_argument("inputs", nargs="+", type=Path)
     parser.add_argument("--output", type=Path, default=None, help="JSON path; stdout if omitted")
     args = parser.parse_args()
-
     paths = collect_result_paths(args.inputs)
     if not paths:
         parser.error("no JSON result files found")
     results = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
-    summary = summarize_results(results)
-    payload = json.dumps(summary, indent=2) + "\n"
+    payload = json.dumps(summarize_results(results), indent=2) + "\n"
     if args.output is None:
         print(payload, end="")
     else:
