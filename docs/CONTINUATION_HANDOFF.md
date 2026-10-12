@@ -52,7 +52,8 @@
 - The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
 - A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
-- The multi-cell timing smoke now passes; the next POET campaign still needs declared 10-seed, two-replication metadata and a final budget decision before launch.
+- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` in tmux session `poet-preregistered-final-v6` with a four-hour wall-clock cap.
+- Its output is under `outputs/poet_campaign_final_v6/`; do not interpret results until the run and aggregate analysis complete.
 - The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
 - A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
