@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from hybrid_alife.experiments.field_discovery import (
+    _choice_diagnostics,
     _condition_configs,
     _counterfactual_information_gain,
     _evaluation_flow,
@@ -45,6 +46,19 @@ def test_counterfactual_information_gain_detects_spatial_flow_outcome_coupling()
     assert gain > 0.0
 
 
+def test_choice_diagnostics_measure_hidden_flow_alignment():
+    diagnostics = _choice_diagnostics(
+        np.asarray([[[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0]]]),
+        np.asarray([[[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]]),
+        np.asarray([[1.0, 0.0, 1.0]]),
+        np.asarray([[True, True, True]]),
+    )
+    assert np.isclose(diagnostics["choice_alignment"], 1.0 / 3.0)
+    assert np.isclose(diagnostics["choice_accuracy"], 2.0 / 3.0)
+    assert diagnostics["probe_choice_alignment"] == 1.0
+    assert diagnostics["nonprobe_choice_alignment"] == -1.0
+
+
 def test_probe_diagnostics_measure_signal_and_probe_cost():
     diagnostics = _probe_diagnostics(
         np.asarray([0.0, 1.0, 1.0]),
@@ -75,7 +89,7 @@ def test_evaluation_uses_simulator_conditions_and_is_reproducible():
     second = run_evaluation(seed=7, steps=2, training_generations=1)
 
     assert first == second
-    assert first["schema_version"] == 4
+    assert first["schema_version"] == 5
     assert first["training_generations"] == 1
     assert set(first["conditions"]) == {
         "direct", "indirect", "decorrelated", "no_field", "intervention"
@@ -100,10 +114,13 @@ def test_evaluation_uses_simulator_conditions_and_is_reproducible():
     assert "counterfactual_flow_information_gain" in first["conditions"]["direct"]
     assert "probe_diagnostics" in first["conditions"]["direct"]
     assert first["conditions"]["direct"]["probe_diagnostics"]["probe_rate"] >= 0.0
+    assert "choice_alignment" in first["conditions"]["direct"]["probe_diagnostics"]
+    assert first["conditions"]["direct"]["config"]["held_out_seed"] == 1000003 + 7
     summary = summarize_results([first, first])
     assert summary["run_count"] == 2
     assert summary["conditions"]["direct"]["survival"]["n"] == 2
     assert summary["conditions"]["intervention"]["post_intervention_score"]["n"] == 2
+    assert summary["conditions"]["direct"]["held_out_choice_accuracy"]["n"] == 2
 
 
 def test_cli_writes_compact_pilot_artifact(tmp_path):

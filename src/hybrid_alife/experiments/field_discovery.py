@@ -11,8 +11,9 @@ import jax.numpy as jnp
 import numpy as np
 
 from hybrid_alife.experiments.runner import initialize_sim, load_config, run_experiment, step_sim
+from hybrid_alife.world.env import positions_to_grid
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 _CONDITIONS = {
     "direct": "field_discovery_direct.yaml",
     "indirect": "field_discovery_indirect.yaml",
@@ -105,6 +106,36 @@ def _probe_diagnostics(
     }
 
 
+def _choice_diagnostics(
+    actions: np.ndarray,
+    local_flows: np.ndarray,
+    probe_gates: np.ndarray,
+    alive_masks: np.ndarray,
+) -> dict[str, float | int]:
+    """Score held-out directional choices without exposing hidden flow to the controller."""
+    action_values = np.asarray(actions, dtype=np.float64)[..., :2].reshape(-1, 2)
+    flow_values = np.asarray(local_flows, dtype=np.float64).reshape(-1, 2)
+    gates = np.asarray(probe_gates, dtype=np.float64).reshape(-1) > 0.5
+    alive = np.asarray(alive_masks, dtype=bool).reshape(-1)
+    action_norm = np.linalg.norm(action_values, axis=-1)
+    flow_norm = np.linalg.norm(flow_values, axis=-1)
+    valid = alive & (action_norm > 1e-8) & (flow_norm > 1e-8)
+    alignment = np.sum(action_values * flow_values, axis=-1) / np.maximum(
+        action_norm * flow_norm, 1e-8
+    )
+
+    def mean_for(mask: np.ndarray) -> float:
+        return float(np.mean(alignment[mask])) if np.any(mask) else 0.0
+
+    return {
+        "choice_events": int(np.sum(valid)),
+        "choice_alignment": mean_for(valid),
+        "choice_accuracy": float(np.mean(alignment[valid] > 0.0)) if np.any(valid) else 0.0,
+        "probe_choice_alignment": mean_for(valid & gates),
+        "nonprobe_choice_alignment": mean_for(valid & ~gates),
+    }
+
+
 def _copy_trained_policy(trained_state, evaluation_state) -> None:
     if trained_state.embodied is None or evaluation_state.embodied is None:
         return
@@ -127,9 +158,20 @@ def _evaluate_trajectory(
     steps: int,
     reverse_flow: bool = False,
     flow_scale: float = 1.0,
+    evaluation_seed: int | None = None,
 ) -> tuple[dict[str, float | int], dict[str, float | int], dict[str, float | int]]:
     """Run frozen controllers through real simulator steps and an optional field change."""
-    state = initialize_sim(pre_cfg)
+    eval_pre_cfg = (
+        replace(pre_cfg, seed=evaluation_seed)
+        if evaluation_seed is not None
+        else pre_cfg
+    )
+    eval_post_cfg = (
+        replace(post_cfg, seed=evaluation_seed)
+        if evaluation_seed is not None
+        else post_cfg
+    )
+    state = initialize_sim(eval_pre_cfg)
     _copy_trained_policy(trained_state, state)
     lineage_counter = pre_cfg.embodied.population_size + (
         pre_cfg.avida.population_size if pre_cfg.avida.enabled else 0
@@ -140,8 +182,12 @@ def _evaluate_trajectory(
     probe_gates = []
     probe_signals = []
     outcome_deltas = []
+    choice_actions = []
+    choice_flows = []
+    choice_probe_gates = []
+    choice_alive = []
     for step in range(steps):
-        active_cfg = pre_cfg if step < split else post_cfg
+        active_cfg = eval_pre_cfg if step < split else eval_post_cfg
         before_energy = (
             np.asarray(state.embodied.energy, dtype=np.float64)
             if state.embodied is not None
@@ -155,12 +201,33 @@ def _evaluate_trajectory(
                 reverse_flow=reverse_flow,
                 flow_scale=flow_scale,
             )
+        if state.embodied is not None:
+            grid = positions_to_grid(
+                state.embodied.positions,
+                state.world.flow.shape[0],
+                state.world.flow.shape[1],
+            )
+            local_flow = np.asarray(state.world.flow[grid[:, 0], grid[:, 1]])
+            causal_flow = (
+                active_cfg.embodied.flow_movement_scale != 0.0
+                or active_cfg.world.resource_advection_strength != 0.0
+                or active_cfg.embodied.flow_alignment_reward != 0.0
+            )
+            choice_flows.append(local_flow if causal_flow else np.zeros_like(local_flow))
+            choice_alive.append(np.asarray(state.embodied.alive))
         state, lineage_counter = step_sim(
             state,
             active_cfg,
             lineage_counter,
             allow_reproduction=False,
         )
+        if state.embodied is not None:
+            choice_actions.append(np.asarray(state.embodied.last_action))
+            choice_probe_gates.append(
+                np.asarray(state.embodied.last_action[:, 8])
+                if active_cfg.embodied.probe_enabled
+                else np.zeros(state.embodied.last_action.shape[0])
+            )
         if state.embodied is not None and active_cfg.embodied.probe_enabled:
             probe_gates.append(np.asarray(state.embodied.last_action[:, 8]))
             probe_signals.append(np.asarray(state.embodied.probe_result))
@@ -177,6 +244,25 @@ def _evaluate_trajectory(
         np.concatenate(probe_signals) if probe_signals else np.zeros((0, 2)),
         np.concatenate(outcome_deltas) if outcome_deltas else np.zeros(0),
     )
+    if choice_actions:
+        diagnostics.update(
+            _choice_diagnostics(
+                np.stack(choice_actions),
+                np.stack(choice_flows),
+                np.stack(choice_probe_gates),
+                np.stack(choice_alive),
+            )
+        )
+    else:
+        diagnostics.update(
+            {
+                "choice_events": 0,
+                "choice_alignment": 0.0,
+                "choice_accuracy": 0.0,
+                "probe_choice_alignment": 0.0,
+                "nonprobe_choice_alignment": 0.0,
+            }
+        )
     return pre_metrics, final_metrics, diagnostics
 
 
@@ -247,12 +333,14 @@ def run_evaluation(
             steps=steps,
             reverse_flow=reverse,
         )
+        held_out_seed = seed + 1_000_003
         _, transfer_metrics, transfer_probe_diagnostics = _evaluate_trajectory(
             trained_state,
             train_cfg,
             train_cfg,
             steps=steps,
             flow_scale=1.5,
+            evaluation_seed=held_out_seed,
         )
         information_gain = _counterfactual_information_gain(
             trained_state.world.flow,
@@ -262,6 +350,7 @@ def run_evaluation(
             "config": {
                 "file": config_name,
                 "seed": seed,
+                "held_out_seed": held_out_seed,
                 "steps": steps,
                 "training_generations": training_generations,
                 "intervention_step": steps // 2 if reverse else None,
@@ -337,6 +426,23 @@ def summarize_results(results: list[dict]) -> dict[str, Any]:
                 for run in results
             ]
             conditions[condition][metric] = {
+                "mean": float(np.mean(values)),
+                "std": float(np.std(values)),
+                "n": len(values),
+            }
+        for metric in (
+            "choice_alignment",
+            "choice_accuracy",
+            "probe_choice_alignment",
+            "nonprobe_choice_alignment",
+        ):
+            values = [
+                float(
+                    run["conditions"][condition]["transfer_probe_diagnostics"][metric]
+                )
+                for run in results
+            ]
+            conditions[condition]["held_out_" + metric] = {
                 "mean": float(np.mean(values)),
                 "std": float(np.std(values)),
                 "n": len(values),
