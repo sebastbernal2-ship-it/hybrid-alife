@@ -27,10 +27,10 @@
 - The implementation masks selected fields from ordinary patches and sixth-sense channels.
 - Each condition trains with the existing evolutionary runner before frozen-policy evaluation.
 - The field controls are direct, indirect, spatially decorrelated, no-field, reversal, held-out flow-strength transfer, and counterfactual information gain.
-- PPO-POET now retains admitted environment lineage and uses archive transfer in policy parent selection.
+- PPO-POET now retains admitted environment lineage, uses archive transfer in policy parent selection, and mutates archive-selected stepping stones.
 - Causal checks compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
 - Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Final verification reports 252 passing tests and one expected GPU fallback warning.
+- Final verification reports 253 passing tests and one expected GPU fallback warning.
 - A three-seed field pilot used two training generations and eight evaluation steps.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
 - The pilot is engineering evidence only, not evidence of functional field understanding, consciousness, or open-ended evolution.
@@ -51,7 +51,7 @@ population loop, but it does not establish open-ended coevolution.
 ## Known validation (snapshot at handoff)
 
 - The established validation branch reports 220 passing tests.
-- The combined research-direction branch reports 252 passing tests.
+- The combined research-direction branch reports 253 passing tests.
 - PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
   cell are archived in `docs/results/poet_campaign_final_v3/`.
 - Transfer evaluation uses undiscounted raw reward sums from deterministic frozen-policy rollouts.
