@@ -1,12 +1,13 @@
 {
-  "schema_version": 2,
-  "name": "poet_vs_static_two_replication",
+  "schema_version": 3,
+  "name": "poet_vs_static_two_replication_final",
   "config": "configs/poet_campaign.yaml",
   "tracks": ["poet", "static"],
   "seeds": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   "generations": 200,
   "primary_track": "poet",
   "baseline_track": "static",
+  "executable_source_commit": "88f6203",
   "replications": [
     {
       "replication_id": "replication-1",
@@ -14,7 +15,7 @@
       "operator": "sebas",
       "machine_label": "local-cpu-1",
       "cache_cleared": true,
-      "out_dir": "docs/results/poet_campaign_final_v3/replication-1"
+      "out_dir": "outputs/poet_campaign_final_v6/replication-1"
     },
     {
       "replication_id": "replication-2",
@@ -22,8 +23,16 @@
       "operator": "sebas",
       "machine_label": "local-cpu-1",
       "cache_cleared": true,
-      "out_dir": "docs/results/poet_campaign_final_v3/replication-2"
+      "out_dir": "outputs/poet_campaign_final_v6/replication-2"
     }
   ],
-  "cell_count": 40
+  "cell_count": 40,
+  "budget": {
+    "wall_clock_seconds": 14400,
+    "estimated_seconds_from_two_seed_smoke": 9840,
+    "estimate_basis": "98.40 seconds for four cells at 20 generations, scaled to 40 cells at 200 generations",
+    "stop_signal": "SIGINT",
+    "status": "four_hour_bounded_launch"
+  },
+  "status": "declared_ready_to_launch"
 }
