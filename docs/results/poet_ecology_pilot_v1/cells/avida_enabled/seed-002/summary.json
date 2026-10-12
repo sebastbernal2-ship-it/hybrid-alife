@@ -1,0 +1,443 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "policy_updates": 6,
+  "policy_mutations": 3,
+  "environment_mutations": 3,
+  "track": "avida_enabled",
+  "avida_enabled": true,
+  "avida_lifecycle": "reset",
+  "metrics": [
+    {
+      "generation": 0.0,
+      "policy_index": 1.0,
+      "environment_index": 0.0,
+      "transfer_score": 0.10831578075885773,
+      "ppo_loss": 0.0023614689707756042
+    },
+    {
+      "generation": 0.0,
+      "policy_index": 0.0,
+      "environment_index": 1.0,
+      "transfer_score": 0.2139403223991394,
+      "ppo_loss": -0.012942474335432053
+    },
+    {
+      "generation": 1.0,
+      "policy_index": 0.0,
+      "environment_index": 0.0,
+      "transfer_score": 1.0207922458648682,
+      "ppo_loss": 0.055321104824543
+    },
+    {
+      "generation": 1.0,
+      "policy_index": 0.0,
+      "environment_index": 1.0,
+      "transfer_score": 1.1301500797271729,
+      "ppo_loss": 0.0678434744477272
+    },
+    {
+      "generation": 2.0,
+      "policy_index": 1.0,
+      "environment_index": 0.0,
+      "transfer_score": 1.221683382987976,
+      "ppo_loss": 0.14103561639785767
+    },
+    {
+      "generation": 2.0,
+      "policy_index": 0.0,
+      "environment_index": 1.0,
+      "transfer_score": 2.029588460922241,
+      "ppo_loss": 0.11156953871250153
+    }
+  ],
+  "transfer_history": [
+    [
+      [
+        -0.29770416021347046,
+        0.2139403223991394
+      ],
+      [
+        0.10831578075885773,
+        0.013855209574103355
+      ]
+    ],
+    [
+      [
+        1.0207922458648682,
+        1.1301500797271729
+      ],
+      [
+        1.089855432510376,
+        1.1902765035629272
+      ]
+    ],
+    [
+      [
+        0.8241125345230103,
+        2.029588460922241
+      ],
+      [
+        1.221683382987976,
+        1.3082172870635986
+      ]
+    ],
+    [
+      [
+        2.0402374267578125,
+        2.108034133911133
+      ],
+      [
+        1.4866564273834229,
+        2.2264564037323
+      ]
+    ]
+  ],
+  "archive_size": 5,
+  "archive_admissions": 3,
+  "archive_rejections": 0,
+  "environment_candidates": 3,
+  "ecology_diagnostics": {
+    "resource_gather_events": 16.0,
+    "interaction_events": 3.0,
+    "reproduction_events": 9.0,
+    "success_events": 0.0,
+    "failure_events": 0.0,
+    "energy_cost": 4.3121036873199055,
+    "avida_feedback": 0.0689840295817703,
+    "controller_to_avida_events": 28.0
+  },
+  "admission_diagnostics": [
+    {
+      "generation": 0,
+      "source_environment_index": 0,
+      "candidate_score": 0.23826175928115845,
+      "parent_score": 0.6670011281967163,
+      "minimal_criterion": -10.0,
+      "minimal_pass": true,
+      "baselines": {
+        "random": 0.8505571484565735,
+        "fixed_policy": 1.4984157085418701,
+        "hand_coded": 1.0418273210525513
+      },
+      "best_baseline": 1.4984157085418701,
+      "admitted": true,
+      "reason": "criterion_pass"
+    },
+    {
+      "generation": 1,
+      "source_environment_index": 1,
+      "candidate_score": 1.528710961341858,
+      "parent_score": 1.9920358657836914,
+      "minimal_criterion": -10.0,
+      "minimal_pass": true,
+      "baselines": {
+        "random": 0.4166790544986725,
+        "fixed_policy": 1.607669472694397,
+        "hand_coded": 2.1956114768981934
+      },
+      "best_baseline": 2.1956114768981934,
+      "admitted": true,
+      "reason": "criterion_pass"
+    },
+    {
+      "generation": 2,
+      "source_environment_index": 1,
+      "candidate_score": 1.5670907497406006,
+      "parent_score": 1.7054535150527954,
+      "minimal_criterion": -10.0,
+      "minimal_pass": true,
+      "baselines": {
+        "random": 0.7515267729759216,
+        "fixed_policy": 1.5670907497406006,
+        "hand_coded": 0.8195613026618958
+      },
+      "best_baseline": 1.5670907497406006,
+      "admitted": true,
+      "reason": "criterion_pass"
+    }
+  ],
+  "archive_lineage": [
+    {
+      "environment_id": "env-000000",
+      "parent_id": null,
+      "birth_generation": 0,
+      "admission_score": null
+    },
+    {
+      "environment_id": "env-000001",
+      "parent_id": null,
+      "birth_generation": 0,
+      "admission_score": null
+    },
+    {
+      "environment_id": "env-000002",
+      "parent_id": "env-000000",
+      "birth_generation": 1,
+      "admission_score": 0.23826175928115845
+    },
+    {
+      "environment_id": "env-000003",
+      "parent_id": "env-000002",
+      "birth_generation": 2,
+      "admission_score": 1.528710961341858
+    },
+    {
+      "environment_id": "env-000004",
+      "parent_id": "env-000002",
+      "birth_generation": 3,
+      "admission_score": 1.5670907497406006
+    }
+  ],
+  "archive_transfer_history": [
+    [
+      [
+        1.2017796039581299,
+        1.645965576171875,
+        1.2337238788604736,
+        1.4601742029190063,
+        1.6714845895767212
+      ],
+      [
+        2.0393178462982178,
+        1.9260587692260742,
+        1.5562459230422974,
+        1.1008068323135376,
+        1.6834229230880737
+      ]
+    ]
+  ],
+  "heldout_transfer_history": [
+    [
+      [
+        0.08167743682861328,
+        0.5530073046684265,
+        0.818225622177124,
+        1.5659133195877075
+      ],
+      [
+        -0.033122241497039795,
+        0.6050958633422852,
+        0.6681614518165588,
+        2.075984001159668
+      ]
+    ]
+  ],
+  "heldout_environment_count": 4,
+  "replication_metadata": {
+    "replication_id": "pilot-final",
+    "seed_offset": 0,
+    "operator": "pi",
+    "machine_label": "local-cpu",
+    "cache_cleared": true
+  },
+  "source_commit": "209c0cc64972c066f806f250309fb8873e4e8a11",
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 12,
+    "action_count": 8,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.003,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 2
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.08,
+    "terrain_mutation_std": 0.12,
+    "terrain_mutation_prob": 0.2,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": true,
+    "avida_lifecycle": "reset",
+    "track": "avida_enabled",
+    "minimal_criterion": -10.0,
+    "heldout_environments": 4,
+    "heldout_seed_offset": 1000003
+  },
+  "seed": 2,
+  "effective_seed": 2,
+  "generations": 3,
+  "heldout_transfer_mean": 0.7918678522109985,
+  "archive_transfer_mean": 1.5518981218338013,
+  "comparison_score": 0.10094958543777466,
+  "avida_comparator_steps": 3,
+  "avida_mean_merit": 4.966810703277588,
+  "environment_causal_validity": {
+    "env-000000": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.13444340229034424
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000002086162567
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.0014296770095825195
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.0029061734676361084
+      }
+    },
+    "env-000001": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.1499999761581421
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000003576278687
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.11830329895019531
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.00298449769616127
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.047949761152267456
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.004937857389450073
+      }
+    },
+    "env-000002": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.10994219779968262
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.02343761920928955
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.14999999105930328
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.00485113263130188
+      }
+    },
+    "env-000003": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.03381168842315674
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000003576278687
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.05574941635131836
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.0029941461980342865
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.007276713848114014
+      }
+    },
+    "env-000004": {
+      "goal_x": {
+        "changed": true,
+        "max_delta": 0.1499999761581421
+      },
+      "goal_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "resource_regeneration": {
+        "changed": true,
+        "max_delta": 0.07289505004882812
+      },
+      "hazard_rate": {
+        "changed": true,
+        "max_delta": 0.002994142472743988
+      },
+      "flow_x": {
+        "changed": true,
+        "max_delta": 0.14999999105930328
+      },
+      "flow_y": {
+        "changed": true,
+        "max_delta": 0.15000000596046448
+      },
+      "terrain": {
+        "changed": true,
+        "max_delta": 0.004851102828979492
+      }
+    }
+  },
+  "final_transfer_mean": 1.965346097946167,
+  "final_transfer_std": 0.28429335355758667
+}
