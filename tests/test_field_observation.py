@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+from dataclasses import replace
+
+import jax
+import jax.numpy as jnp
+
+from hybrid_alife.agents.embodied import (
+    build_world_field,
+    initialize_embodied_population,
+    observe_embodied,
+)
+from hybrid_alife.experiments.runner import load_config
+from hybrid_alife.world.env import initialize_world
+from hybrid_alife.world.sensing import sample_sixth_sense
+
+
+def test_named_field_groups_are_hidden_without_changing_other_patch_channels() -> None:
+    cfg = load_config("configs/base.yaml")
+    key = jax.random.PRNGKey(0)
+    world = initialize_world(cfg.world, key)
+
+    full = build_world_field(world, cfg.world)
+    hidden = build_world_field(world, cfg.world, ("flow", "concentration"))
+    terrain_end = world.terrain.shape[-1]
+    resource_end = terrain_end + world.resources.shape[-1]
+    hazard_end = resource_end + world.hazards.shape[-1]
+    flow_end = hazard_end + world.flow.shape[-1]
+    curvature_end = flow_end + world.curvature.shape[-1]
+    shear_end = curvature_end + world.shear.shape[-1]
+    shear_grad_end = shear_end + world.shear_grad.shape[-1]
+    enrichment_end = shear_grad_end + world.enrichment.shape[-1]
+    lift_end = enrichment_end + world.lift.shape[-1]
+    concentration_end = lift_end + world.concentration.shape[-1]
+
+    assert jnp.array_equal(full[..., :hazard_end], hidden[..., :hazard_end])
+    assert bool(jnp.all(hidden[..., hazard_end:flow_end] == 0.0))
+    assert jnp.array_equal(full[..., flow_end:lift_end], hidden[..., flow_end:lift_end])
+    assert bool(jnp.all(hidden[..., lift_end:concentration_end] == 0.0))
+
+
+def test_hidden_groups_mask_sixth_sense_but_keep_proprioception() -> None:
+    cfg = load_config("configs/base.yaml")
+    world_cfg = replace(cfg.world, sensory_noise_std=0.0)
+    full_cfg = replace(cfg.embodied, hidden_field_groups=())
+    hidden_cfg = replace(cfg.embodied, hidden_field_groups=("flow", "concentration"))
+    key = jax.random.PRNGKey(1)
+    world = initialize_world(world_cfg, key)
+    pop = initialize_embodied_population(full_cfg, world_cfg, key)
+
+    full_sense = sample_sixth_sense(
+        world, pop.positions, pop.alive, pop.messages, world_cfg, full_cfg, key
+    )
+    hidden_sense = sample_sixth_sense(
+        world, pop.positions, pop.alive, pop.messages, world_cfg, hidden_cfg, key
+    )
+    assert bool(jnp.all(hidden_sense[:, 1:3] == 0.0))
+    assert bool(jnp.all(hidden_sense[:, 4:6] == 0.0))
+    assert bool(jnp.all(hidden_sense[:, 6:8] == 0.0))
+    assert bool(jnp.any(full_sense[:, 1:3] != 0.0))
+
+    full_obs = observe_embodied(pop, world, full_cfg, world_cfg, key)
+    hidden_obs = observe_embodied(pop, world, hidden_cfg, world_cfg, key)
+    proprio_start = full_obs.shape[-1] - (6 + full_cfg.message_size)
+    assert jnp.array_equal(full_obs[:, proprio_start:], hidden_obs[:, proprio_start:])
+
+
+def test_unknown_field_group_fails_closed() -> None:
+    cfg = load_config("configs/base.yaml")
+    bad_cfg = replace(cfg.embodied, hidden_field_groups=("gravity",))
+    pop = initialize_embodied_population(cfg.embodied, cfg.world, jax.random.PRNGKey(2))
+    world = initialize_world(cfg.world, jax.random.PRNGKey(2))
+    try:
+        observe_embodied(pop, world, bad_cfg, cfg.world, jax.random.PRNGKey(2))
+    except ValueError as error:
+        assert "unknown hidden field groups" in str(error)
+    else:
+        raise AssertionError("unknown hidden field groups must fail closed")
+
+
+def test_defaults_preserve_existing_observation_shape() -> None:
+    cfg = load_config("configs/base.yaml")
+    key = jax.random.PRNGKey(3)
+    world = initialize_world(cfg.world, key)
+    pop = initialize_embodied_population(cfg.embodied, cfg.world, key)
+    obs = observe_embodied(pop, world, cfg.embodied, cfg.world, key)
+    assert obs.shape[-1] > 0

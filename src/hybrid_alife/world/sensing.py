@@ -173,10 +173,24 @@ def sample_sixth_sense(
         lft = sample_field_at(world.lift, positions, h, w)
         conc = sample_field_at(world.concentration, positions, h, w)
     crowd = crowding_context(positions, alive, messages, world.flow, h, w)
-
-    parts = [curv, sgrad, enr, lft, conc, crowd]
+    hidden = frozenset(embodied_cfg.hidden_field_groups)
+    if "all" in hidden:
+        hidden = frozenset(("curvature", "flow", "enrichment", "concentration"))
+    if "curvature" in hidden:
+        curv = jnp.zeros_like(curv)
+    if {"flow", "shear", "shear_grad"} & hidden:
+        sgrad = jnp.zeros_like(sgrad)
+    if "flow" in hidden:
+        lft = jnp.zeros_like(lft)
+        crowd = crowd.at[:, 1].set(0.0)
+    if "enrichment" in hidden:
+        enr = jnp.zeros_like(enr)
+    if "concentration" in hidden or "metabolites" in hidden:
+        conc = jnp.zeros_like(conc)
     if not embodied_cfg.true_sixth_sense:
-        parts = [jnp.zeros_like(p) for p in parts]
+        parts = [jnp.zeros_like(p) for p in (curv, sgrad, enr, lft, conc, crowd)]
+    else:
+        parts = [curv, sgrad, enr, lft, conc, crowd]
 
     sense = jnp.concatenate(parts, axis=-1)
 
