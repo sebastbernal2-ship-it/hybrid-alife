@@ -195,7 +195,11 @@ def _condition_configs(cfg, condition: str):
     elif condition == "no_field":
         train_cfg = replace(
             train_cfg,
-            world=replace(train_cfg.world, flow_advection_strength=0.0),
+            world=replace(
+                train_cfg.world,
+                flow_advection_strength=0.0,
+                resource_advection_strength=0.0,
+            ),
             embodied=replace(
                 train_cfg.embodied,
                 hidden_field_groups=derived_flow_fields,

@@ -63,6 +63,8 @@ class WorldConfig:
     # Coupling between flow and concentration: per-step advection coefficient
     # in [0, 1]; 0 disables advection.
     flow_advection_strength: float = 0.25
+    # Optional flow advection of resources. Zero preserves legacy dynamics.
+    resource_advection_strength: float = 0.0
     # Smooth temporal drift parameters (sinusoidal rotation + low-frequency
     # modulation, in addition to the existing Gaussian flow_noise_std term).
     drift_rotation_rate: float = 0.01

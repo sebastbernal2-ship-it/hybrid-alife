@@ -11,13 +11,41 @@ from hybrid_alife.agents.embodied import (
     embodied_action_dim,
     initialize_embodied_population,
 )
-from hybrid_alife.experiments.runner import load_config
+from hybrid_alife.experiments.runner import initialize_sim, load_config
 from hybrid_alife.types import EmbodiedConfig
-from hybrid_alife.world.env import initialize_world
+from hybrid_alife.world.env import initialize_world, step_world
 
 
 def _replace_embodied(cfg, **kwargs) -> EmbodiedConfig:
     return dataclasses.replace(cfg.embodied, **kwargs)
+
+
+def test_resource_advection_is_disabled_by_default_and_causally_uses_flow():
+    cfg = load_config("configs/base.yaml")
+    no_advection_cfg = dataclasses.replace(
+        cfg, world=dataclasses.replace(cfg.world, resource_regen=0.0)
+    )
+    positive_cfg = dataclasses.replace(
+        cfg,
+        world=dataclasses.replace(
+            cfg.world, resource_regen=0.0, resource_advection_strength=0.5
+        ),
+    )
+    baseline = initialize_sim(no_advection_cfg)
+    coupled = initialize_sim(positive_cfg)
+    pattern = jnp.zeros_like(baseline.world.resources).at[0, 0, :].set(1.0)
+    flow = jnp.ones_like(baseline.world.flow) * jnp.array([0.2, 0.0])
+    baseline.world.resources = pattern
+    baseline.world.flow = flow
+    coupled.world.resources = pattern
+    coupled.world.flow = flow
+    baseline = step_world(baseline, no_advection_cfg.world)
+    coupled = step_world(coupled, positive_cfg.world)
+    np.testing.assert_array_equal(
+        baseline.world.resources,
+        pattern,
+    )
+    assert bool(jnp.any(coupled.world.resources != pattern))
 
 
 def test_flow_advection_only_changes_movement_when_enabled():

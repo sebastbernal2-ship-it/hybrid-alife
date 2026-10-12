@@ -28,6 +28,8 @@ def test_no_field_and_decorrelated_conditions_change_only_target_access():
     assert no_field.embodied.probe_signal_scale == 0.0
     assert "flow" in no_field.embodied.hidden_field_groups
     assert no_field.world.flow_advection_strength == 0.0
+    assert no_field.world.resource_advection_strength == 0.0
+    assert cfg.world.resource_advection_strength == 0.25
     assert no_field.world.resource_regen == cfg.world.resource_regen
     assert no_field.avida == cfg.avida
     assert decorrelated.embodied.shuffle_flow_observation is True
