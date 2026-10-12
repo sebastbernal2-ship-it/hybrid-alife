@@ -10,11 +10,12 @@ from hybrid_alife.experiments.field_discovery import run_evaluation, summarize_r
 
 
 def test_evaluation_uses_simulator_conditions_and_is_reproducible():
-    first = run_evaluation(seed=7, steps=2)
-    second = run_evaluation(seed=7, steps=2)
+    first = run_evaluation(seed=7, steps=2, training_generations=1)
+    second = run_evaluation(seed=7, steps=2, training_generations=1)
 
     assert first == second
-    assert first["schema_version"] == 2
+    assert first["schema_version"] == 3
+    assert first["training_generations"] == 1
     assert set(first["conditions"]) == {"direct", "indirect", "shuffled", "intervention"}
     for condition in first["conditions"].values():
         assert set(condition["final_metrics"]) == {
@@ -44,6 +45,8 @@ def test_cli_writes_compact_pilot_artifact(tmp_path):
             "3",
             "--steps",
             "2",
+            "--training-generations",
+            "1",
             "--config-dir",
             str(root / "configs"),
             "--output",
