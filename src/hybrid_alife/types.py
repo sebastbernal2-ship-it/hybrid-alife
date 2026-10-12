@@ -93,6 +93,8 @@ class EmbodiedConfig:
     # Empty means that all existing fields remain visible.
     hidden_field_groups: tuple[str, ...] = ()
     shuffle_sixth_sense: bool = False
+    # Spatially translate observed flow vectors while preserving their values.
+    shuffle_flow_observation: bool = False
     true_sixth_sense: bool = True
     action_history_len: int = 16
     # ---- sensing uncertainty / delay modes (from world-sixth-sense-depth) ----

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Aggregate hybrid-alife field-discovery pilot artifacts."""
+"""Aggregate schema-v4 hybrid-alife field-discovery pilot artifacts."""
 
 from __future__ import annotations
 

@@ -39,6 +39,27 @@ def test_named_field_groups_are_hidden_without_changing_other_patch_channels() -
     assert bool(jnp.all(hidden[..., lift_end:concentration_end] == 0.0))
 
 
+def test_decorrelated_flow_keeps_values_but_moves_them_to_other_cells() -> None:
+    cfg = load_config("configs/base.yaml")
+    key = jax.random.PRNGKey(4)
+    world = initialize_world(cfg.world, key)
+    direct = build_world_field(world, cfg.world)
+    shifted = build_world_field(world, cfg.world, shuffle_flow_observation=True)
+    start = world.terrain.shape[-1] + world.resources.shape[-1] + world.hazards.shape[-1]
+    end = start + world.flow.shape[-1]
+    expected = jnp.roll(
+        world.flow,
+        shift=(cfg.world.height // 2, cfg.world.width // 2),
+        axis=(0, 1),
+    )
+    assert jnp.array_equal(shifted[..., start:end], expected)
+    assert jnp.array_equal(
+        jnp.sort(direct[..., start:end].reshape(-1)),
+        jnp.sort(shifted[..., start:end].reshape(-1)),
+    )
+    assert not jnp.array_equal(direct[..., start:end], shifted[..., start:end])
+
+
 def test_hidden_groups_mask_sixth_sense_but_keep_proprioception() -> None:
     cfg = load_config("configs/base.yaml")
     world_cfg = replace(cfg.world, sensory_noise_std=0.0)

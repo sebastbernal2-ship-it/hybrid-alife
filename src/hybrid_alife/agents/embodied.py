@@ -186,13 +186,20 @@ def build_world_field(
     world: WorldState,
     world_cfg: WorldConfig,
     hidden_field_groups: tuple[str, ...] = (),
+    *,
+    shuffle_flow_observation: bool = False,
 ) -> jax.Array:
     """Build the fixed-width patch and zero selected fields without changing dynamics."""
-    del world_cfg
     hidden = frozenset(hidden_field_groups)
     parts = []
     for name in _FIELD_GROUP_NAMES:
         value = getattr(world, name)
+        if name == "flow" and shuffle_flow_observation:
+            value = jnp.roll(
+                value,
+                shift=(world_cfg.height // 2, world_cfg.width // 2),
+                axis=(0, 1),
+            )
         parts.append(jnp.zeros_like(value) if name in hidden or "all" in hidden else value)
     return jnp.concatenate(parts, axis=-1)
 
@@ -207,7 +214,12 @@ def observe_embodied(
     """Build observation tensor [N, obs_dim]."""
     h, w = world_cfg.height, world_cfg.width
     hidden = _hidden_field_groups(embodied_cfg)
-    field = build_world_field(world, world_cfg, tuple(hidden))
+    field = build_world_field(
+        world,
+        world_cfg,
+        tuple(hidden),
+        shuffle_flow_observation=embodied_cfg.shuffle_flow_observation,
+    )
     if embodied_cfg.blind:
         n = pop.positions.shape[0]
         side = 2 * embodied_cfg.obs_radius + 1
