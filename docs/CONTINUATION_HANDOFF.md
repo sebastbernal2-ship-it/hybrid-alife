@@ -19,7 +19,22 @@
 - **Validation branch:** `feat/solidness-performance` at
   `d0542eb8108e62a978cacac5ff14759b445cb7cd` (`fix: correct PPO-POET transfer metrics`).
 - **Date of handoff:** 2026-09-28.
-- **Integration status:** the corrected implementation and v3 campaign archive are on the validation branch and await a PR into `main`.
+- **Integration status:** PPO-POET validation remains on `feat/solidness-performance`; field-discovery work is on `feat-field-dynamics-coupling` at `f14881a`.
+- **Field-discovery PR:** https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/8.
+- **Field-discovery CI:** Python 3.11 and 3.12 checks pass.
+
+## Field-discovery sprint status
+
+- The implementation masks selected fields from ordinary patches and sixth-sense channels.
+- Each condition trains with the existing evolutionary runner before frozen-policy evaluation.
+- The controls are direct, indirect, shuffled, and intervention.
+- `flow_movement_scale` defaults to zero and is `0.05` in field-discovery configs.
+- Final verification reports 241 passing tests and one expected GPU fallback warning.
+- A three-seed pilot used two training generations and eight evaluation steps.
+- The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
+- The pilot is engineering evidence only, not evidence of functional field understanding or consciousness.
+- Remaining work is longer training, at least 10 seeds, field reversal, a true no-field control, transfer tests, active probing metrics, and campaign artifact archiving.
+- Do not merge the open PR without captain approval.
 
 ## TL;DR project state
 
@@ -34,7 +49,8 @@ population loop, but it does not establish open-ended coevolution.
 
 ## Known validation (snapshot at handoff)
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 tests passed** in the validated CPU environment.
+- The established validation branch reports 220 passing tests.
+- The final field-discovery branch reports 241 passing tests.
 - PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
   cell are archived in `docs/results/poet_campaign_final_v3/`.
 - Transfer evaluation uses undiscounted raw reward sums from deterministic frozen-policy rollouts.
@@ -196,7 +212,8 @@ that guide before publication.
 
 ### Next 20 minutes
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` to confirm the current 220-test suite still passes locally.
+- Review PR #8 and keep it open until the captain approves merging.
+- Run a longer field-discovery pilot with the final branch before starting the preregistered campaign.
 - `python scripts/run_sim.py --config configs/base.yaml` (2-gen smoke) to
   confirm runner + JSONL writer are healthy end-to-end.
 - Skim `outputs/` for prior sprint artifacts (transfer / scaling); confirm

@@ -17,6 +17,21 @@
 - **Integration status:** the corrected implementation is on the validation branch; the v3 campaign archive and refreshed handoffs are the current working-tree deliverables for the next PR.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
 
+## Field-discovery sprint status
+
+- Final branch: `feat-field-dynamics-coupling` at `f14881a`.
+- Final PR: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/8.
+- Supporting PRs: #3 observation controls, #4 evaluator, #5 protocol, #6 simulator pilot, and #7 causal flow coupling.
+- CI passes on Python 3.11 and 3.12.
+- Final branch verification reports 241 passing tests and one expected GPU fallback warning.
+- The implementation trains each condition, then evaluates a frozen policy under direct, indirect, shuffled, and intervention controls.
+- `flow_movement_scale` defaults to zero and is `0.05` in the field-discovery configs.
+- The three-seed pilot used two training generations and eight evaluation steps.
+- The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
+- The pilot is engineering evidence only, not evidence of field understanding or consciousness.
+- Remaining scientific work is longer training, at least 10 seeds, field reversal, a true no-field control, transfer tests, and active probing metrics.
+- Do not merge the open PR without captain approval.
+
 ## Mission (one paragraph)
 
 A JAX research simulator that couples **embodied recurrent neural agents** (GRU /
@@ -58,7 +73,8 @@ tests/            CPU-feasible pytest suite
 
 ## Validation status (current)
 
-- `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` → **220 passed** in the validated CPU environment.
+- The established validation branch reports 220 passing tests.
+- The final field-discovery branch reports 241 passing tests.
 - PPO-POET campaign: three tracks, ten seeds per track, and 200 generations per
   cell are archived in `docs/results/poet_campaign_final_v3/`.
 - Transfer scores now use the undiscounted sum of deterministic frozen-policy rewards.
