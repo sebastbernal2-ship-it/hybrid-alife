@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "source_commit": "bd829b9de674d96aed914a7ac9d3499bfe8a943d",
+  "seed": 6,
+  "effective_seed": 10006,
+  "generations": 200,
+  "config": {
+    "width": 8,
+    "height": 8,
+    "terrain_channels": 1,
+    "population_size": 2,
+    "policy_hidden": 16,
+    "action_count": 8,
+    "rollout_steps": 8,
+    "ppo": {
+      "learning_rate": 0.001,
+      "clip_ratio": 0.2,
+      "value_coef": 0.5,
+      "entropy_coef": 0.01,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "epochs": 4
+    },
+    "environment_param_low": [
+      0.1,
+      0.1,
+      0.1,
+      0.0,
+      -0.2,
+      -0.2
+    ],
+    "environment_param_high": [
+      0.9,
+      0.9,
+      1.0,
+      1.0,
+      0.2,
+      0.2
+    ],
+    "environment_mutation_std": 0.06,
+    "terrain_mutation_std": 0.08,
+    "terrain_mutation_prob": 0.08,
+    "policy_mutation_std": 0.01,
+    "policy_mutation_prob": 0.05,
+    "transfer_steps": 8,
+    "avida_enabled": false,
+    "avida_lifecycle": "reset",
+    "track": "poet",
+    "minimal_criterion": -10.0,
+    "heldout_environments": 4,
+    "heldout_seed_offset": 1000003,
+    "archive_mode": "enabled",
+    "condition": "poet",
+    "archive_selection_limit": 16,
+    "causal_validity_limit": 16
+  },
+  "replication_metadata": {
+    "replication_id": "replication-2",
+    "seed_offset": 10000,
+    "operator": "sebas",
+    "machine_label": "local-cpu-1",
+    "cache_cleared": true
+  },
+  "mode": "heldout_transfer",
+  "frozen_policy": true,
+  "excluded_from_training": true,
+  "matrix": [
+    [
+      0.7951661348342896,
+      1.09281325340271,
+      1.3307898044586182,
+      1.3043075799942017
+    ],
+    [
+      0.7939268350601196,
+      1.0933326482772827,
+      1.3348718881607056,
+      1.325278878211975
+    ]
+  ],
+  "history": [
+    [
+      [
+        0.7951661348342896,
+        1.09281325340271,
+        1.3307898044586182,
+        1.3043075799942017
+      ],
+      [
+        0.7939268350601196,
+        1.0933326482772827,
+        1.3348718881607056,
+        1.325278878211975
+      ]
+    ]
+  ],
+  "environment_count": 4
+}

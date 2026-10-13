@@ -231,7 +231,8 @@ Pre-register your descriptors and minimal criterion using
   driver, anti-overclaim report sections.
 - CI runs the full pytest suite on every push.
 - Historical PPO-POET campaign archives are under `docs/results/poet_campaign_final_v2/` and `docs/results/poet_campaign_final_v3/`.
-- The current two-replication `poet` versus `static` campaign runs under `outputs/poet_campaign_final_v6/` and is not yet analyzed.
+- The completed two-replication `poet` versus `static` campaign is archived in `docs/results/poet_campaign_final_v6/`.
+- Its preregistered held-out success gate returned `insufficient_evidence`.
 
 **Experimental:**
 
