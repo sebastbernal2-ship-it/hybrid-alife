@@ -45,10 +45,12 @@ Their `summary.json` files record the lifecycle and the actual `avida_comparator
 The current declaration contains two tracks, two replications, ten seeds per replication, and 200 generations per cell.
 It has 40 cells in total.
 The primary comparison is `poet` versus `static`.
-The archive-control factorial remains a separate protocol in `configs/poet_archive_control_manifest.json`.
+The declared archive-control factorial is recorded in `configs/poet_archive_control_manifest.json`.
 
-The current launch uses `outputs/poet_campaign_final_v6/` and has a four-hour wall-clock cap.
-Run a campaign with `configs/poet_campaign.yaml` and the same `scripts/run_poet.py` entrypoint.
+The completed launch used `outputs/poet_campaign_final_v6/` with a four-hour wall-clock cap.
+Its full archive is committed in `docs/results/poet_campaign_final_v6/`.
+The preregistered held-out success gate returned `insufficient_evidence`.
+Run a new campaign only after declaring its replication metadata and budget.
 
 ## Outputs
 

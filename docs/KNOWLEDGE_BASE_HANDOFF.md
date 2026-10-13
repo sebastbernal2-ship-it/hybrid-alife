@@ -10,10 +10,10 @@
 
 - **Name:** hybrid-alife — Hybrid Artificial-Life Simulator.
 - **Repository:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Current branch:** `feat-complete-research-direction` at `68bd190`.
-- **Date of handoff:** 2026-10-12.
-- **Integration status:** the research-direction branch is open in PR #11: https://github.com/sebastbernal2-ship-it/hybrid-alife/pull/11.
-- **Campaign status:** the declared 40-cell PPO-POET campaign is running in tmux `poet-preregistered-final-v6`.
+- **Current branch:** `feat-complete-research-direction` at `bd829b9`.
+- **Date of handoff:** 2026-10-13.
+- **Integration status:** PR #11 and the follow-up PR #12 are merged; `main` is at `535d3c1`.
+- **Campaign status:** the declared 40-cell PPO-POET campaign completed and is archived in `docs/results/poet_campaign_final_v6/`.
 - **License / status:** research code, CPU-feasible smokes, GitHub Actions CI.
 
 ## Current research-direction status
@@ -30,8 +30,8 @@
 - The three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
 - The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
 - The pilot is engineering evidence only, not evidence of field understanding, consciousness, or open-ended evolution.
-- Scientific completion still requires the preregistered 10-seed campaigns, independent replication, a captain-approved calibrated admission threshold, and longer horizons.
-- Do not merge the final PR without captain approval.
+- The preregistered campaign completed both declared replications, but its held-out success gate returned `insufficient_evidence`.
+- The campaign is a bounded transfer result, not evidence of consciousness or open-ended evolution.
 - A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
 - Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
 - PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
@@ -43,12 +43,14 @@
 - The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
 - Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
 - The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
-- The factorial protocol is recorded in `configs/poet_archive_control_manifest.json`; it remains protocol-only until a new campaign is declared.
+- The archive-control factorial is declared in `configs/poet_archive_control_manifest.json` for 100 cells with a 14-hour wall-clock cap, operator `sebas`, machine `local-cpu-1`, and distinct seed offsets.
 - The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
 - Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
 - A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
-- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` in tmux session `poet-preregistered-final-v6` with a four-hour wall-clock cap.
-- Its output is under `outputs/poet_campaign_final_v6/`; do not interpret results until the run and aggregate analysis complete.
+- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` with a four-hour wall-clock cap.
+- All 40 cells completed; the aggregate analysis and provenance audit are archived in `docs/results/poet_campaign_final_v6/`.
+- POET improved final in-distribution transfer but had a pooled held-out effect of `-0.5101` with 95% bootstrap CI `[-0.9131, -0.1089]`.
+- The archive does not support a POET held-out-transfer success claim.
 - The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
 - A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.
 - The benchmark is calibration evidence only and does not replace simulator rollouts.
@@ -98,9 +100,9 @@ tests/            CPU-feasible pytest suite
 - Ruff and diff checks pass.
 - The deterministic awareness benchmark validity gate passes on seeds 0-2.
 - The held-out choice pilot is diagnostic only and found below-chance directional accuracy.
-- The full PPO-POET campaign is running with two tracks, two replications, ten seeds per replication, and 200 generations per cell.
-- Do not interpret the campaign until all cells finish and the aggregate success gate passes.
-- Historical smoke and campaign artifacts remain labeled as historical or diagnostic.
+- The final PPO-POET campaign completed 40/40 cells across two replications.
+- Its preregistered held-out success gate returned `insufficient_evidence`.
+- Historical smoke and partial campaign artifacts remain labeled as historical or diagnostic.
 
 ## Documentation map (final)
 
@@ -121,6 +123,7 @@ tests/            CPU-feasible pytest suite
 | [`poet_ppo_campaign.md`](poet_ppo_campaign.md) | PPO-POET campaign design and outputs. |
 | [`results/poet_campaign_final_v2/`](results/poet_campaign_final_v2/) | Historical superseded campaign archive. |
 | [`results/poet_campaign_final_v3/`](results/poet_campaign_final_v3/) | Historical corrected campaign archive. |
+| [`results/poet_campaign_final_v6/`](results/poet_campaign_final_v6/) | Completed final two-replication campaign and provenance audit. |
 | [`results/field_choice_pilot_v1/`](results/field_choice_pilot_v1/) | Held-out directional-choice diagnostic. |
 | [`results/poet_runtime_profile_v1/`](results/poet_runtime_profile_v1/) | PPO-POET evaluator timing profile. |
 | [`results/poet_runtime_multicell_smoke_v1/`](results/poet_runtime_multicell_smoke_v1/) | Bounded multi-cell timing smoke. |
@@ -285,10 +288,10 @@ Each bullet below is a self-contained fact suitable for a KB / RAG chunk.
 
 ## Next priorities (in order)
 
-1. Monitor `poet-preregistered-final-v6` and analyze only after completion.
-2. Preserve the final campaign manifest, source commit, metadata, statistics, and checksums.
-3. Compare the archive-control factorial only after the primary `poet` versus `static` result is complete.
-4. Extend held-out choice training only if the current campaign does not produce evidence of selective causal inquiry.
+1. Preserve and review the v6 provenance audit before new training.
+2. Run the declared archive-control factorial only after its operator, machine, and wall-clock budget are recorded.
+3. Use the held-out matrix ties and train-versus-held-out gap to guide evaluator sensitivity checks.
+4. Extend held-out choice and active-probing rollouts only after the transfer diagnosis is complete.
 5. Keep all scientific claims bounded by the declared seeds, horizons, controls, and compute budget.
 
 ## Success criteria for "continuation succeeded"

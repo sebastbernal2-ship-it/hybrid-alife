@@ -1,0 +1,232 @@
+{
+  "campaign": "poet_campaign_final_v6",
+  "summary_count": 40,
+  "expected_summary_count": 40,
+  "schema_versions": [
+    2
+  ],
+  "source_commits_in_artifacts": [
+    "2aa3e1dcef66d9ffa598d1df7b3f58c2d8a79687",
+    "68bd1906a4a8049fef7dcb5ec12b37be192d6984",
+    "bd829b9de674d96aed914a7ac9d3499bfe8a943d"
+  ],
+  "declared_launch_commit": "fa965bd",
+  "changed_paths_from_declared_launch": {
+    "2aa3e1dcef66d9ffa598d1df7b3f58c2d8a79687": [
+      "README.md",
+      "configs/poet_campaign_manifest.json",
+      "docs/CONTINUATION_HANDOFF.md",
+      "docs/KNOWLEDGE_BASE_HANDOFF.md",
+      "docs/poet_ppo_campaign.md"
+    ],
+    "68bd1906a4a8049fef7dcb5ec12b37be192d6984": [
+      "configs/poet_campaign_manifest.json",
+      "docs/CONTINUATION_HANDOFF.md",
+      "docs/KNOWLEDGE_BASE_HANDOFF.md"
+    ],
+    "bd829b9de674d96aed914a7ac9d3499bfe8a943d": [
+      ".gitignore",
+      "README.md",
+      "configs/poet_campaign_manifest.json",
+      "docs/CONTINUATION_HANDOFF.md",
+      "docs/KNOWLEDGE_BASE_HANDOFF.md",
+      "docs/poet_ppo_campaign.md"
+    ]
+  },
+  "runtime_path_drift_from_declared_launch": {
+    "2aa3e1dcef66d9ffa598d1df7b3f58c2d8a79687": [],
+    "68bd1906a4a8049fef7dcb5ec12b37be192d6984": [],
+    "bd829b9de674d96aed914a7ac9d3499bfe8a943d": []
+  },
+  "metadata": {
+    "replication_ids": [
+      "replication-1",
+      "replication-2"
+    ],
+    "seed_offsets": [
+      0,
+      10000
+    ],
+    "cache_cleared_values": [
+      true
+    ],
+    "operators": [
+      "sebas"
+    ],
+    "machine_labels": [
+      "local-cpu-1"
+    ]
+  },
+  "heldout_checks": {
+    "all_shape_2x4": true,
+    "all_frozen_policy": true,
+    "all_excluded_from_training": true,
+    "all_finite": true,
+    "paired_cells_with_equal_policy_hash": 0,
+    "paired_cells_with_equal_heldout_matrix": 7,
+    "paired_cell_count": 20,
+    "max_matrix_abs_diff": 7.347367167472839
+  },
+  "paired_cells": [
+    {
+      "replication": "replication-1",
+      "seed": 0,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 0.9864938259124756,
+      "heldout_mean_difference": -0.3239673376083374
+    },
+    {
+      "replication": "replication-1",
+      "seed": 1,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 5.237216472625732,
+      "heldout_mean_difference": -1.649233102798462
+    },
+    {
+      "replication": "replication-1",
+      "seed": 2,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 5.864101909101009,
+      "heldout_mean_difference": 1.6414039731025696
+    },
+    {
+      "replication": "replication-1",
+      "seed": 3,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-1",
+      "seed": 4,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-1",
+      "seed": 5,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-1",
+      "seed": 6,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 2.685986876487732,
+      "heldout_mean_difference": -1.4167592525482178
+    },
+    {
+      "replication": "replication-1",
+      "seed": 7,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 0.7050610184669495,
+      "heldout_mean_difference": -0.2293582558631897
+    },
+    {
+      "replication": "replication-1",
+      "seed": 8,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 1.0008995532989502,
+      "heldout_mean_difference": 0.3379852771759033
+    },
+    {
+      "replication": "replication-1",
+      "seed": 9,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-2",
+      "seed": 0,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-2",
+      "seed": 1,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 1.4200676679611206,
+      "heldout_mean_difference": 0.37321650981903076
+    },
+    {
+      "replication": "replication-2",
+      "seed": 2,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 2.159104973077774,
+      "heldout_mean_difference": -1.4785828292369843
+    },
+    {
+      "replication": "replication-2",
+      "seed": 3,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 7.347367167472839,
+      "heldout_mean_difference": -1.5639880895614624
+    },
+    {
+      "replication": "replication-2",
+      "seed": 4,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 2.3567021191120148,
+      "heldout_mean_difference": -1.3973772004246712
+    },
+    {
+      "replication": "replication-2",
+      "seed": 5,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-2",
+      "seed": 6,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 2.362983226776123,
+      "heldout_mean_difference": -1.2311779260635376
+    },
+    {
+      "replication": "replication-2",
+      "seed": 7,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": true,
+      "heldout_matrix_max_abs_diff": 0.0,
+      "heldout_mean_difference": 0.0
+    },
+    {
+      "replication": "replication-2",
+      "seed": 8,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 1.953409492969513,
+      "heldout_mean_difference": -0.9387331008911133
+    },
+    {
+      "replication": "replication-2",
+      "seed": 9,
+      "policy_hash_equal": false,
+      "heldout_matrix_equal": false,
+      "heldout_matrix_max_abs_diff": 3.994771420955658,
+      "heldout_mean_difference": -2.3260848373174667
+    }
+  ]
+}

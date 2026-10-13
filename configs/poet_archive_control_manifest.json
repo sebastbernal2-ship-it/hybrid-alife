@@ -15,18 +15,24 @@
     {
       "replication_id": "replication-1",
       "seed_offset": 0,
-      "operator": "unspecified",
-      "machine_label": "declare-before-run",
+      "operator": "sebas",
+      "machine_label": "local-cpu-1",
       "cache_cleared": true
     },
     {
       "replication_id": "replication-2",
       "seed_offset": 10000,
-      "operator": "unspecified",
-      "machine_label": "declare-before-run",
+      "operator": "sebas",
+      "machine_label": "local-cpu-1",
       "cache_cleared": true
     }
   ],
   "cell_count": 100,
-  "status": "protocol_only_until_operator_and_machine_are_declared"
+  "status": "declared_before_run",
+  "budget": {
+    "wall_clock_seconds": 50400,
+    "estimated_seconds": 47056,
+    "estimate_basis": "235.28 seconds for five conditions, one seed, and 20 generations, scaled to 100 cells and 200 generations",
+    "stop_signal": "SIGINT"
+  }
 }
