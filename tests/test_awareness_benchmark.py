@@ -105,6 +105,18 @@ def test_controller_action_mapping_uses_stable_action_order() -> None:
     assert action_from_logits(logits) is Action.PROBE
 
 
+def test_learned_controller_rejects_wrong_action_head_shape() -> None:
+    params = init_learned_controller(seed=5, hidden=8)
+    params = {**params, "w_act": params["w_act"][..., :5]}
+    with pytest.raises(ValueError, match="action head"):
+        run_episode(
+            WorldKind.SOLVABLE,
+            seed=3,
+            policy="learned",
+            controller_params=params,
+        )
+
+
 def test_learned_controller_rollout_is_deterministic_and_covers_ladder() -> None:
     params = init_learned_controller(seed=5, hidden=8)
     first = {
