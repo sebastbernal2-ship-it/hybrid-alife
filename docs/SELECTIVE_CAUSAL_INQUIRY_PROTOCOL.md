@@ -32,6 +32,10 @@ Connect the ladder's hidden-rule semantics to real simulator rollouts without ex
 The bridge must preserve probe cost, targeted probes, reversal timing, nuisance surface changes, deceptive cues, impossible outcomes, and non-identifiability.
 A field-discovery result alone cannot substitute for this bridge because field direction and hidden-rule inquiry are different tasks.
 
+The current proxy bundle is run with `scripts/run_causal_rollout.py`.
+It records agent-visible observations separately from evaluator-only flow labels and reports probe cost, alignment update, reversal latency, cue controls, and held-out surface transfer.
+These are proxy metrics because the simulator still lacks an explicit hidden-rule task.
+
 ### Stage 3: preregistered campaign
 
 Run at least ten seeds per condition and an independent replication only after the controller bridge passes its pilot gates.
@@ -94,7 +98,7 @@ PPO-POET fixed-policy transfer does not establish open-ended coevolution.
 
 - Stage 0 calibration exists and passes its current validity checks.
 - Stage 1 now has a deterministic recurrent-controller adapter and bounded trainer.
-- Stage 2 is not complete.
+- Stage 2 has a bounded flow-proxy rollout adapter, but the explicit hidden-rule bridge is not complete.
 - The HiperGator archive-control campaign is a separate supporting result and cannot replace Stage 2.
 - Adaptation-latency analysis for the archive campaign must be verified before it is reported as a primary metric.
 

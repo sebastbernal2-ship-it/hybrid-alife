@@ -42,13 +42,17 @@ def test_probe_reveals_solvable_rule_and_costs_reward() -> None:
     assert result["informative_probe_count"] == 1
     assert result["information_gain"] > 0.0
     assert result["probe_count"] == 1
+    assert result["probe_informative_rate"] == 1.0
     assert result["correct_exploit_rate"] == 1.0
+    assert result["pre_probe_prediction_accuracy"] is None
+    assert result["post_probe_prediction_accuracy"] == 1.0
 
 
 def test_impossible_world_has_no_informative_signal() -> None:
     result = run_episode(WorldKind.IMPOSSIBLE, seed=3, policy="probe_then_exploit")
     assert result["informative_probe_count"] == 0
     assert result["information_gain"] == 0.0
+    assert result["probe_informative_rate"] == 0.0
     assert result["structure_rate"] == 0.0
     assert result["abstain_rate"] > 0.0
 
