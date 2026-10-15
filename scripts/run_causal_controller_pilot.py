@@ -12,6 +12,7 @@ import numpy as np
 from hybrid_alife.experiments.causal_controller import (
     evaluate_causal_controller,
     train_causal_controller,
+    train_policy_gradient_controller,
 )
 from hybrid_alife.experiments.causal_task import BenchmarkConfig
 
@@ -22,7 +23,10 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--training-seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--horizon", type=int, default=8)
+    parser.add_argument("--trainer", choices=("evolution", "policy_gradient"), default="evolution")
     parser.add_argument("--training-generations", type=int, default=2)
+    parser.add_argument("--training-updates", type=int, default=8)
+    parser.add_argument("--episodes-per-update", type=int, default=12)
     parser.add_argument("--population-size", type=int, default=4)
     parser.add_argument("--controller-hidden", type=int, default=8)
     parser.add_argument(
@@ -35,15 +39,25 @@ def main() -> None:
     args = parser.parse_args()
 
     config = BenchmarkConfig(horizon=args.horizon)
-    params, training = train_causal_controller(
-        seed=args.seed,
-        training_seeds=tuple(args.training_seeds),
-        generations=args.training_generations,
-        population_size=args.population_size,
-        hidden=args.controller_hidden,
-        objective=args.objective,
-        config=config,
-    )
+    if args.trainer == "policy_gradient":
+        params, training = train_policy_gradient_controller(
+            seed=args.seed,
+            training_seeds=tuple(args.training_seeds),
+            updates=args.training_updates,
+            episodes_per_update=args.episodes_per_update,
+            hidden=args.controller_hidden,
+            config=config,
+        )
+    else:
+        params, training = train_causal_controller(
+            seed=args.seed,
+            training_seeds=tuple(args.training_seeds),
+            generations=args.training_generations,
+            population_size=args.population_size,
+            hidden=args.controller_hidden,
+            objective=args.objective,
+            config=config,
+        )
     evaluation = evaluate_causal_controller(
         params,
         seeds=tuple(args.seeds),
@@ -54,7 +68,10 @@ def main() -> None:
         "status": "pilot_only",
         "config": {
             "horizon": args.horizon,
+            "trainer": args.trainer,
             "training_generations": args.training_generations,
+            "training_updates": args.training_updates,
+            "episodes_per_update": args.episodes_per_update,
             "population_size": args.population_size,
             "controller_hidden": args.controller_hidden,
             "objective": args.objective,

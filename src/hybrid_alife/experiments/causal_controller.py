@@ -66,6 +66,154 @@ def _training_score(record: dict[str, Any], objective: str) -> float:
     raise ValueError(f"unknown training objective: {objective}")
 
 
+def _collect_policy_episode(
+    params: dict[str, jax.Array],
+    kind: WorldKind,
+    seed: int,
+    config: BenchmarkConfig,
+    key: jax.Array,
+    gamma: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    episode = CausalTaskEpisode(kind, seed, config)
+    hidden_size = int(params["w_xz"].shape[-1])
+    hidden = jnp.zeros((1, hidden_size), dtype=jnp.float32)
+    observations: list[np.ndarray] = []
+    action_indices: list[int] = []
+    rewards: list[float] = []
+    action_order = tuple(Action)
+    for _ in range(config.horizon):
+        visible = episode.agent_observation
+        encoded = encode_observation(visible, horizon=config.horizon)
+        raw, hidden = forward(params, jnp.asarray(encoded)[None, :], hidden, use_memory=True)
+        key, sample_key = jax.random.split(key)
+        index = int(jax.random.categorical(sample_key, raw[0]))
+        result = episode.step(action_order[index])
+        observations.append(encoded)
+        action_indices.append(index)
+        rewards.append(result.reward)
+    returns = np.zeros(len(rewards), dtype=np.float32)
+    running = 0.0
+    for index in range(len(rewards) - 1, -1, -1):
+        running = rewards[index] + gamma * running
+        returns[index] = running
+    return (
+        np.asarray(observations, dtype=np.float32),
+        np.asarray(action_indices, dtype=np.int32),
+        returns,
+        float(sum(rewards)),
+    )
+
+
+def _policy_gradient_loss(
+    params: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+    returns: jax.Array,
+    entropy_coef: float,
+) -> jax.Array:
+    hidden_size = params["w_xz"].shape[-1]
+    hidden = jnp.zeros((1, hidden_size), dtype=jnp.float32)
+    log_probs: list[jax.Array] = []
+    entropies: list[jax.Array] = []
+    for index in range(observations.shape[0]):
+        raw, hidden = forward(
+            params,
+            observations[index][None, :],
+            hidden,
+            use_memory=True,
+        )
+        logits = raw[0]
+        log_prob = jax.nn.log_softmax(logits)
+        probabilities = jax.nn.softmax(logits)
+        log_probs.append(log_prob[actions[index]])
+        entropies.append(-jnp.sum(probabilities * log_prob))
+    return -jnp.mean(jnp.asarray(log_probs) * returns) - entropy_coef * jnp.mean(
+        jnp.asarray(entropies)
+    )
+
+
+def train_policy_gradient_controller(
+    seed: int,
+    *,
+    training_seeds: tuple[int, ...] = (0, 1, 2),
+    training_worlds: tuple[WorldKind, ...] = tuple(WorldKind),
+    updates: int = 8,
+    episodes_per_update: int = 12,
+    hidden: int = 8,
+    learning_rate: float = 0.01,
+    entropy_coef: float = 0.01,
+    gamma: float = 1.0,
+    config: BenchmarkConfig | None = None,
+) -> tuple[dict[str, jax.Array], dict[str, Any]]:
+    """Train with REINFORCE and entropy regularization using task returns only."""
+    if not training_seeds:
+        raise ValueError("training_seeds must not be empty")
+    if not training_worlds:
+        raise ValueError("training_worlds must not be empty")
+    if updates < 1 or episodes_per_update < 1:
+        raise ValueError("updates and episodes_per_update must be positive")
+    if learning_rate <= 0 or entropy_coef < 0 or not 0 < gamma <= 1:
+        raise ValueError("invalid policy-gradient hyperparameters")
+    config = config or BenchmarkConfig()
+    params = init_learned_controller(seed, hidden=hidden)
+    specs = [
+        (kind, episode_seed)
+        for kind in training_worlds
+        for episode_seed in training_seeds
+    ]
+    master_key = jax.random.PRNGKey(seed + 70_000)
+    history: list[dict[str, float | int]] = []
+    for update in range(updates):
+        keys = jax.random.split(master_key, episodes_per_update + 1)
+        master_key = keys[0]
+        batches = [
+            _collect_policy_episode(
+                params,
+                *specs[index % len(specs)],
+                config,
+                keys[index + 1],
+                gamma,
+            )
+            for index in range(episodes_per_update)
+        ]
+        observations = np.concatenate([batch[0] for batch in batches])
+        actions = np.concatenate([batch[1] for batch in batches])
+        returns = np.concatenate([batch[2] for batch in batches])
+        returns = (returns - returns.mean()) / (returns.std() + 1e-6)
+        loss, gradients = jax.value_and_grad(_policy_gradient_loss)(
+            params,
+            jnp.asarray(observations),
+            jnp.asarray(actions),
+            jnp.asarray(returns),
+            entropy_coef,
+        )
+        params = jax.tree_util.tree_map(
+            lambda value, gradient: value - learning_rate * jnp.clip(gradient, -1.0, 1.0),
+            params,
+            gradients,
+        )
+        history.append(
+            {
+                "update": update,
+                "loss": float(loss),
+                "mean_return": float(np.mean([batch[3] for batch in batches])),
+            }
+        )
+    return params, {
+        "status": "pilot_only",
+        "trainer": "policy_gradient",
+        "seed": seed,
+        "updates": updates,
+        "episodes_per_update": episodes_per_update,
+        "learning_rate": learning_rate,
+        "entropy_coef": entropy_coef,
+        "gamma": gamma,
+        "training_seeds": list(training_seeds),
+        "training_worlds": [kind.value for kind in training_worlds],
+        "history": history,
+    }
+
+
 def run_causal_episode(
     kind: WorldKind | str,
     seed: int,
@@ -292,4 +440,5 @@ __all__ = [
     "evaluate_causal_controller",
     "run_causal_episode",
     "train_causal_controller",
+    "train_policy_gradient_controller",
 ]
