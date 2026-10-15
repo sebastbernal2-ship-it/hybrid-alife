@@ -18,6 +18,9 @@ An agent should probe when information is useful, use the discovered rule, adapt
 - `non_identifiable`: a generic probe is insufficient; a targeted probe is required.
 
 The actions are exploit A, exploit B, probe, abstain, and two targeted probes.
+`src/hybrid_alife/experiments/causal_task.py` owns the task wrapper.
+`CausalTaskEpisode.agent_observation` contains only controller-visible values.
+`StepResult.evaluator_labels` contains hidden-rule labels for scoring only.
 All transitions use fixed seeds and the benchmark has no third-party dependency.
 
 ## Validity gate

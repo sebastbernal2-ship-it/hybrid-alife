@@ -32,9 +32,12 @@ Connect the ladder's hidden-rule semantics to real simulator rollouts without ex
 The bridge must preserve probe cost, targeted probes, reversal timing, nuisance surface changes, deceptive cues, impossible outcomes, and non-identifiability.
 A field-discovery result alone cannot substitute for this bridge because field direction and hidden-rule inquiry are different tasks.
 
-The current proxy bundle is run with `scripts/run_causal_rollout.py`.
+The explicit hidden-rule task wrapper is now owned by `src/hybrid_alife/experiments/causal_task.py`.
+It separates `agent_observation` from `evaluator_labels` and supports targeted probes, abstention, reversals, deceptive cues, impossible outcomes, and non-identifiability.
+The real field simulator remains a separate proxy environment.
+The proxy bundle is run with `scripts/run_causal_rollout.py`.
 It records agent-visible observations separately from evaluator-only flow labels and reports probe cost, alignment update, reversal latency, cue controls, and held-out surface transfer.
-These are proxy metrics because the simulator still lacks an explicit hidden-rule task.
+These are proxy metrics because the field simulator is not yet wired to the explicit hidden-rule task.
 
 ### Stage 3: preregistered campaign
 
