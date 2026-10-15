@@ -43,6 +43,20 @@ def _controller_action(
     return action_from_logits(np.asarray(logits[0])), next_hidden
 
 
+def _training_score(record: dict[str, Any], objective: str) -> float:
+    if objective == "reward":
+        return float(record["total_reward"])
+    if objective == "inquiry_shaped":
+        redundant = record["probe_count"] - record["informative_probe_count"]
+        return float(
+            record["total_reward"]
+            + 0.5 * record["informative_probe_count"]
+            - 0.5 * redundant
+            + 0.5 * record["post_probe_correct_exploits"]
+        )
+    raise ValueError(f"unknown training objective: {objective}")
+
+
 def run_causal_episode(
     kind: WorldKind | str,
     seed: int,
@@ -76,12 +90,25 @@ def run_causal_episode(
     probes = sum(action in probe_actions for action in actions)
     informative = sum(item["informative_probe"] for item in evaluator_trace)
     correct = [item["correct"] for item in evaluator_trace if item["correct"] is not None]
+    informative_seen = False
+    post_probe_exploits = 0
+    post_probe_correct_exploits = 0
+    for action, label in zip(actions, evaluator_trace, strict=True):
+        if label["informative_probe"]:
+            informative_seen = True
+        if informative_seen and action in (Action.EXPLOIT_A.value, Action.EXPLOIT_B.value):
+            post_probe_exploits += 1
+            post_probe_correct_exploits += int(label["correct"] == 1)
     return {
         "world": WorldKind(kind).value,
         "seed": seed,
         "total_reward": float(sum(rewards)),
+        "probe_count": probes,
+        "informative_probe_count": informative,
         "probe_rate": float(probes / config.horizon),
         "probe_informative_rate": float(informative / probes) if probes else 0.0,
+        "post_probe_exploits": post_probe_exploits,
+        "post_probe_correct_exploits": post_probe_correct_exploits,
         "correct_exploit_rate": float(np.mean(correct)) if correct else 0.0,
         "abstain_rate": float(actions.count(Action.ABSTAIN.value) / config.horizon),
         "agent_trace": agent_trace,
@@ -98,6 +125,7 @@ def train_causal_controller(
     population_size: int = 4,
     hidden: int = 8,
     mutation_scale: float = 0.05,
+    objective: str = "reward",
     config: BenchmarkConfig | None = None,
 ) -> tuple[dict[str, jax.Array], dict[str, Any]]:
     """Optimize bounded ladder reward without exposing evaluator labels."""
@@ -107,6 +135,8 @@ def train_causal_controller(
         raise ValueError("generations must be positive and population_size at least two")
     if mutation_scale <= 0:
         raise ValueError("mutation_scale must be positive")
+    if objective not in {"reward", "inquiry_shaped"}:
+        raise ValueError(f"unknown training objective: {objective}")
     config = config or BenchmarkConfig()
     population = [
         init_learned_controller(seed + index, hidden=hidden)
@@ -118,7 +148,10 @@ def train_causal_controller(
             [
                 np.mean(
                     [
-                        run_causal_episode(kind, episode_seed, params, config)["total_reward"]
+                        _training_score(
+                            run_causal_episode(kind, episode_seed, params, config),
+                            objective,
+                        )
                         for kind in training_worlds
                         for episode_seed in training_seeds
                     ]
@@ -146,6 +179,7 @@ def train_causal_controller(
         "population_size": population_size,
         "training_seeds": list(training_seeds),
         "training_worlds": [kind.value for kind in training_worlds],
+        "objective": objective,
         "history": history,
     }
 

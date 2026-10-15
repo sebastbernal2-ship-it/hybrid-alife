@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from hybrid_alife.experiments.causal_controller import (
     evaluate_causal_controller,
     run_causal_episode,
@@ -39,3 +41,30 @@ def test_causal_controller_evaluation_has_all_worlds_and_baselines() -> None:
     assert set(result["learned"]) == {kind.value for kind in WorldKind}
     assert {"oracle", "random", "abstain", "cue"} <= set(result["baselines"])
     assert result["status"] == "pilot_only"
+
+
+def test_inquiry_shaped_training_is_explicit_and_deterministic() -> None:
+    kwargs = {
+        "seed": 9,
+        "training_seeds": (0,),
+        "generations": 1,
+        "population_size": 2,
+        "config": BenchmarkConfig(horizon=6),
+        "objective": "inquiry_shaped",
+    }
+    first, first_meta = train_causal_controller(**kwargs)
+    second, second_meta = train_causal_controller(**kwargs)
+    assert first_meta == second_meta
+    assert first_meta["objective"] == "inquiry_shaped"
+    for name in first:
+        assert (first[name] == second[name]).all()
+
+
+def test_unknown_training_objective_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown training objective"):
+        train_causal_controller(
+            seed=1,
+            generations=1,
+            population_size=2,
+            objective="oracle_labels",
+        )

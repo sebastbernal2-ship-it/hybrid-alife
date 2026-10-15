@@ -25,6 +25,12 @@ def main() -> None:
     parser.add_argument("--training-generations", type=int, default=2)
     parser.add_argument("--population-size", type=int, default=4)
     parser.add_argument("--controller-hidden", type=int, default=8)
+    parser.add_argument(
+        "--objective",
+        choices=("reward", "inquiry_shaped"),
+        default="reward",
+        help="Training selector; inquiry_shaped uses evaluator-only shaping.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -35,6 +41,7 @@ def main() -> None:
         generations=args.training_generations,
         population_size=args.population_size,
         hidden=args.controller_hidden,
+        objective=args.objective,
         config=config,
     )
     evaluation = evaluate_causal_controller(
@@ -50,6 +57,7 @@ def main() -> None:
             "training_generations": args.training_generations,
             "population_size": args.population_size,
             "controller_hidden": args.controller_hidden,
+            "objective": args.objective,
             "evaluation_seeds": args.seeds,
         },
         "training": training,

@@ -36,6 +36,9 @@ The explicit hidden-rule task wrapper is now owned by `src/hybrid_alife/experime
 It separates `agent_observation` from `evaluator_labels` and supports targeted probes, abstention, reversals, deceptive cues, impossible outcomes, and non-identifiability.
 The bounded learned-controller pilot is owned by `src/hybrid_alife/experiments/causal_controller.py` and runs with `scripts/run_causal_controller_pilot.py`.
 It compares the learned controller with oracle, random, abstain, and cue-only controls.
+The `reward` objective is the baseline.
+The `inquiry_shaped` objective is an evaluator-shaped ablation that adds informative-probe and post-probe exploitation terms during training selection.
+It is not valid evidence of autonomous inquiry because the selector receives evaluator labels.
 Pilot artifacts remain diagnostic and are marked `pilot_only`.
 The real field simulator remains a separate proxy environment.
 The proxy bundle is run with `scripts/run_causal_rollout.py`.
