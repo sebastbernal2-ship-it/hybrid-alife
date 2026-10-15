@@ -34,6 +34,21 @@ It requires that:
 The gate checks environment mechanics.
 It does not show that a learned hybrid-alife controller can use them.
 
+## Learned-controller path
+
+The benchmark also exposes a recurrent controller adapter through
+`init_learned_controller`, `run_episode(..., policy="learned")`, and
+`train_controller`.
+The adapter encodes only step, surface, cue presence, and probe-result presence.
+It maps six controller outputs to the six declared actions.
+The bounded trainer selects mutated controller genomes by ladder reward.
+This is a controller-backed benchmark check, not simulator training or evidence
+of selective causal inquiry.
+
+Use the learned path only after the validity gate passes.
+Report each world separately with probe rate, informative probes, reward,
+correct exploitation, reversal recovery, and abstention.
+
 ## Command
 
 ```bash
