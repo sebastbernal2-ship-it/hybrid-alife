@@ -178,7 +178,10 @@ def train_policy_gradient_controller(
         ]
         observations = np.concatenate([batch[0] for batch in batches])
         actions = np.concatenate([batch[1] for batch in batches])
-        returns = np.concatenate([batch[2] for batch in batches])
+        return_matrix = np.stack([batch[2] for batch in batches])
+        baseline = return_matrix.mean(axis=0, keepdims=True)
+        advantages = return_matrix - baseline
+        returns = advantages.reshape(-1)
         returns = (returns - returns.mean()) / (returns.std() + 1e-6)
         loss, gradients = jax.value_and_grad(_policy_gradient_loss)(
             params,
@@ -202,6 +205,7 @@ def train_policy_gradient_controller(
     return params, {
         "status": "pilot_only",
         "trainer": "policy_gradient",
+        "baseline": "batch_timestep_mean",
         "seed": seed,
         "updates": updates,
         "episodes_per_update": episodes_per_update,

@@ -88,6 +88,7 @@ def test_policy_gradient_training_is_seed_deterministic() -> None:
     second, second_meta = train_policy_gradient_controller(**kwargs)
     assert first_meta == second_meta
     assert first_meta["trainer"] == "policy_gradient"
+    assert first_meta["baseline"] == "batch_timestep_mean"
     for name in first:
         assert (first[name] == second[name]).all()
 
