@@ -111,10 +111,13 @@ Use representation probes only as a separate optional analysis.
 
 ## Current project mapping
 
+- `latent_law_task.py` is the first gravity-like latent-law calibration task.
+- It logs no-revelation, demonstration, noisy-hint, symbolic-message, and no-benefit treatments.
 - `causal_task.py` is an abstract hidden-rule calibration task.
 - `causal_controller.py` is a controller-training calibration path.
 - `run_causal_rollout.py` is a field-flow proxy, not the gravity task.
 - PPO-POET archive controls are a supporting archive question.
+- The latent-law task is calibration infrastructure, not learned-organism evidence.
 - None of these currently establishes the original organism-in-a-world result.
 
 ## Final claim boundary
