@@ -112,24 +112,29 @@ def _policy_gradient_loss(
     entropy_coef: float,
 ) -> jax.Array:
     hidden_size = params["w_xz"].shape[-1]
-    hidden = jnp.zeros((1, hidden_size), dtype=jnp.float32)
-    log_probs: list[jax.Array] = []
-    entropies: list[jax.Array] = []
-    for index in range(observations.shape[0]):
-        raw, hidden = forward(
+    initial_hidden = jnp.zeros((1, hidden_size), dtype=jnp.float32)
+
+    def step(hidden: jax.Array, inputs: tuple[jax.Array, jax.Array]):
+        observation, action = inputs
+        raw, next_hidden = forward(
             params,
-            observations[index][None, :],
+            observation[None, :],
             hidden,
             use_memory=True,
         )
         logits = raw[0]
         log_prob = jax.nn.log_softmax(logits)
         probabilities = jax.nn.softmax(logits)
-        log_probs.append(log_prob[actions[index]])
-        entropies.append(-jnp.sum(probabilities * log_prob))
-    return -jnp.mean(jnp.asarray(log_probs) * returns) - entropy_coef * jnp.mean(
-        jnp.asarray(entropies)
+        selected = log_prob[action]
+        entropy = -jnp.sum(probabilities * log_prob)
+        return next_hidden, (selected, entropy)
+
+    _, (log_probs, entropies) = jax.lax.scan(
+        step,
+        initial_hidden,
+        (observations, actions),
     )
+    return -jnp.mean(log_probs * returns) - entropy_coef * jnp.mean(entropies)
 
 
 def train_policy_gradient_controller(
@@ -163,6 +168,7 @@ def train_policy_gradient_controller(
     ]
     master_key = jax.random.PRNGKey(seed + 70_000)
     history: list[dict[str, float | int]] = []
+    loss_and_grad = jax.jit(jax.value_and_grad(_policy_gradient_loss))
     for update in range(updates):
         keys = jax.random.split(master_key, episodes_per_update + 1)
         master_key = keys[0]
@@ -183,7 +189,7 @@ def train_policy_gradient_controller(
         advantages = return_matrix - baseline
         returns = advantages.reshape(-1)
         returns = (returns - returns.mean()) / (returns.std() + 1e-6)
-        loss, gradients = jax.value_and_grad(_policy_gradient_loss)(
+        loss, gradients = loss_and_grad(
             params,
             jnp.asarray(observations),
             jnp.asarray(actions),
@@ -206,6 +212,7 @@ def train_policy_gradient_controller(
         "status": "pilot_only",
         "trainer": "policy_gradient",
         "baseline": "batch_timestep_mean",
+        "jax_loss_jitted": True,
         "seed": seed,
         "updates": updates,
         "episodes_per_update": episodes_per_update,

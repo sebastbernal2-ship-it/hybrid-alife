@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--training-seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--horizon", type=int, default=8)
+    parser.add_argument("--probe-accuracy", type=float, default=1.0)
     parser.add_argument("--trainer", choices=("evolution", "policy_gradient"), default="evolution")
     parser.add_argument("--training-generations", type=int, default=2)
     parser.add_argument("--training-updates", type=int, default=8)
@@ -38,7 +39,10 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    config = BenchmarkConfig(horizon=args.horizon)
+    config = BenchmarkConfig(
+        horizon=args.horizon,
+        probe_accuracy=args.probe_accuracy,
+    )
     if args.trainer == "policy_gradient":
         params, training = train_policy_gradient_controller(
             seed=args.seed,
@@ -68,6 +72,7 @@ def main() -> None:
         "status": "pilot_only",
         "config": {
             "horizon": args.horizon,
+            "probe_accuracy": args.probe_accuracy,
             "trainer": args.trainer,
             "training_generations": args.training_generations,
             "training_updates": args.training_updates,

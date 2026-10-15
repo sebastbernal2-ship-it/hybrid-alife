@@ -37,6 +37,7 @@ class BenchmarkConfig:
     horizon: int = 8
     reversal_step: int = 4
     probe_cost: float = 0.1
+    probe_accuracy: float = 1.0
     correct_reward: float = 1.0
     incorrect_reward: float = -1.0
 
@@ -47,6 +48,8 @@ class BenchmarkConfig:
             raise ValueError("reversal_step must be inside the episode")
         if self.probe_cost < 0:
             raise ValueError("probe_cost must be non-negative")
+        if not 0.5 <= self.probe_accuracy <= 1.0:
+            raise ValueError("probe_accuracy must be between 0.5 and 1.0")
 
 
 @dataclass(frozen=True)
@@ -125,7 +128,11 @@ class CausalTaskEpisode:
             and (action is Action.TARGETED_A) == bool(self.probe_target)
         ):
             return None, False
-        return rule, rule is not None
+        if rule is None:
+            return None, False
+        if self.config.probe_accuracy < 1.0 and self._rng.random() >= self.config.probe_accuracy:
+            return 1 - rule, True
+        return rule, True
 
     def step(self, action: Action | str) -> StepResult:
         action = Action(action)

@@ -44,6 +44,8 @@ It does not receive hidden-rule labels, but it remains a training-selection abla
 The policy-gradient pilot currently over-probes and fails impossible-world abstention, so it does not pass the selective-inquiry gate.
 The contract audit in `tests/test_causal_contract_audit.py` passes for impossible-world expected rewards, deceptive-cue separation, probe timing and cost, and one-step policy-gradient direction.
 The policy-gradient trainer now uses a batch timestep value baseline.
+Its recurrent loss uses `jax.lax.scan`, `jax.value_and_grad`, and `jax.jit`.
+The task supports a declared probe accuracy from 0.5 to 1.0, so probe evidence can be noisy without exposing the hidden rule.
 The baseline pilot still over-probes and fails impossible-world abstention.
 This localizes the remaining failure to the learning objective or credit assignment rather than an immediate task-contract defect.
 Pilot artifacts remain diagnostic and are marked `pilot_only`.

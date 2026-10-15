@@ -89,6 +89,7 @@ def test_policy_gradient_training_is_seed_deterministic() -> None:
     assert first_meta == second_meta
     assert first_meta["trainer"] == "policy_gradient"
     assert first_meta["baseline"] == "batch_timestep_mean"
+    assert first_meta["jax_loss_jitted"] is True
     for name in first:
         assert (first[name] == second[name]).all()
 
