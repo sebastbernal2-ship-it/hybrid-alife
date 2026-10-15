@@ -42,6 +42,8 @@ The `inquiry_shaped` objective is an evaluator-shaped ablation that adds informa
 The `value_of_information` objective uses only episode returns to reward positive post-probe return gain, penalize negative gain, and penalize repeated probes.
 It does not receive hidden-rule labels, but it remains a training-selection ablation rather than evidence of autonomous inquiry.
 The policy-gradient pilot currently over-probes and fails impossible-world abstention, so it does not pass the selective-inquiry gate.
+The contract audit in `tests/test_causal_contract_audit.py` passes for impossible-world expected rewards, deceptive-cue separation, probe timing and cost, and one-step policy-gradient direction.
+This localizes the remaining failure to learning and credit assignment rather than an immediate task-contract defect.
 Pilot artifacts remain diagnostic and are marked `pilot_only`.
 The real field simulator remains a separate proxy environment.
 The proxy bundle is run with `scripts/run_causal_rollout.py`.
