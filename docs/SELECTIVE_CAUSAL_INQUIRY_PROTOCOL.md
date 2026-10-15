@@ -34,6 +34,9 @@ A field-discovery result alone cannot substitute for this bridge because field d
 
 The explicit hidden-rule task wrapper is now owned by `src/hybrid_alife/experiments/causal_task.py`.
 It separates `agent_observation` from `evaluator_labels` and supports targeted probes, abstention, reversals, deceptive cues, impossible outcomes, and non-identifiability.
+The bounded learned-controller pilot is owned by `src/hybrid_alife/experiments/causal_controller.py` and runs with `scripts/run_causal_controller_pilot.py`.
+It compares the learned controller with oracle, random, abstain, and cue-only controls.
+Pilot artifacts remain diagnostic and are marked `pilot_only`.
 The real field simulator remains a separate proxy environment.
 The proxy bundle is run with `scripts/run_causal_rollout.py`.
 It records agent-visible observations separately from evaluator-only flow labels and reports probe cost, alignment update, reversal latency, cue controls, and held-out surface transfer.
