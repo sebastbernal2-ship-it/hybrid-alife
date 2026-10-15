@@ -1,12 +1,15 @@
 # Selective causal inquiry protocol
 
 This document owns the evidence contract for the hybrid-alife causal-inquiry program.
+`docs/RESEARCH_ALIGNMENT.md` owns the original research question and claim boundary.
+This document turns that question into testable stages and controls.
 It does not make consciousness claims.
 
-## Primary claim
+## Operational claim
 
-A learned controller selectively uses interventions to discover hidden causal rules.
-It should probe when expected information value exceeds probe cost, exploit a learned rule, adapt after reversal, transfer across surface changes, resist deceptive cues, and abstain when no stable rule exists.
+An artificial organism behaviorally exploits and adapts to an imposed environmental regularity through interaction.
+The organism may use a regularity without an explicit symbolic representation.
+The regularity may be exposed through ordinary consequences or a declared revelation treatment.
 
 PPO-POET archive transfer is a supporting question.
 It asks whether archive contents improve held-out adaptation rather than only increasing search exposure.
