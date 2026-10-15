@@ -336,6 +336,9 @@ def _run_episode(
     probe_count = 0
     informative_probe_count = 0
     first_post_reversal_correct: int | None = None
+    pre_probe_prediction_accuracy: float | None = None
+    post_probe_prediction_accuracy: float | None = None
+    informative_probe_seen = False
     initial_rule = episode.current_rule
     for _ in range(config.horizon):
         if controller_params is not None:
@@ -354,9 +357,14 @@ def _run_episode(
         if action in (Action.EXPLOIT_A, Action.EXPLOIT_B):
             exploit_count += 1
             correct_exploits += int(result.correct is True)
+            if informative_probe_seen and post_probe_prediction_accuracy is None:
+                post_probe_prediction_accuracy = float(result.correct is True)
+            elif not informative_probe_seen and pre_probe_prediction_accuracy is None:
+                pre_probe_prediction_accuracy = float(result.correct is True)
         if action in (Action.PROBE, Action.TARGETED_A, Action.TARGETED_B):
             probe_count += 1
             informative_probe_count += int(result.informative_probe)
+            informative_probe_seen = informative_probe_seen or result.informative_probe
         if (
             kind is WorldKind.REVERSAL
             and episode.step_index > config.reversal_step
@@ -374,7 +382,12 @@ def _run_episode(
         "probe_count": probe_count,
         "probe_rate": float(probe_count / config.horizon),
         "informative_probe_count": informative_probe_count,
+        "probe_informative_rate": (
+            float(informative_probe_count / probe_count) if probe_count else 0.0
+        ),
         "information_gain": float(informative_probe_count),
+        "pre_probe_prediction_accuracy": pre_probe_prediction_accuracy,
+        "post_probe_prediction_accuracy": post_probe_prediction_accuracy,
         "correct_exploit_rate": float(correct_exploits / exploit_count) if exploit_count else 0.0,
         "structure_rate": float(exploit_count / config.horizon),
         "abstain_rate": float(
