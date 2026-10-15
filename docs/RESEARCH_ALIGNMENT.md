@@ -118,6 +118,8 @@ Use representation probes only as a separate optional analysis.
 - `run_causal_rollout.py` is a field-flow proxy, not the gravity task.
 - PPO-POET archive controls are a supporting archive question.
 - The latent-law task is calibration infrastructure, not learned-organism evidence.
+- `latent_law_controller.py` now provides a bounded JAX policy-gradient calibration trainer.
+- Its first smoke remains calibration-only and does not show revelation use or gravity exploitation.
 - None of these currently establishes the original organism-in-a-world result.
 
 ## Final claim boundary
