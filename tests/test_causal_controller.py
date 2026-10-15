@@ -60,6 +60,21 @@ def test_inquiry_shaped_training_is_explicit_and_deterministic() -> None:
         assert (first[name] == second[name]).all()
 
 
+def test_value_of_information_uses_observed_post_probe_gain() -> None:
+    params, metadata = train_causal_controller(
+        seed=11,
+        training_seeds=(0,),
+        generations=1,
+        population_size=2,
+        objective="value_of_information",
+        config=BenchmarkConfig(horizon=6),
+    )
+    result = run_causal_episode(WorldKind.SOLVABLE, 0, params, BenchmarkConfig(horizon=6))
+    assert metadata["objective"] == "value_of_information"
+    assert "post_probe_return_gain" in result
+    assert "hidden_rule" not in result["agent_trace"][0]
+
+
 def test_unknown_training_objective_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown training objective"):
         train_causal_controller(

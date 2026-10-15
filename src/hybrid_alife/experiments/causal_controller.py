@@ -54,6 +54,15 @@ def _training_score(record: dict[str, Any], objective: str) -> float:
             - 0.5 * redundant
             + 0.5 * record["post_probe_correct_exploits"]
         )
+    if objective == "value_of_information":
+        gain = float(record["post_probe_return_gain"])
+        redundant = max(record["probe_count"] - 1, 0)
+        return float(
+            record["total_reward"]
+            + 0.5 * max(gain, 0.0)
+            - 0.25 * max(-gain, 0.0)
+            - 0.25 * redundant
+        )
     raise ValueError(f"unknown training objective: {objective}")
 
 
@@ -90,6 +99,26 @@ def run_causal_episode(
     probes = sum(action in probe_actions for action in actions)
     informative = sum(item["informative_probe"] for item in evaluator_trace)
     correct = [item["correct"] for item in evaluator_trace if item["correct"] is not None]
+    first_probe = next(
+        (index for index, action in enumerate(actions) if action in probe_actions),
+        None,
+    )
+    if first_probe is None:
+        post_probe_return_gain = 0.0
+    else:
+        pre_rewards = rewards[:first_probe]
+        post_end = next(
+            (
+                index
+                for index in range(first_probe + 1, len(actions))
+                if actions[index] in probe_actions
+            ),
+            len(actions),
+        )
+        post_rewards = rewards[first_probe + 1 : post_end]
+        pre_mean = float(np.mean(pre_rewards)) if pre_rewards else 0.0
+        post_mean = float(np.mean(post_rewards)) if post_rewards else 0.0
+        post_probe_return_gain = post_mean - pre_mean
     informative_seen = False
     post_probe_exploits = 0
     post_probe_correct_exploits = 0
@@ -109,6 +138,7 @@ def run_causal_episode(
         "probe_informative_rate": float(informative / probes) if probes else 0.0,
         "post_probe_exploits": post_probe_exploits,
         "post_probe_correct_exploits": post_probe_correct_exploits,
+        "post_probe_return_gain": post_probe_return_gain,
         "correct_exploit_rate": float(np.mean(correct)) if correct else 0.0,
         "abstain_rate": float(actions.count(Action.ABSTAIN.value) / config.horizon),
         "agent_trace": agent_trace,
@@ -135,7 +165,7 @@ def train_causal_controller(
         raise ValueError("generations must be positive and population_size at least two")
     if mutation_scale <= 0:
         raise ValueError("mutation_scale must be positive")
-    if objective not in {"reward", "inquiry_shaped"}:
+    if objective not in {"reward", "inquiry_shaped", "value_of_information"}:
         raise ValueError(f"unknown training objective: {objective}")
     config = config or BenchmarkConfig()
     population = [

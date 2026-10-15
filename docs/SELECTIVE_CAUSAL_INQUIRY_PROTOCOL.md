@@ -38,7 +38,8 @@ The bounded learned-controller pilot is owned by `src/hybrid_alife/experiments/c
 It compares the learned controller with oracle, random, abstain, and cue-only controls.
 The `reward` objective is the baseline.
 The `inquiry_shaped` objective is an evaluator-shaped ablation that adds informative-probe and post-probe exploitation terms during training selection.
-It is not valid evidence of autonomous inquiry because the selector receives evaluator labels.
+The `value_of_information` objective uses only episode returns to reward positive post-probe return gain, penalize negative gain, and penalize repeated probes.
+It does not receive hidden-rule labels, but it remains a training-selection ablation rather than evidence of autonomous inquiry.
 Pilot artifacts remain diagnostic and are marked `pilot_only`.
 The real field simulator remains a separate proxy environment.
 The proxy bundle is run with `scripts/run_causal_rollout.py`.

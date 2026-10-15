@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument("--controller-hidden", type=int, default=8)
     parser.add_argument(
         "--objective",
-        choices=("reward", "inquiry_shaped"),
+        choices=("reward", "inquiry_shaped", "value_of_information"),
         default="reward",
         help="Training selector; inquiry_shaped uses evaluator-only shaping.",
     )
