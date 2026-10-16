@@ -267,6 +267,33 @@ So the organism recovers the imposed law from exposure, infers it on directions 
 Plain REINFORCE does not reach this: it collapses to a fixed thrust direction, scoring strongly positive on one direction and strongly negative on the opposite.
 That limitation is pinned by `test_plain_reinforce_collapses_to_a_fixed_direction`.
 
+## Simulator bridge: partial transfer (calibration only)
+
+`latent_law_simulator.py` asks the same question inside the real shared world.
+The law is the simulator's own `flow` field: the world is built by `initialize_world`, a uniform flow is imposed, and every step calls the real `step_world`, which preserves the flow when `drifting=False`.
+A point organism reads the law from the world state at its own cell, feels it as a force, and uses the same observation, reward, and reward-weighted-regression learner as the calibration study.
+Avida is disabled.
+
+This is not the evolved embodied GRU controller.
+It is a minimal organism inside the real world state, so the law comes from the simulator rather than a standalone environment.
+
+Held-out gate on four unseen diagonal flow directions, five seeds:
+
+| Training directions | Seeds passing | Worst-direction mean | Worst single direction |
+| --- | --- | --- | --- |
+| four cardinals | 1 of 5 | +2.77 | +0.20 |
+| dense, diagonals held out | 3 of 5 | +7.50 | +4.06 |
+
+Dense training uses angles every `22.5` degrees and holds out the four `45` degree diagonals, which are never trained on.
+
+So the average capability transfers to the real world state: mean reward across directions stays near `+9` with the oracle at `+12`.
+Per-direction reliability does not yet match the calibration world, which reached five of five seeds at worst-direction `+9.94`.
+Failures are a single weak direction rather than a collapse, and that direction differs per seed.
+
+Status: partial transfer.
+The simulator bridge reproduces the behavior on average but not yet reliably on every held-out direction.
+The next step is to close that reliability gap, most likely through observation feature scaling or a stronger fit regulariser, before this can be reported as a simulator-backed demonstration.
+
 ## Claim boundary for this result
 
 Supported: in this calibration world, an artificial organism learns to exploit an imposed gravity-like law through exposure alone, and generalises it to held-out directions.

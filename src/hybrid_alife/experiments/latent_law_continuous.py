@@ -311,7 +311,7 @@ def train_continuous_policy_rwr(
         # Repeat each episode's weight across its steps.
         steps = observations[0].shape[0]
         step_weights = np.repeat(weights, steps)
-        policy = _weighted_least_squares(
+        policy = fit_linear_thrust_policy(
             stacked_observations, stacked_actions, step_weights, ridge
         )
         history.append(
@@ -336,7 +336,7 @@ def train_continuous_policy_rwr(
     }
 
 
-def _weighted_least_squares(
+def fit_linear_thrust_policy(
     observations: np.ndarray,
     actions: np.ndarray,
     weights: np.ndarray,
@@ -388,6 +388,7 @@ __all__ = [
     "init_continuous_policy",
     "per_direction_continuous_rewards",
     "run_continuous_episode",
+    "fit_linear_thrust_policy",
     "train_continuous_policy",
     "train_continuous_policy_rwr",
 ]
