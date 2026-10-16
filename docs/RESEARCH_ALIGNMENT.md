@@ -268,14 +268,61 @@ The per-direction breakdown for one trained policy is:
 | (-0.141, 0.141) | +4.24 | move right 3 steps, then up 9 steps |
 | (-0.141, -0.141) | -8.49 | move right, all 12 steps |
 
-The policy detects gravity on one held-out direction and fails badly on another.
-Its positive mean comes from a fixed rightward bias plus symmetric cancellation, not from reliable inference.
-Averaging over antipodal directions hides a catastrophic per-direction failure, so per-direction results are the only sound report.
+Those argmax numbers come from a policy whose deterministic mode is uninformative.
+The section below corrects the picture.
 
-The recurrent actor-critic scores `0.00` on the same task, so the linear policy is the stronger learner here.
+## Proprioception removes the inference gap
 
-Status: gravity exploitation is still not demonstrated.
-The task is now well posed, and the learner shows a small amount of genuine adaptation on one held-out direction.
+The observation was extended with the organism's own recent state: `previous_velocity` and `previous_thrust`.
+Both are the organism's own physical state, never evaluator labels.
+Gravity is then exactly recoverable, because
+
+```text
+velocity - friction * previous_velocity - acceleration * previous_thrust = gravity
+```
+
+This identity is asserted by `test_gravity_is_exactly_recoverable_from_self_state` and `previous_*` never leaks `gravity_vector`.
+
+## The policy class, reward, and observation are all sufficient
+
+A hand-built linear policy that computes gravity by that identity and then thrusts along it scores exactly `+11.00` on all six directions, cardinal and diagonal.
+The scripted evaluator oracle scores `+12.00` because it already knows gravity at step zero; an agent that must discover gravity from experience can reach `+11`.
+
+This proves the task is fully solvable with the current observation, reward, and policy class.
+A failure to find it is a learner or deployment problem, not a task or feature problem.
+
+## The learner does work, but the discretisation breaks the mode
+
+Measured expected return of the **sampled** policy, which is what REINFORCE actually optimises:
+
+| Policy | Train directions | Held-out diagonals |
+| --- | --- | --- |
+| initial (near uniform) | -0.01 | - |
+| trained | +5.98 | +5.71 |
+
+So the organism does extract gravity direction from exposure and does generalise it to directions it never trained on.
+Constant-action baselines score exactly `0.00` on those symmetric diagonals.
+
+But the deterministic mode of that policy is uninformative:
+
+| Held-out gravity | Argmax reward | Sampled reward |
+| --- | --- | --- |
+| (0.141, -0.141) | +8.49 | positive |
+| (0.141, 0.141) | +8.49 | positive |
+| (-0.141, 0.141) | +2.83 | positive |
+| (-0.141, -0.141) | -8.49 | positive |
+
+Entropy annealing to `0.0` does not sharpen it: the argmax stays a fixed action while the sampled policy keeps scoring about `+5.9`.
+
+The policy learns a broad mixed strategy whose mean is good and whose mode is arbitrary.
+With nine discrete actions and per-step rewards in `[-1, +1]`, many distributions achieve similar expected return, so the mode carries no information.
+That is a **mode-versus-mean** problem caused by the discrete action set, not a learning failure.
+
+Status: gravity-direction information is extracted from exposure and generalises to unseen directions, with expected return about `+6` of a possible `+11`, against `0.00` for every constant-action policy.
+The deployed deterministic policy is not yet decisive.
+
+Recommended next step: replace the nine discrete thrust actions with a **continuous two-dimensional thrust**, so the policy has a single mean direction and deterministic deployment is the mean.
+The reward `dot(thrust, gravity_hat)` is then maximised by thrusting exactly along gravity, with no mode ambiguity.
 
 The movement-rate detection metric belongs to the target and no-benefit framing.
 Under the displacement reward the organism thrusts every step in both conditions, so the appropriate detection measure is an alignment difference, not a movement difference.

@@ -190,3 +190,39 @@ def test_displacement_oracle_beats_rest_on_cardinals_and_diagonals() -> None:
         )
         assert rest_total == 0.0
         assert oracle_total > 10.0, (direction, oracle_total)
+
+
+def test_observation_exposes_recent_self_state_for_inference() -> None:
+    """The organism may know its own last action and velocity (proprioception)."""
+    config = GravityConfig(horizon=3, gravity_choices=((0.0, -0.2),))
+    episode = GravityEpisode(seed=1, treatment=Treatment.NO_REVELATION, config=config)
+    observation = episode.agent_observation
+    assert observation["previous_velocity"] == (0.0, 0.0)
+    assert observation["previous_thrust"] == (0.0, 0.0)
+    episode.step(Action.MOVE_DOWN)
+    next_observation = episode.agent_observation
+    assert next_observation["previous_thrust"] == (0.0, -1.0)
+    # previous_velocity is the velocity carried into the step just taken.
+    assert next_observation["previous_velocity"] == (0.0, 0.0)
+    episode.step(Action.MOVE_DOWN)
+    third_observation = episode.agent_observation
+    assert third_observation["previous_velocity"] != (0.0, 0.0)
+    # Gravity itself must still never appear.
+    assert "gravity_vector" not in next_observation
+
+
+def test_gravity_is_exactly_recoverable_from_self_state() -> None:
+    """velocity - friction * previous_velocity - accel * previous_thrust == gravity."""
+    config = GravityConfig(horizon=3, gravity_choices=((0.14142, -0.14142),))
+    episode = GravityEpisode(seed=2, treatment=Treatment.NO_REVELATION, config=config)
+    episode.step(Action.MOVE_UP_LEFT)
+    observation = episode.agent_observation
+    velocity = np.asarray(observation["velocity"])
+    previous_velocity = np.asarray(observation["previous_velocity"])
+    previous_thrust = np.asarray(observation["previous_thrust"])
+    recovered = (
+        velocity
+        - config.surface_friction * previous_velocity
+        - config.action_acceleration * previous_thrust
+    )
+    assert np.allclose(recovered, np.asarray(episode.gravity_vector), atol=1e-9)

@@ -17,7 +17,7 @@ from hybrid_alife.experiments.latent_law_task import (
     Treatment,
 )
 
-OBS_DIM = 13
+OBS_DIM = 17
 _ACTIONS = tuple(Action)
 
 
@@ -44,6 +44,12 @@ def encode_gravity_observation(observation: dict[str, Any], horizon: int) -> np.
             float(content_x),
             float(content_y),
             float(revelation.get("reliability", 0.0)),
+            # Proprioception. Gravity is exactly recoverable as
+            # velocity - friction * previous_velocity - accel * previous_thrust,
+            # which is a linear function of these features. Every entry is the
+            # organism's own state, never an evaluator label.
+            *observation["previous_velocity"],
+            *observation["previous_thrust"],
         ],
         dtype=np.float32,
     )
@@ -584,6 +590,75 @@ def train_gravity_actor_critic(
     }
 
 
+def per_direction_rewards(
+    params: dict[str, jax.Array],
+    directions: tuple[tuple[float, float], ...],
+    seeds: tuple[int, ...],
+    *,
+    horizon: int = 12,
+    treatment: Treatment = Treatment.NO_REVELATION,
+) -> dict[str, float]:
+    """Held-out reward reported separately for each gravity direction.
+
+    This is the primary metric. Averaging over antipodal directions lets a
+    fixed-action policy look positive while failing badly on some directions,
+    so per-direction results must never be collapsed into a single mean.
+    """
+    scores: dict[str, float] = {}
+    for direction in directions:
+        config = GravityConfig(horizon=horizon, gravity_choices=(direction,))
+        values = [
+            run_gravity_episode(seed, treatment, params, config)["total_reward"]
+            for seed in seeds
+        ]
+        scores[str(direction)] = float(np.mean(values))
+    return scores
+
+
+def sampled_per_direction_rewards(
+    params: dict[str, jax.Array],
+    directions: tuple[tuple[float, float], ...],
+    *,
+    horizon: int = 12,
+    episodes: int = 64,
+    seed: int = 0,
+    treatment: Treatment = Treatment.NO_REVELATION,
+) -> dict[str, float]:
+    """Expected return of the sampled policy, reported per gravity direction.
+
+    Use this for a stochastic policy. Taking the argmax of a broad softmax
+    collapses it to one action whose choice may be uninformative, which hides
+    the behaviour the policy actually has in expectation.
+    """
+    scores: dict[str, float] = {}
+    key = jax.random.PRNGKey(seed + 90_000)
+    for direction in directions:
+        config = GravityConfig(horizon=horizon, gravity_choices=(direction,))
+        totals: list[float] = []
+        for offset in range(episodes):
+            episode = GravityEpisode(20_000 + offset, treatment, config)
+            state = _policy_state(params)
+            total = 0.0
+            for _ in range(horizon):
+                encoded = encode_gravity_observation(
+                    episode.agent_observation, horizon
+                )
+                if is_linear_policy(params):
+                    logits = jnp.asarray(encoded) @ params["w"] + params["b"]
+                    state = None
+                else:
+                    raw, state = forward(
+                        params, jnp.asarray(encoded)[None, :], state, use_memory=True
+                    )
+                    logits = raw[0]
+                key, sample_key = jax.random.split(key)
+                index = int(jax.random.categorical(sample_key, logits))
+                total += episode.step(_ACTIONS[index]).reward
+            totals.append(total)
+        scores[str(direction)] = float(np.mean(totals))
+    return scores
+
+
 def movement_rate(result: dict[str, Any]) -> float:
     """Fraction of episode steps that are not rest.
 
@@ -697,6 +772,8 @@ def evaluate_gravity_controller(
 
 __all__ = [
     "init_linear_policy",
+    "per_direction_rewards",
+    "sampled_per_direction_rewards",
     "is_linear_policy",
     "train_linear_gravity_policy",
     "detection_gap",

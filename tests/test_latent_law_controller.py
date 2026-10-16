@@ -216,3 +216,96 @@ def test_linear_policy_training_is_deterministic() -> None:
     second, second_meta = train_linear_gravity_policy(**kwargs)
     assert first_meta == second_meta
     assert (first["w"] == second["w"]).all()
+
+
+def test_per_direction_reward_reports_every_direction_separately() -> None:
+    from hybrid_alife.experiments.latent_law_controller import (
+        per_direction_rewards,
+        train_linear_gravity_policy,
+    )
+    from hybrid_alife.experiments.latent_law_task import GravityConfig
+
+    config = GravityConfig(
+        horizon=6,
+        gravity_choices=((0.0, -0.2),),
+        reward_mode="displacement",
+    )
+    policy, _ = train_linear_gravity_policy(
+        seed=1, training_seeds=(0,), updates=2, episodes_per_update=4, config=config
+    )
+    directions = ((0.0, -0.2), (0.2, 0.0))
+    result = per_direction_rewards(policy, directions, (100, 101), horizon=6)
+    assert set(result) == {str(d) for d in directions}
+
+
+def test_sampled_linear_policy_generalises_to_every_held_out_direction() -> None:
+    """The sampled policy must be positive on every held-out direction.
+
+    A fixed-action bias is positive on some directions and negative on others,
+    so the gate is a minimum across directions, not a mean.
+    """
+    from hybrid_alife.experiments.latent_law_controller import (
+        sampled_per_direction_rewards,
+        train_linear_gravity_policy,
+    )
+    from hybrid_alife.experiments.latent_law_task import GravityConfig
+
+    cardinals = ((0.0, -0.2), (0.0, 0.2), (-0.2, 0.0), (0.2, 0.0))
+    diagonals = (
+        (0.14142, -0.14142),
+        (0.14142, 0.14142),
+        (-0.14142, 0.14142),
+        (-0.14142, -0.14142),
+    )
+    config = GravityConfig(
+        horizon=12,
+        gravity_choices=cardinals,
+        reward_mode="displacement",
+    )
+    policy, _ = train_linear_gravity_policy(
+        seed=0,
+        training_seeds=(0, 1, 2, 3),
+        updates=300,
+        episodes_per_update=32,
+        config=config,
+    )
+    scores = sampled_per_direction_rewards(policy, diagonals, horizon=12, episodes=64)
+    values = list(scores.values())
+    assert min(values) > 0.0, scores
+    assert float(np.mean(values)) > 4.0, scores
+
+
+def test_argmax_mode_of_a_broad_policy_is_uninformative() -> None:
+    """Documents the mode-versus-mean gap under a discrete action set.
+
+    The sampled policy generalises, but its argmax collapses to a fixed action
+    that fails on one held-out direction. This is why the discrete action set
+    is inadequate and the deployment metric must be the sampled return.
+    """
+    from hybrid_alife.experiments.latent_law_controller import (
+        per_direction_rewards,
+        sampled_per_direction_rewards,
+        train_linear_gravity_policy,
+    )
+    from hybrid_alife.experiments.latent_law_task import GravityConfig
+
+    cardinals = ((0.0, -0.2), (0.0, 0.2), (-0.2, 0.0), (0.2, 0.0))
+    diagonals = (
+        (0.14142, -0.14142),
+        (0.14142, 0.14142),
+        (-0.14142, 0.14142),
+        (-0.14142, -0.14142),
+    )
+    policy, _ = train_linear_gravity_policy(
+        seed=0,
+        training_seeds=(0, 1, 2, 3),
+        updates=300,
+        episodes_per_update=32,
+        config=GravityConfig(horizon=12, gravity_choices=cardinals),
+    )
+    argmax_values = list(per_direction_rewards(policy, diagonals, (100,), horizon=12).values())
+    sampled_values = list(
+        sampled_per_direction_rewards(policy, diagonals, horizon=12, episodes=64).values()
+    )
+    assert min(argmax_values) < 0.0, argmax_values
+    assert min(sampled_values) > 0.0, sampled_values

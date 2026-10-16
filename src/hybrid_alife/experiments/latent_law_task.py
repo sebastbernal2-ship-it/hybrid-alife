@@ -133,6 +133,12 @@ class GravityEpisode:
         self.step_index = 0
         self.position = np.zeros(2, dtype=np.float64)
         self.velocity = np.zeros(2, dtype=np.float64)
+        # Proprioception: the organism knows its own last velocity and thrust.
+        # These are the organism's own state, not evaluator labels, and they
+        # make gravity recoverable as
+        # velocity - friction * previous_velocity - accel * previous_thrust.
+        self.previous_velocity = np.zeros(2, dtype=np.float64)
+        self.previous_thrust = np.zeros(2, dtype=np.float64)
         self.revelation_log: list[dict[str, Any]] = []
 
     def _choose_gravity(self) -> tuple[float, float]:
@@ -200,20 +206,24 @@ class GravityEpisode:
             "step": self.step_index,
             "position": tuple(float(value) for value in self.position),
             "velocity": tuple(float(value) for value in self.velocity),
+            "previous_velocity": tuple(float(value) for value in self.previous_velocity),
+            "previous_thrust": tuple(float(value) for value in self.previous_thrust),
             "surface": float(self.config.surface),
             "revelation_present": payload is not None,
             "revelation": payload,
         }
 
     def _action_vector(self, action: Action | str) -> np.ndarray:
-        action = Action(action)
-        return _ACTION_VECTORS[action] * self.config.action_acceleration
+        return _ACTION_VECTORS[Action(action)] * self.config.action_acceleration
 
     def step(self, action: Action | str) -> StepResult:
         action = Action(action)
         payload = self._revelation_payload()
         self._record_revelation(payload)
         action_vector = self._action_vector(action)
+        self.previous_velocity = np.array(self.velocity, dtype=np.float64)
+        thrust = _ACTION_VECTORS[action]
+        self.previous_thrust = np.array(thrust, dtype=np.float64)
         gravity = np.asarray(self.gravity_vector, dtype=np.float64)
         applied_gravity = gravity if self._gravity_affects_outcome else np.zeros(2)
         self.velocity = (
