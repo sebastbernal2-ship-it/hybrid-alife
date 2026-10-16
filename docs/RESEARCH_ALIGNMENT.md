@@ -137,8 +137,18 @@ The pilot measures movement alignment with the held-out gravity vector and total
 | constant move-down | -31.74 |
 | learned controller | -23.85 |
 
-The constant move-down baseline fails on held-out directions, which confirms the hold-out works.
-The oracle and rest baselines are close because gravity itself carries the organism toward the target, so exploitation adds little reward on its own.
+WARNING: the held-out diagonal condition is degenerate and the table above cannot support a conclusion.
+The target sits at `unit_gravity * world_limit`, and the organism has no braking action, so on a diagonal the organism is pushed past the target and pinned in the corner at `(4, -4)` while the target sits at `(2.83, -2.83)`.
+It then pays a permanent overshoot penalty that no action can remove.
+On those directions rest is nearly optimal and the oracle beats it by only `0.11`, so the hold-out tested almost nothing.
+On the cardinal training directions the same configuration is well posed: resting gives `-14.09`, moving with gravity gives `-9.50`, and moving against gravity gives `-33.94`.
+
+Measured on the cardinal directions, the environment signal is strong and the learner is correct.
+An isolated run on one gravity direction and one treatment converged to `100%` move-down at the optimal `-9.50`.
+The failure only appears in the held-out diagonal condition, and that failure is caused by the degenerate target placement.
+
+Consequence: the earlier statement that "the task is fair and the oracle beats rest" holds for cardinal gravity and does not hold for the diagonal hold-out.
+The hold-out must be redesigned before any claim is made.
 
 The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
 Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.

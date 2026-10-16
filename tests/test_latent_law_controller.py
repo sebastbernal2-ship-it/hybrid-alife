@@ -85,3 +85,49 @@ def test_training_loss_is_invariant_to_episode_order() -> None:
     forward_loss = _policy_loss(params, observations, actions, advantages)
     reversed_loss = _policy_loss(params, observations[::-1], actions[::-1], advantages[::-1])
     assert abs(float(forward_loss) - float(reversed_loss)) < 1e-6
+
+
+def test_critic_learns_to_predict_returns() -> None:
+    """A value head must reduce prediction error on a fixed batch."""
+    import jax
+    import jax.numpy as jnp
+
+    from hybrid_alife.experiments.latent_law_controller import (
+        OBS_DIM,
+        critic_values,
+        fit_critic_step,
+        init_gravity_critic,
+    )
+
+    key = jax.random.PRNGKey(0)
+    observations = jax.random.normal(key, (6, 4, OBS_DIM))
+    targets = jnp.asarray([[1.0, 2.0, 3.0, 4.0]] * 6)
+    critic = init_gravity_critic(seed=0, hidden=8)
+
+    before = float(jnp.mean((critic_values(critic, observations) - targets) ** 2))
+    for _ in range(400):
+        critic = fit_critic_step(critic, observations, targets, learning_rate=0.05)
+    after = float(jnp.mean((critic_values(critic, observations) - targets) ** 2))
+    assert after < before * 0.5
+
+
+def test_actor_critic_training_is_deterministic_and_declared() -> None:
+    from hybrid_alife.experiments.latent_law_controller import (
+        train_gravity_actor_critic,
+    )
+    from hybrid_alife.experiments.latent_law_task import GravityConfig
+
+    kwargs = {
+        "seed": 6,
+        "training_seeds": (0,),
+        "updates": 1,
+        "episodes_per_update": 4,
+        "config": GravityConfig(horizon=4),
+    }
+    first, first_meta = train_gravity_actor_critic(**kwargs)
+    second, second_meta = train_gravity_actor_critic(**kwargs)
+    assert first_meta == second_meta
+    assert first_meta["trainer"] == "actor_critic"
+    assert first_meta["entropy_coef"] >= 0
+    for name in first["actor"]:
+        assert (first["actor"][name] == second["actor"][name]).all()

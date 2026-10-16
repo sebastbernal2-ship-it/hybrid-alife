@@ -159,6 +159,26 @@ def _episode_log_probs(
     return log_probs
 
 
+def _episode_log_probs_and_entropy(
+    params: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+    """Per-step log-probability and entropy for one episode."""
+    hidden = jnp.zeros((1, params["w_xz"].shape[-1]), dtype=jnp.float32)
+
+    def scan_step(hidden, inputs):
+        observation, action = inputs
+        raw, next_hidden = forward(params, observation[None, :], hidden, use_memory=True)
+        log_probs = jax.nn.log_softmax(raw[0])
+        probs = jax.nn.softmax(raw[0])
+        entropy = -jnp.sum(probs * log_probs)
+        return next_hidden, (log_probs[action], entropy)
+
+    _, (log_probs, entropies) = jax.lax.scan(scan_step, hidden, (observations, actions))
+    return log_probs, entropies
+
+
 def _policy_loss(
     params: dict[str, jax.Array],
     observations: jax.Array,
@@ -175,6 +195,72 @@ def _policy_loss(
         params, observations, actions
     )
     return -jnp.mean(log_probs * advantages)
+
+
+def init_gravity_critic(seed: int, *, hidden: int = 16) -> dict[str, jax.Array]:
+    """Small feed-forward state-value head over the encoded observation."""
+    if hidden < 1:
+        raise ValueError("hidden must be positive")
+    keys = jax.random.split(jax.random.PRNGKey(seed + 99), 2)
+    return {
+        "w1": 0.1 * jax.random.normal(keys[0], (OBS_DIM, hidden)),
+        "b1": jnp.zeros((hidden,)),
+        "w2": 0.1 * jax.random.normal(keys[1], (hidden,)),
+        "b2": jnp.zeros(()),
+    }
+
+
+def critic_values(
+    critic: dict[str, jax.Array], observations: jax.Array
+) -> jax.Array:
+    """Value estimate for observations shaped ``[episodes, steps, obs_dim]``."""
+    hidden = jnp.tanh(
+        jnp.einsum("etd,dh->eth", observations, critic["w1"]) + critic["b1"]
+    )
+    return jnp.einsum("eth,h->et", hidden, critic["w2"]) + critic["b2"]
+
+
+def fit_critic_step(
+    critic: dict[str, jax.Array],
+    observations: jax.Array,
+    targets: jax.Array,
+    *,
+    learning_rate: float = 0.05,
+) -> dict[str, jax.Array]:
+    """One gradient step that fits the value head to observed returns."""
+
+    def loss(head: dict[str, jax.Array]) -> jax.Array:
+        return jnp.mean((critic_values(head, observations) - targets) ** 2)
+
+    gradients = jax.grad(loss)(critic)
+    return jax.tree_util.tree_map(
+        lambda value, gradient: value - learning_rate * gradient, critic, gradients
+    )
+
+
+def _actor_critic_loss(
+    actor: dict[str, jax.Array],
+    critic: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+    returns: jax.Array,
+    entropy_coef: float,
+    critic_coef: float,
+) -> tuple[jax.Array, tuple[jax.Array, jax.Array]]:
+    """Advantage actor-critic loss with an entropy bonus.
+
+    Returns ``(total, (actor_loss, critic_loss))``, where the second element is
+    auxiliary output for diagnostics. The value head never leaks into the
+    policy objective: advantages are stopped before the actor update.
+    """
+    values = critic_values(critic, observations)
+    advantages = jax.lax.stop_gradient(returns - values)
+    log_probs, entropies = jax.vmap(
+        _episode_log_probs_and_entropy, in_axes=(None, 0, 0)
+    )(actor, observations, actions)
+    actor_loss = -jnp.mean(log_probs * advantages) - entropy_coef * jnp.mean(entropies)
+    critic_loss = jnp.mean((values - returns) ** 2)
+    return actor_loss + critic_coef * critic_loss, (actor_loss, critic_loss)
 
 
 def train_gravity_controller(
@@ -241,6 +327,94 @@ def train_gravity_controller(
         "seed": seed,
         "updates": updates,
         "episodes_per_update": episodes_per_update,
+        "training_seeds": list(training_seeds),
+        "training_treatments": [treatment.value for treatment in training_treatments],
+        "history": history,
+    }
+
+
+def train_gravity_actor_critic(
+    seed: int,
+    *,
+    training_seeds: tuple[int, ...] = (0, 1),
+    training_treatments: tuple[Treatment, ...] = tuple(Treatment),
+    updates: int = 40,
+    episodes_per_update: int = 16,
+    hidden: int = 16,
+    critic_hidden: int = 16,
+    learning_rate: float = 0.02,
+    entropy_coef: float = 0.05,
+    critic_coef: float = 0.5,
+    config: GravityConfig | None = None,
+) -> tuple[dict[str, dict[str, jax.Array]], dict[str, Any]]:
+    """Advantage actor-critic training with entropy control.
+
+    Returns ``({"actor": ..., "critic": ...}, metadata)``. Advantage
+    normalization happens per episode batch, and the critic predicts
+    batch-normalized returns so its loss stays well scaled.
+    """
+    if not training_seeds or not training_treatments:
+        raise ValueError("training seeds and treatments must not be empty")
+    if updates < 1 or episodes_per_update < 2:
+        raise ValueError("updates must be positive and episodes_per_update at least two")
+    if learning_rate <= 0 or entropy_coef < 0 or critic_coef < 0:
+        raise ValueError("invalid actor-critic hyperparameters")
+    config = config or GravityConfig()
+    actor = init_controller_params(
+        1, OBS_DIM, len(_ACTIONS), hidden, jax.random.PRNGKey(seed)
+    )
+    critic = init_gravity_critic(seed, hidden=critic_hidden)
+    specs = [
+        (seed_value, treatment)
+        for treatment in training_treatments
+        for seed_value in training_seeds
+    ]
+    key = jax.random.PRNGKey(seed + 60_000)
+    loss_and_grad = jax.jit(jax.value_and_grad(_actor_critic_loss, argnums=(0, 1), has_aux=True))
+    history: list[dict[str, float | int]] = []
+    for update in range(updates):
+        keys = jax.random.split(key, episodes_per_update + 1)
+        key = keys[0]
+        batches = [
+            _collect_episode(actor, *specs[index % len(specs)], config, keys[index + 1])
+            for index in range(episodes_per_update)
+        ]
+        observations = jnp.asarray(np.stack([batch[0] for batch in batches]))
+        actions = jnp.asarray(np.stack([batch[1] for batch in batches]))
+        returns = np.stack([batch[2] for batch in batches])
+        # Predict batch-normalized returns, so the critic loss is well scaled.
+        normalized = (returns - returns.mean()) / (returns.std() + 1e-6)
+        normalized = jnp.asarray(normalized)
+        (_, (actor_loss, critic_loss)), (actor_grads, critic_grads) = loss_and_grad(
+            actor, critic, observations, actions, normalized, entropy_coef, critic_coef
+        )
+        actor = jax.tree_util.tree_map(
+            lambda value, gradient: value - learning_rate * jnp.clip(gradient, -1.0, 1.0),
+            actor,
+            actor_grads,
+        )
+        critic = jax.tree_util.tree_map(
+            lambda value, gradient: value - learning_rate * jnp.clip(gradient, -1.0, 1.0),
+            critic,
+            critic_grads,
+        )
+        history.append(
+            {
+                "update": update,
+                "actor_loss": float(actor_loss),
+                "critic_loss": float(critic_loss),
+                "mean_return": float(np.mean([batch[3] for batch in batches])),
+            }
+        )
+    return {"actor": actor, "critic": critic}, {
+        "status": "calibration_only",
+        "trainer": "actor_critic",
+        "jax_loss_jitted": True,
+        "seed": seed,
+        "updates": updates,
+        "episodes_per_update": episodes_per_update,
+        "entropy_coef": entropy_coef,
+        "critic_coef": critic_coef,
         "training_seeds": list(training_seeds),
         "training_treatments": [treatment.value for treatment in training_treatments],
         "history": history,

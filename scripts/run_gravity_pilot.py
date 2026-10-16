@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import jax
 import numpy as np
@@ -19,6 +20,7 @@ from hybrid_alife.experiments.latent_law_controller import (
     _ACTION_VECTORS,
     _ACTIONS,
     run_gravity_episode,
+    train_gravity_actor_critic,
     train_gravity_controller,
 )
 from hybrid_alife.experiments.latent_law_task import (
@@ -69,20 +71,39 @@ def _baseline_episode(
     return float(sum(rewards))
 
 
-def _heldout_alignment(
+def _gravity_reward_and_alignment(
     params: dict[str, jax.Array],
     directions: tuple[tuple[float, float], ...],
     seeds: tuple[int, ...],
     horizon: int,
-) -> float:
-    """Mean movement alignment with the held-out gravity vector."""
-    alignments: list[float] = []
+) -> dict[str, Any]:
+    """Mean reward and gravity alignment on held-out gravity directions.
+
+    Signed alignment cancels when the held-out directions are antipodal, so the
+    headline number is the mean absolute alignment: how much of each step's
+    movement lies on the gravity axis, in either direction. Rest gives 0 and a
+    perfect diagonal-following policy gives 0.707 on these directions.
+    """
+    rewards: list[float] = []
+    absolute: list[float] = []
+    per_direction: dict[str, float] = {}
     for direction in directions:
+        direction_values: list[float] = []
         config = GravityConfig(horizon=horizon, gravity_choices=(direction,))
         for seed in seeds:
             result = run_gravity_episode(seed, Treatment.NO_REVELATION, params, config)
-            alignments.append(result["mean_gravity_alignment"])
-    return float(np.mean(alignments)) if alignments else 0.0
+            rewards.append(result["total_reward"])
+            step_alignments = [
+                abs(item["gravity_alignment"]) for item in result["evaluator_trace"]
+            ]
+            absolute.append(float(np.mean(step_alignments)))
+            direction_values.append(float(np.mean(step_alignments)))
+        per_direction[str(direction)] = float(np.mean(direction_values))
+    return {
+        "reward": float(np.mean(rewards)) if rewards else 0.0,
+        "alignment": float(np.mean(absolute)) if absolute else 0.0,
+        "per_direction_alignment": per_direction,
+    }
 
 
 def main() -> None:
@@ -94,6 +115,12 @@ def main() -> None:
     parser.add_argument("--training-seeds", type=int, nargs="+", default=[0, 1, 2, 3])
     parser.add_argument("--eval-seeds", type=int, nargs="+", default=[100, 101, 102, 103])
     parser.add_argument("--hidden", type=int, default=16)
+    parser.add_argument("--entropy-coef", type=float, default=0.05)
+    parser.add_argument(
+        "--trainer",
+        choices=("policy_gradient", "actor_critic"),
+        default="actor_critic",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -101,17 +128,31 @@ def main() -> None:
         horizon=args.horizon,
         gravity_choices=_scaled(TRAIN_DIRECTIONS),
     )
-    params, training = train_gravity_controller(
-        seed=args.seed,
-        training_seeds=tuple(args.training_seeds),
-        updates=args.updates,
-        episodes_per_update=args.episodes_per_update,
-        hidden=args.hidden,
-        config=train_config,
-    )
+    if args.trainer == "actor_critic":
+        trained, training = train_gravity_actor_critic(
+            seed=args.seed,
+            training_seeds=tuple(args.training_seeds),
+            updates=args.updates,
+            episodes_per_update=args.episodes_per_update,
+            hidden=args.hidden,
+            entropy_coef=args.entropy_coef,
+            config=train_config,
+        )
+        params = trained["actor"]
+    else:
+        params, training = train_gravity_controller(
+            seed=args.seed,
+            training_seeds=tuple(args.training_seeds),
+            updates=args.updates,
+            episodes_per_update=args.episodes_per_update,
+            hidden=args.hidden,
+            config=train_config,
+        )
 
     heldout = _scaled(HELDOUT_DIRECTIONS)
-    learned = _heldout_alignment(params, heldout, tuple(args.eval_seeds), args.horizon)
+    learned = _gravity_reward_and_alignment(
+        params, heldout, tuple(args.eval_seeds), args.horizon
+    )
     baselines: dict[str, float] = {}
     for policy in ("rest", "move_down", "random", "oracle"):
         values = [
@@ -131,6 +172,8 @@ def main() -> None:
         "status": "pilot_only",
         "config": {
             "horizon": args.horizon,
+            "trainer": args.trainer,
+            "entropy_coef": args.entropy_coef,
             "updates": args.updates,
             "episodes_per_update": args.episodes_per_update,
             "hidden": args.hidden,
@@ -138,13 +181,17 @@ def main() -> None:
             "heldout_directions": heldout,
         },
         "training": training,
-        "heldout_gravity_alignment": learned,
+        "heldout": learned,
+        "heldout_gravity_alignment": learned["alignment"],
         "heldout_baselines": baselines,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
     print(f"Gravity pilot written to {args.output}")
-    print(f"learned held-out alignment: {learned:.4f}")
+    print(
+        f"learned held-out reward: {learned['reward']:.4f} "
+        f"alignment: {learned['alignment']:.4f}"
+    )
     for policy, value in baselines.items():
         print(f"  baseline {policy}: {value:.4f}")
 
