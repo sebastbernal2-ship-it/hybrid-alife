@@ -16,13 +16,13 @@ def test_gravity_controller_keeps_evaluator_labels_out_of_agent_trace() -> None:
         training_seeds=(0,),
         updates=1,
         episodes_per_update=2,
-        config=GravityConfig(horizon=4),
+        config=GravityConfig(horizon=4, action_mode="discrete"),
     )
     result = run_gravity_episode(
         seed=3,
         treatment=Treatment.NO_REVELATION,
         params=params,
-        config=GravityConfig(horizon=4),
+        config=GravityConfig(horizon=4, action_mode="discrete"),
     )
     assert "gravity_vector" not in result["agent_trace"][0]["observation"]
     assert "gravity_vector" in result["evaluator_trace"][0]
@@ -34,7 +34,7 @@ def test_gravity_controller_training_is_deterministic() -> None:
         "training_seeds": (0,),
         "updates": 1,
         "episodes_per_update": 2,
-        "config": GravityConfig(horizon=4),
+        "config": GravityConfig(horizon=4, action_mode="discrete"),
     }
     first, first_meta = train_gravity_controller(**kwargs)
     second, second_meta = train_gravity_controller(**kwargs)
@@ -49,12 +49,12 @@ def test_gravity_controller_evaluates_revelation_and_no_benefit_conditions() -> 
         training_seeds=(0,),
         updates=1,
         episodes_per_update=2,
-        config=GravityConfig(horizon=4),
+        config=GravityConfig(horizon=4, action_mode="discrete"),
     )
     result = evaluate_gravity_controller(
         params,
         seeds=(0,),
-        config=GravityConfig(horizon=4),
+        config=GravityConfig(horizon=4, action_mode="discrete"),
     )
     assert set(result["conditions"]) == {t.value for t in Treatment}
     assert result["status"] == "calibration_only"
@@ -122,7 +122,7 @@ def test_actor_critic_training_is_deterministic_and_declared() -> None:
         "training_seeds": (0,),
         "updates": 1,
         "episodes_per_update": 4,
-        "config": GravityConfig(horizon=4),
+        "config": GravityConfig(horizon=4, action_mode="discrete"),
     }
     first, first_meta = train_gravity_actor_critic(**kwargs)
     second, second_meta = train_gravity_actor_critic(**kwargs)
@@ -173,6 +173,7 @@ def test_target_reward_is_a_needle_landscape() -> None:
         horizon=12,
         gravity_choices=((0.0, -0.2),),
         action_acceleration=0.40,
+        action_mode="discrete",
         reward_mode="target",
     )
 
@@ -204,7 +205,12 @@ def test_linear_policy_training_is_deterministic() -> None:
     )
     from hybrid_alife.experiments.latent_law_task import GravityConfig
 
-    config = GravityConfig(horizon=6, gravity_choices=((0.0, -0.2),), action_acceleration=0.40)
+    config = GravityConfig(
+        horizon=6,
+        gravity_choices=((0.0, -0.2),),
+        action_acceleration=0.40,
+        action_mode="discrete",
+    )
     kwargs = {
         "seed": 2,
         "training_seeds": (0,),
@@ -229,6 +235,7 @@ def test_per_direction_reward_reports_every_direction_separately() -> None:
         horizon=6,
         gravity_choices=((0.0, -0.2),),
         reward_mode="displacement",
+        action_mode="discrete",
     )
     policy, _ = train_linear_gravity_policy(
         seed=1, training_seeds=(0,), updates=2, episodes_per_update=4, config=config
@@ -261,6 +268,7 @@ def test_sampled_linear_policy_generalises_to_every_held_out_direction() -> None
         horizon=12,
         gravity_choices=cardinals,
         reward_mode="displacement",
+        action_mode="discrete",
     )
     policy, _ = train_linear_gravity_policy(
         seed=0,
@@ -301,7 +309,7 @@ def test_argmax_mode_of_a_broad_policy_is_uninformative() -> None:
         training_seeds=(0, 1, 2, 3),
         updates=300,
         episodes_per_update=32,
-        config=GravityConfig(horizon=12, gravity_choices=cardinals),
+        config=GravityConfig(horizon=12, gravity_choices=cardinals, action_mode="discrete"),
     )
     argmax_values = list(per_direction_rewards(policy, diagonals, (100,), horizon=12).values())
     sampled_values = list(

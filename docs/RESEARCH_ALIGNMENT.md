@@ -239,7 +239,42 @@ The optimum is an isolated spike in a discrete schedule space of twelve choices.
 A mean-baseline policy-gradient method cannot find a spike like this, so the observed convergence to rest is the expected outcome rather than a learner bug.
 The plumbing checks above still hold and the signal is still real, but the optimum is unreachable by incremental improvement.
 
-## The displacement reward (adopted)
+## Continuous thrust solves the task (calibration only)
+
+The nine discrete actions were replaced with a **continuous two-dimensional thrust**, normalised to unit length so the organism always thrusts at full strength and only chooses a direction.
+That removes the mode-versus-mean gap entirely: the deterministic deployment is the mean, and the reward depends only on the thrust direction.
+
+`latent_law_continuous.py` owns the continuous policy, the REINFORCE learner, and a reward-weighted regression learner over the linear mean.
+Reward-weighted regression is the adopted learner: the mean is linear, so each round is a closed-form weighted ridge fit that puts weight `exp((return - best) / temperature)` on high-return episodes.
+Exploration is annealed from `0.6` to `0.05`.
+
+Trained on the four cardinal directions only, deployed deterministically on four unseen diagonals:
+
+| Seed | Per-direction rewards | Worst | Mean |
+| --- | --- | --- | --- |
+| 0 | 9.92, 11.78, 11.29, 9.76 | +9.76 | +10.69 |
+| 1 | 11.51, 11.77, 10.12, 10.14 | +10.12 | +10.88 |
+| 2 | 10.61, 11.95, 11.10, 9.97 | +9.97 | +10.91 |
+| 3 | 10.25, 11.75, 11.60, 9.95 | +9.95 | +10.89 |
+| 4 | 10.72, 11.93, 10.91, 9.87 | +9.87 | +10.86 |
+
+Worst direction across seeds: `+9.94 +/- 0.13`.
+Mean across seeds: `+10.85 +/- 0.09`.
+The hand-built optimum is `+11` and every constant-action policy scores `0.00`.
+
+So the organism recovers the imposed law from exposure, infers it on directions it never trained on, and acts on it at about `99%` of the achievable optimum.
+
+Plain REINFORCE does not reach this: it collapses to a fixed thrust direction, scoring strongly positive on one direction and strongly negative on the opposite.
+That limitation is pinned by `test_plain_reinforce_collapses_to_a_fixed_direction`.
+
+## Claim boundary for this result
+
+Supported: in this calibration world, an artificial organism learns to exploit an imposed gravity-like law through exposure alone, and generalises it to held-out directions.
+
+The mechanism is explicit and should be stated: the organism infers gravity from its own proprioception as `velocity - friction * previous_velocity - acceleration * previous_thrust`.
+
+Not supported: biology, the full hybrid field simulator, the PPO-POET archive, any claim about consciousness, and any claim that the organism represents the law symbolically.
+The next step is to move this same protocol into the shared simulator rather than the standalone calibration world.
 
 The position-target reward was replaced with a **displacement reward**: each step rewards movement along the gravity axis and penalises movement against it.
 

@@ -62,6 +62,10 @@ class GravityConfig:
     # distance to a target point and is retained for comparison only, because
     # its optimum is an isolated spike with no improvement path.
     reward_mode: str = "displacement"
+    # Action space. "continuous" takes a two-dimensional thrust vector, which
+    # removes the mode-versus-mean ambiguity of a discrete action set.
+    # "discrete" keeps the nine unit thrusts for the earlier calibration work.
+    action_mode: str = "continuous"
 
     def __post_init__(self) -> None:
         if self.horizon < 1:
@@ -91,6 +95,8 @@ class GravityConfig:
             raise ValueError("target_radius must lie inside the world")
         if self.reward_mode not in {"target", "displacement"}:
             raise ValueError("reward_mode must be 'target' or 'displacement'")
+        if self.action_mode not in {"continuous", "discrete"}:
+            raise ValueError("action_mode must be 'continuous' or 'discrete'")
 
 
 @dataclass(frozen=True)
@@ -216,13 +222,26 @@ class GravityEpisode:
     def _action_vector(self, action: Action | str) -> np.ndarray:
         return _ACTION_VECTORS[Action(action)] * self.config.action_acceleration
 
-    def step(self, action: Action | str) -> StepResult:
-        action = Action(action)
+    def _resolve_action(self, action: Any) -> tuple[np.ndarray, np.ndarray]:
+        """Return ``(unit_thrust, action_vector)`` for either action mode.
+
+        Continuous thrust is normalised to unit length, so the organism always
+        thrusts at full strength and only chooses a direction. This matches the
+        discrete mode, where every thrust is a unit vector, and it makes the
+        displacement reward depend only on the thrust direction.
+        """
+        if self.config.action_mode == "continuous" and not isinstance(action, Action | str):
+            thrust = np.asarray(action, dtype=np.float64).reshape(2)
+            norm = float(np.linalg.norm(thrust))
+            unit = thrust / norm if norm > 1e-9 else thrust
+            return unit, unit * self.config.action_acceleration
+        return _ACTION_VECTORS[Action(action)], self._action_vector(action)
+
+    def step(self, action: Any) -> StepResult:
         payload = self._revelation_payload()
         self._record_revelation(payload)
-        action_vector = self._action_vector(action)
+        thrust, action_vector = self._resolve_action(action)
         self.previous_velocity = np.array(self.velocity, dtype=np.float64)
-        thrust = _ACTION_VECTORS[action]
         self.previous_thrust = np.array(thrust, dtype=np.float64)
         gravity = np.asarray(self.gravity_vector, dtype=np.float64)
         applied_gravity = gravity if self._gravity_affects_outcome else np.zeros(2)
@@ -240,8 +259,6 @@ class GravityEpisode:
                 # Reward movement along the gravity axis. Rest is exactly zero
                 # and every aligned step improves the total, so the optimum is
                 # reachable by incremental improvement.
-                speed = float(np.linalg.norm(action_vector))
-                thrust = action_vector / speed if speed > 0 else action_vector
                 reward = float(np.dot(thrust, direction))
             else:
                 target = direction * self.config.target_radius

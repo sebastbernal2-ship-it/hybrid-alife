@@ -226,3 +226,53 @@ def test_gravity_is_exactly_recoverable_from_self_state() -> None:
         - config.action_acceleration * previous_thrust
     )
     assert np.allclose(recovered, np.asarray(episode.gravity_vector), atol=1e-9)
+
+
+def test_continuous_thrust_reward_tracks_alignment() -> None:
+    """With continuous thrust, reward is the alignment with gravity."""
+    config = GravityConfig(
+        horizon=4,
+        gravity_choices=((0.0, -0.2),),
+        reward_mode="displacement",
+        action_mode="continuous",
+    )
+    along = GravityEpisode(1, Treatment.NO_REVELATION, config)
+    against = GravityEpisode(1, Treatment.NO_REVELATION, config)
+    nothing = GravityEpisode(1, Treatment.NO_REVELATION, config)
+    assert abs(along.step(np.asarray((0.0, -1.0))).reward - 1.0) < 1e-9
+    assert abs(against.step(np.asarray((0.0, 1.0))).reward + 1.0) < 1e-9
+    assert abs(nothing.step(np.asarray((0.0, 0.0))).reward) < 1e-9
+
+
+def test_continuous_thrust_is_bounded_and_deterministic() -> None:
+    config = GravityConfig(
+        horizon=4,
+        gravity_choices=((0.0, -0.2),),
+        action_mode="continuous",
+    )
+    huge = GravityEpisode(1, Treatment.NO_REVELATION, config)
+    unit = GravityEpisode(1, Treatment.NO_REVELATION, config)
+    huge.step(np.asarray((50.0, -50.0)))
+    unit.step(np.asarray((0.0, -1.0)))
+    assert abs(np.linalg.norm(huge.velocity)) <= abs(np.linalg.norm(unit.velocity)) + 1e-9
+    first = GravityEpisode(3, Treatment.NO_REVELATION, config).step(np.asarray((0.2, -0.7)))
+    second = GravityEpisode(3, Treatment.NO_REVELATION, config).step(np.asarray((0.2, -0.7)))
+    assert first.agent_observation == second.agent_observation
+
+
+def test_continuous_oracle_reaches_the_maximum() -> None:
+    """Thrusting along gravity every step must reach the optimum of +12."""
+    from hybrid_alife.experiments.latent_law_task import target_position
+
+    config = GravityConfig(
+        horizon=12,
+        gravity_choices=((0.0, -0.2),),
+        action_mode="continuous",
+    )
+    episode = GravityEpisode(7, Treatment.NO_REVELATION, config)
+    _ = target_position(episode)
+    total = 0.0
+    for _ in range(12):
+        gravity = np.asarray(episode.gravity_vector)
+        total += episode.step(gravity / np.linalg.norm(gravity)).reward
+    assert abs(total - 12.0) < 1e-9
