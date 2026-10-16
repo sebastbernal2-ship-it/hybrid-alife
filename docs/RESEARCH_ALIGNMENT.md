@@ -239,17 +239,46 @@ The optimum is an isolated spike in a discrete schedule space of twelve choices.
 A mean-baseline policy-gradient method cannot find a spike like this, so the observed convergence to rest is the expected outcome rather than a learner bug.
 The plumbing checks above still hold and the signal is still real, but the optimum is unreachable by incremental improvement.
 
-## Recommended reward redesign
+## The displacement reward (adopted)
 
-Replace the position-target reward with a **displacement reward**: each step rewards movement along the gravity axis, and penalises movement against it.
+The position-target reward was replaced with a **displacement reward**: each step rewards movement along the gravity axis and penalises movement against it.
 
 - Rest scores `0`, so it is neutral and no longer a trap.
-- Moving with gravity scores positive, so any improvement is incremental.
+- Moving with gravity scores positive, and each aligned step improves the total.
 - Moving against gravity scores negative.
-- The optimum is simply to move along gravity.
+- The optimum is simply to move along gravity, which gives `+12` over `12` steps.
 
-Because gravity direction varies per episode, a constant policy cannot pass, and the held-out directions remain a real generality test.
-The organism must infer the direction from the velocity change it causes, which is exactly the original question: can it work out the law from exposure and act on it.
+`GravityConfig.reward_mode` selects `"displacement"` (default) or `"target"`.
+The target mode is retained only so the needle finding stays reproducible.
+
+## First learned result on the displacement task (calibration only)
+
+A linear policy over the encoded observation was trained on the four cardinal directions and evaluated on the four held-out diagonals.
+
+Mean held-out reward over five seeds was `+3.04` with standard deviation `0.19`.
+Every constant-action baseline scores exactly `0.00` on those symmetric diagonals, and the oracle scores `+12.00`.
+
+WARNING: the mean is misleading and must not be reported as a headline.
+The per-direction breakdown for one trained policy is:
+
+| Held-out gravity | Reward | Actions taken |
+| --- | --- | --- |
+| (0.141, -0.141) | +8.49 | move right, all 12 steps |
+| (0.141, 0.141) | +8.49 | move right, all 12 steps |
+| (-0.141, 0.141) | +4.24 | move right 3 steps, then up 9 steps |
+| (-0.141, -0.141) | -8.49 | move right, all 12 steps |
+
+The policy detects gravity on one held-out direction and fails badly on another.
+Its positive mean comes from a fixed rightward bias plus symmetric cancellation, not from reliable inference.
+Averaging over antipodal directions hides a catastrophic per-direction failure, so per-direction results are the only sound report.
+
+The recurrent actor-critic scores `0.00` on the same task, so the linear policy is the stronger learner here.
+
+Status: gravity exploitation is still not demonstrated.
+The task is now well posed, and the learner shows a small amount of genuine adaptation on one held-out direction.
+
+The movement-rate detection metric belongs to the target and no-benefit framing.
+Under the displacement reward the organism thrusts every step in both conditions, so the appropriate detection measure is an alignment difference, not a movement difference.
 
 The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
 Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.

@@ -163,7 +163,9 @@ def test_target_reward_is_a_needle_landscape() -> None:
     partial ride. Riding and then braking is good at exactly one brake step,
     and its immediate neighbours are far worse. A reward with a single isolated
     optimum and no improvement path cannot be found by gradient policy search.
-    Replace this test when the reward is redesigned.
+    The default reward is now "displacement", which removes the needle: see
+    ``test_displacement_reward_has_no_needle``. This test pins the old design so
+    the finding stays reproducible.
     """
     from hybrid_alife.experiments.latent_law_task import Action, GravityConfig, GravityEpisode
 
@@ -171,6 +173,7 @@ def test_target_reward_is_a_needle_landscape() -> None:
         horizon=12,
         gravity_choices=((0.0, -0.2),),
         action_acceleration=0.40,
+        reward_mode="target",
     )
 
     def total(ride_steps, later_action):

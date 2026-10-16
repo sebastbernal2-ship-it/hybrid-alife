@@ -57,6 +57,11 @@ class GravityConfig:
     # Target radius along the gravity direction. It must lie well inside the
     # world so the target is reachable and stoppable.
     target_radius: float = 2.0
+    # Reward design. "displacement" rewards movement along the gravity axis,
+    # which is neutral at rest and improves incrementally. "target" rewards
+    # distance to a target point and is retained for comparison only, because
+    # its optimum is an isolated spike with no improvement path.
+    reward_mode: str = "displacement"
 
     def __post_init__(self) -> None:
         if self.horizon < 1:
@@ -84,6 +89,8 @@ class GravityConfig:
             raise ValueError("world_limit must be positive and acceleration non-negative")
         if not 0 < self.target_radius < self.world_limit:
             raise ValueError("target_radius must lie inside the world")
+        if self.reward_mode not in {"target", "displacement"}:
+            raise ValueError("reward_mode must be 'target' or 'displacement'")
 
 
 @dataclass(frozen=True)
@@ -219,8 +226,16 @@ class GravityEpisode:
         )
         if self._gravity_affects_outcome:
             direction = gravity / max(float(np.linalg.norm(gravity)), 1e-12)
-            target = direction * self.config.target_radius
-            reward = -float(np.linalg.norm(self.position - target))
+            if self.config.reward_mode == "displacement":
+                # Reward movement along the gravity axis. Rest is exactly zero
+                # and every aligned step improves the total, so the optimum is
+                # reachable by incremental improvement.
+                speed = float(np.linalg.norm(action_vector))
+                thrust = action_vector / speed if speed > 0 else action_vector
+                reward = float(np.dot(thrust, direction))
+            else:
+                target = direction * self.config.target_radius
+                reward = -float(np.linalg.norm(self.position - target))
         else:
             reward = -float(np.linalg.norm(action_vector))
         reward -= self.config.revelation_cost if payload is not None else 0.0
@@ -252,12 +267,19 @@ def target_position(episode: GravityEpisode) -> np.ndarray:
 
 
 def scripted_oracle_action(episode: GravityEpisode) -> Action:
-    """Greedy one-step lookahead that knows gravity.
+    """Best action for a scripted baseline that knows gravity.
 
-    This is a scripted baseline for the evaluator and for tests. It is never
-    used as the agent's controller.
+    Under the displacement reward this is simply the thrust most aligned with
+    gravity. Under the target reward it is a greedy one-step lookahead.
+    This is evaluator and test tooling and never the agent's controller.
     """
     gravity = np.asarray(episode.gravity_vector, dtype=np.float64)
+    if episode.config.reward_mode == "displacement":
+        direction = gravity / max(float(np.linalg.norm(gravity)), 1e-12)
+        return max(
+            _ACTION_VECTORS,
+            key=lambda action: float(np.dot(_ACTION_VECTORS[action], direction)),
+        )
     target = target_position(episode)
     friction = episode.config.surface_friction
     limit = episode.config.world_limit
