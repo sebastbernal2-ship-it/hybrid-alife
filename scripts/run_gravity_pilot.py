@@ -17,8 +17,6 @@ import jax
 import numpy as np
 
 from hybrid_alife.experiments.latent_law_controller import (
-    _ACTION_VECTORS,
-    _ACTIONS,
     run_gravity_episode,
     train_gravity_actor_critic,
     train_gravity_controller,
@@ -28,6 +26,7 @@ from hybrid_alife.experiments.latent_law_task import (
     GravityConfig,
     GravityEpisode,
     Treatment,
+    scripted_oracle_action,
 )
 
 MAGNITUDE = 0.2
@@ -56,15 +55,7 @@ def _baseline_episode(
         elif policy == "random":
             action = Action(rng.choice(list(Action)))
         elif policy == "oracle":
-            gravity = np.asarray(episode.gravity_vector)
-            best = max(
-                _ACTIONS,
-                key=lambda candidate: float(
-                    np.dot(_ACTION_VECTORS[candidate], gravity)
-                    / max(float(np.linalg.norm(gravity)), 1e-8)
-                ),
-            )
-            action = best
+            action = scripted_oracle_action(episode)
         else:
             raise ValueError(f"unknown baseline: {policy}")
         rewards.append(episode.step(action).reward)
@@ -86,23 +77,28 @@ def _gravity_reward_and_alignment(
     """
     rewards: list[float] = []
     absolute: list[float] = []
-    per_direction: dict[str, float] = {}
+    per_direction: dict[str, dict[str, float]] = {}
     for direction in directions:
+        direction_rewards: list[float] = []
         direction_values: list[float] = []
         config = GravityConfig(horizon=horizon, gravity_choices=(direction,))
         for seed in seeds:
             result = run_gravity_episode(seed, Treatment.NO_REVELATION, params, config)
             rewards.append(result["total_reward"])
-            step_alignments = [
-                abs(item["gravity_alignment"]) for item in result["evaluator_trace"]
-            ]
-            absolute.append(float(np.mean(step_alignments)))
-            direction_values.append(float(np.mean(step_alignments)))
-        per_direction[str(direction)] = float(np.mean(direction_values))
+            direction_rewards.append(result["total_reward"])
+            # Signed alignment is meaningful per direction. It must never be
+            # averaged across antipodal directions, because that cancels it.
+            signed = float(np.mean([i["gravity_alignment"] for i in result["evaluator_trace"]]))
+            absolute.append(abs(signed))
+            direction_values.append(signed)
+        per_direction[str(direction)] = {
+            "reward": float(np.mean(direction_rewards)),
+            "signed_alignment": float(np.mean(direction_values)),
+        }
     return {
         "reward": float(np.mean(rewards)) if rewards else 0.0,
         "alignment": float(np.mean(absolute)) if absolute else 0.0,
-        "per_direction_alignment": per_direction,
+        "per_direction": per_direction,
     }
 
 
@@ -121,6 +117,11 @@ def main() -> None:
         choices=("policy_gradient", "actor_critic"),
         default="actor_critic",
     )
+    parser.add_argument(
+        "--include-no-benefit",
+        action="store_true",
+        help="Mix the no-benefit control into training instead of holding it out.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -128,10 +129,14 @@ def main() -> None:
         horizon=args.horizon,
         gravity_choices=_scaled(TRAIN_DIRECTIONS),
     )
+    training_treatments = (Treatment.NO_REVELATION,)
+    if args.include_no_benefit:
+        training_treatments = (Treatment.NO_REVELATION, Treatment.NO_BENEFIT)
     if args.trainer == "actor_critic":
         trained, training = train_gravity_actor_critic(
             seed=args.seed,
             training_seeds=tuple(args.training_seeds),
+            training_treatments=training_treatments,
             updates=args.updates,
             episodes_per_update=args.episodes_per_update,
             hidden=args.hidden,
@@ -143,6 +148,7 @@ def main() -> None:
         params, training = train_gravity_controller(
             seed=args.seed,
             training_seeds=tuple(args.training_seeds),
+            training_treatments=training_treatments,
             updates=args.updates,
             episodes_per_update=args.episodes_per_update,
             hidden=args.hidden,
@@ -173,6 +179,7 @@ def main() -> None:
         "config": {
             "horizon": args.horizon,
             "trainer": args.trainer,
+            "include_no_benefit": args.include_no_benefit,
             "entropy_coef": args.entropy_coef,
             "updates": args.updates,
             "episodes_per_update": args.episodes_per_update,

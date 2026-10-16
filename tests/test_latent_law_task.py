@@ -105,3 +105,39 @@ def test_gravity_choices_do_not_leak_into_observation() -> None:
     observation = episode.agent_observation
     assert "gravity_vector" not in observation
     assert "gravity_choices" not in observation
+
+
+def test_action_set_can_hold_a_diagonal_station() -> None:
+    """Nine unit actions, including the four diagonals, so a diagonal can be held."""
+    from hybrid_alife.experiments.latent_law_task import _ACTION_VECTORS
+
+    assert len(Action) == 9
+    assert float(np.linalg.norm(_ACTION_VECTORS[Action.REST])) == 0.0
+    thrusts = [v for a, v in _ACTION_VECTORS.items() if a is not Action.REST]
+    assert all(abs(float(np.linalg.norm(v)) - 1.0) < 1e-9 for v in thrusts)
+    assert Action.MOVE_UP_LEFT in _ACTION_VECTORS
+
+
+def test_reachable_target_makes_rest_strictly_suboptimal() -> None:
+    """A scripted oracle must beat resting, on cardinals and held-out diagonals."""
+    from hybrid_alife.experiments.latent_law_task import scripted_oracle_action
+
+    cardinals = ((0.0, -0.2), (0.0, 0.2), (-0.2, 0.0), (0.2, 0.0))
+    diagonals = ((0.14142, -0.14142), (0.14142, 0.14142), (-0.14142, 0.14142), (-0.14142, -0.14142))
+    for direction in cardinals + diagonals:
+        config = GravityConfig(horizon=12, gravity_choices=(direction,))
+        rest = GravityEpisode(7, Treatment.NO_REVELATION, config)
+        oracle = GravityEpisode(7, Treatment.NO_REVELATION, config)
+        rest_total = sum(rest.step(Action.REST).reward for _ in range(config.horizon))
+        oracle_total = sum(
+            oracle.step(scripted_oracle_action(oracle)).reward for _ in range(config.horizon)
+        )
+        assert oracle_total > rest_total + 5.0, (direction, oracle_total, rest_total)
+
+
+def test_target_lies_inside_the_world() -> None:
+    config = GravityConfig(gravity_choices=((0.14142, -0.14142),))
+    episode = GravityEpisode(seed=1, treatment=Treatment.NO_REVELATION, config=config)
+    gravity = np.asarray(episode.gravity_vector)
+    target = gravity / np.linalg.norm(gravity) * config.target_radius
+    assert np.linalg.norm(target) < config.world_limit

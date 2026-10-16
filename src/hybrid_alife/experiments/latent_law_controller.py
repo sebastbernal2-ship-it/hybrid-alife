@@ -10,6 +10,7 @@ import numpy as np
 
 from hybrid_alife.agents.controller import forward, init_controller_params
 from hybrid_alife.experiments.latent_law_task import (
+    _ACTION_VECTORS,
     Action,
     GravityConfig,
     GravityEpisode,
@@ -18,13 +19,6 @@ from hybrid_alife.experiments.latent_law_task import (
 
 OBS_DIM = 13
 _ACTIONS = tuple(Action)
-_ACTION_VECTORS = {
-    Action.REST: np.asarray((0.0, 0.0)),
-    Action.MOVE_LEFT: np.asarray((-1.0, 0.0)),
-    Action.MOVE_RIGHT: np.asarray((1.0, 0.0)),
-    Action.MOVE_UP: np.asarray((0.0, 1.0)),
-    Action.MOVE_DOWN: np.asarray((0.0, -1.0)),
-}
 
 
 def encode_gravity_observation(observation: dict[str, Any], horizon: int) -> np.ndarray:

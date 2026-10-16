@@ -28,6 +28,12 @@ class Action(StrEnum):
     MOVE_RIGHT = "move_right"
     MOVE_UP = "move_up"
     MOVE_DOWN = "move_down"
+    # Diagonal thrusts let the organism hold station against a diagonal gravity.
+    # Without them an axis-only action set oscillates and cannot settle.
+    MOVE_UP_LEFT = "move_up_left"
+    MOVE_UP_RIGHT = "move_up_right"
+    MOVE_DOWN_LEFT = "move_down_left"
+    MOVE_DOWN_RIGHT = "move_down_right"
 
 
 @dataclass(frozen=True)
@@ -42,10 +48,15 @@ class GravityConfig:
     revelation_step: int | None = None
     revelation_noise: float = 0.0
     revelation_cost: float = 0.0
-    action_acceleration: float = 0.15
+    # Action acceleration must exceed the gravity magnitude so the organism can
+    # brake and hold station instead of being pinned in a corner.
+    action_acceleration: float = 0.25
     surface_friction: float = 0.9
     surface: float = 0.0
-    world_limit: float = 4.0
+    world_limit: float = 6.0
+    # Target radius along the gravity direction. It must lie well inside the
+    # world so the target is reachable and stoppable.
+    target_radius: float = 2.0
 
     def __post_init__(self) -> None:
         if self.horizon < 1:
@@ -71,6 +82,8 @@ class GravityConfig:
             raise ValueError("surface_friction must be in (0, 1]")
         if self.world_limit <= 0 or self.action_acceleration < 0:
             raise ValueError("world_limit must be positive and acceleration non-negative")
+        if not 0 < self.target_radius < self.world_limit:
+            raise ValueError("target_radius must lie inside the world")
 
 
 @dataclass(frozen=True)
@@ -81,12 +94,17 @@ class StepResult:
     revelation: dict[str, Any] | None
 
 
+_DIAGONAL = float(1.0 / np.sqrt(2.0))
 _ACTION_VECTORS = {
     Action.REST: np.asarray((0.0, 0.0), dtype=np.float64),
     Action.MOVE_LEFT: np.asarray((-1.0, 0.0), dtype=np.float64),
     Action.MOVE_RIGHT: np.asarray((1.0, 0.0), dtype=np.float64),
     Action.MOVE_UP: np.asarray((0.0, 1.0), dtype=np.float64),
     Action.MOVE_DOWN: np.asarray((0.0, -1.0), dtype=np.float64),
+    Action.MOVE_UP_LEFT: np.asarray((-_DIAGONAL, _DIAGONAL), dtype=np.float64),
+    Action.MOVE_UP_RIGHT: np.asarray((_DIAGONAL, _DIAGONAL), dtype=np.float64),
+    Action.MOVE_DOWN_LEFT: np.asarray((-_DIAGONAL, -_DIAGONAL), dtype=np.float64),
+    Action.MOVE_DOWN_RIGHT: np.asarray((_DIAGONAL, -_DIAGONAL), dtype=np.float64),
 }
 
 
@@ -201,7 +219,7 @@ class GravityEpisode:
         )
         if self._gravity_affects_outcome:
             direction = gravity / max(float(np.linalg.norm(gravity)), 1e-12)
-            target = direction * self.config.world_limit
+            target = direction * self.config.target_radius
             reward = -float(np.linalg.norm(self.position - target))
         else:
             reward = -float(np.linalg.norm(action_vector))
@@ -226,4 +244,45 @@ class GravityEpisode:
         )
 
 
-__all__ = ["Action", "GravityConfig", "GravityEpisode", "StepResult", "Treatment"]
+def target_position(episode: GravityEpisode) -> np.ndarray:
+    """Target location along the gravity direction. Evaluator-side utility."""
+    gravity = np.asarray(episode.gravity_vector, dtype=np.float64)
+    direction = gravity / max(float(np.linalg.norm(gravity)), 1e-12)
+    return direction * episode.config.target_radius
+
+
+def scripted_oracle_action(episode: GravityEpisode) -> Action:
+    """Greedy one-step lookahead that knows gravity.
+
+    This is a scripted baseline for the evaluator and for tests. It is never
+    used as the agent's controller.
+    """
+    gravity = np.asarray(episode.gravity_vector, dtype=np.float64)
+    target = target_position(episode)
+    friction = episode.config.surface_friction
+    limit = episode.config.world_limit
+    best_action = Action.REST
+    best_distance = None
+    for action, direction in _ACTION_VECTORS.items():
+        velocity = (
+            friction * episode.velocity
+            + direction * episode.config.action_acceleration
+            + gravity
+        )
+        position = np.clip(episode.position + velocity, -limit, limit)
+        distance = float(np.linalg.norm(position - target))
+        if best_distance is None or distance < best_distance:
+            best_distance = distance
+            best_action = action
+    return best_action
+
+
+__all__ = [
+    "Action",
+    "GravityConfig",
+    "GravityEpisode",
+    "StepResult",
+    "Treatment",
+    "scripted_oracle_action",
+    "target_position",
+]

@@ -137,18 +137,36 @@ The pilot measures movement alignment with the held-out gravity vector and total
 | constant move-down | -31.74 |
 | learned controller | -23.85 |
 
-WARNING: the held-out diagonal condition is degenerate and the table above cannot support a conclusion.
-The target sits at `unit_gravity * world_limit`, and the organism has no braking action, so on a diagonal the organism is pushed past the target and pinned in the corner at `(4, -4)` while the target sits at `(2.83, -2.83)`.
-It then pays a permanent overshoot penalty that no action can remove.
-On those directions rest is nearly optimal and the oracle beats it by only `0.11`, so the hold-out tested almost nothing.
-On the cardinal training directions the same configuration is well posed: resting gives `-14.09`, moving with gravity gives `-9.50`, and moving against gravity gives `-33.94`.
+The table above was produced by the first world design and is retained only as history.
+That design was degenerate: the target sat at `unit_gravity * world_limit`, the organism had no braking action, and on a diagonal the organism was pushed past the target and pinned in the corner paying a permanent penalty no action could remove.
+Rest scored `-22.99` and the best single action scored `-22.88`, a gap of `0.11`, so the diagonal hold-out tested nothing.
 
-Measured on the cardinal directions, the environment signal is strong and the learner is correct.
-An isolated run on one gravity direction and one treatment converged to `100%` move-down at the optimal `-9.50`.
-The failure only appears in the held-out diagonal condition, and that failure is caused by the degenerate target placement.
+The world was redesigned to remove that flaw.
+The target now sits at `target_radius = 2.0` inside a `6.0` world, so it is reachable and stoppable.
+Action acceleration is `0.25`, above the `0.2` gravity magnitude, so the organism can brake and hold station.
+Four diagonal thrust actions were added, for nine unit actions total, because an axis-only action set oscillates and cannot hold a diagonal station.
 
-Consequence: the earlier statement that "the task is fair and the oracle beats rest" holds for cardinal gravity and does not hold for the diagonal hold-out.
-The hold-out must be redesigned before any claim is made.
+With the redesign, the scripted oracle (greedy one-step lookahead that knows gravity) holds station at `-18.26` for every direction.
+Rest gives `-37.06`, random gives `-38.06`, and the constant move-down policy gives `-52.30`.
+The oracle gap over rest is `+10.58` on cardinals and `+18.80` on diagonals, so both training and held-out directions carry a strict optimum.
+
+## Gravity pilot on the redesigned world (calibration only)
+
+Training uses the four cardinal directions and `NO_REVELATION` only.
+Evaluation uses four held-out diagonals.
+
+The learned controller reaches `-36.47`, which is only `0.59` above rest and far from the oracle.
+Per direction it moves with gravity on three of four diagonals, so it learned to ride the flow, but it overshoots the target because it never learned to brake.
+Training return moved only from `-33.13` to `-32.15` over `120` updates, and the critic loss barely moved, so the policy is far from converged.
+
+The no-benefit control was tried both ways.
+With `NO_BENEFIT` held out, the learned policy scores `-36.47`.
+With `NO_BENEFIT` mixed into training, the learned policy scores `-50.06`, which is worse than resting.
+Mixing the control into training hurts, because at step zero the no-benefit and gravity conditions look identical, so the policy becomes partly unobservable.
+
+Status: the organism has learned direction-consistent movement but has not learned to reach and hold the target.
+Gravity exploitation is therefore not demonstrated.
+The benchmark is now non-degenerate, and the remaining gap is a learner and optimization problem.
 
 The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
 Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.
