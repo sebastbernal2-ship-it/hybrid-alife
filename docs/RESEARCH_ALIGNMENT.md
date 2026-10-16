@@ -168,6 +168,47 @@ Status: the organism has learned direction-consistent movement but has not learn
 Gravity exploitation is therefore not demonstrated.
 The benchmark is now non-degenerate, and the remaining gap is a learner and optimization problem.
 
+## Detection metric and its replication
+
+The movement rate is the fraction of steps that are not rest.
+The detection gap is the movement rate with gravity present minus the movement rate with gravity absent.
+A constant policy scores exactly zero, so the metric cannot be gamed by always moving or always resting.
+
+A single seed first suggested a gap of `+0.46`.
+Replication over five training seeds gave per-seed gaps of `+0.458`, `0.000`, `+0.458`, `0.000`, `0.000`, with mean `+0.183` and standard deviation `0.251`.
+Three of five seeds show exactly zero.
+The hint did not replicate, so law detection is not established.
+
+## Conditioning of the control problem
+
+Control authority is action acceleration divided by the gravity magnitude.
+
+| Authority | Oracle reward | Final distance to target | Gap over rest |
+| --- | --- | --- | --- |
+| 1.25x | -18.26 | 2.248 | +10.58 |
+| 1.50x | -14.17 | 0.881 | +14.67 |
+| 2.00x | -9.35 | 0.066 | +19.49 |
+| 2.50x | -8.62 | 0.158 | +20.22 |
+
+At the original `1.25x` the organism cannot brake enough to hold the target, so the optimum demands near-perfect timing.
+At `2.00x` the oracle holds the target to within `0.066` and the optimum is clean.
+
+## Learner impasse
+
+Even at `2.00x` authority the learner does not improve.
+The checks below show the problem is the neural policy update, not the world.
+
+- The plumbing is correct: forcing `move_down` gives `-38.46`, forcing `move_up` gives `-68.26`, and forcing `rest` gives `-28.84`, matching the hand-measured constant policies.
+- The initial policy chooses `move_up`, the worst action.
+- Six gradient steps at learning rate `0.5` leave the evaluated reward at exactly `-68.26`, so the deterministic action never changes.
+- The same result appears at learning rates `0.02`, `0.005`, `0.002` and entropy coefficients `0.0`, `0.05`, `0.5`, `2.0`.
+- Return variance is large, standard deviation `10.39` over 256 rollouts, so a learning signal exists.
+- The initial action logits span only about `0.03`, so the deterministic action is decided by rounding noise and the update never moves it enough to change the choice.
+
+Diagnosis: the recurrent policy-gradient path collapses to a near-uniform policy whose deterministic action never changes, and the update does not escape it.
+
+Recommended next step: replace the recurrent actor-critic with a simpler or trust-region learner, such as a linear or tabular policy over the encoded observation, or PPO with a trust region, and confirm that it can solve the single-direction task before returning to multi-direction physics.
+
 The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
 Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.
 

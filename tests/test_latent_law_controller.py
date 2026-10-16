@@ -131,3 +131,26 @@ def test_actor_critic_training_is_deterministic_and_declared() -> None:
     assert first_meta["entropy_coef"] >= 0
     for name in first["actor"]:
         assert (first["actor"][name] == second["actor"][name]).all()
+
+
+def test_movement_rate_and_detection_gap_are_not_gameable_by_a_constant_policy() -> None:
+    """A constant policy must score zero detection, an adaptive one above zero."""
+    from hybrid_alife.experiments.latent_law_controller import (
+        detection_gap,
+        movement_rate,
+    )
+
+    def trace(actions):
+        return {"agent_trace": [{"action": a} for a in actions]}
+
+    moving = trace(["move_down"] * 10)
+    resting = trace(["rest"] * 10)
+
+    assert movement_rate(moving) == 1.0
+    assert movement_rate(resting) == 0.0
+    # A policy that always moves shows no discrimination.
+    assert detection_gap([moving, moving], [moving, moving]) == 0.0
+    # A policy that always rests also shows no discrimination.
+    assert detection_gap([resting, resting], [resting, resting]) == 0.0
+    # A policy that moves only when gravity is present discriminates fully.
+    assert detection_gap([moving, resting], [resting, resting]) == 0.5

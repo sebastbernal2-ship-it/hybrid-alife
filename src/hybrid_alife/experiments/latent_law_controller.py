@@ -415,6 +415,95 @@ def train_gravity_actor_critic(
     }
 
 
+def movement_rate(result: dict[str, Any]) -> float:
+    """Fraction of episode steps that are not rest.
+
+    In the gravity-present condition thrusting is useful.
+    In the gravity-absent condition resting is free and thrusting is penalised.
+    A constant policy therefore cannot show a difference between the two.
+    """
+    trace = result.get("agent_trace") or []
+    if not trace:
+        return 0.0
+    return float(np.mean([item["action"] != Action.REST.value for item in trace]))
+
+
+def detection_gap(
+    present_results: list[dict[str, Any]],
+    absent_results: list[dict[str, Any]],
+) -> float:
+    """Mean movement-rate difference between gravity present and absent.
+
+    Zero means the organism behaves identically with and without gravity, so it
+    has not detected whether the law is present. Positive values mean it rests
+    more when gravity is absent, which is the adaptive response.
+    """
+    if not present_results or not absent_results:
+        return 0.0
+    present = float(np.mean([movement_rate(item) for item in present_results]))
+    absent = float(np.mean([movement_rate(item) for item in absent_results]))
+    return float(present - absent)
+
+
+def measure_law_detection(
+    params: dict[str, jax.Array],
+    directions: tuple[tuple[float, float], ...],
+    seeds: tuple[int, ...],
+    *,
+    horizon: int = 12,
+) -> dict[str, Any]:
+    """Compare behaviour with gravity present against gravity absent.
+
+    Rewards are reported per condition for context, but they are not compared
+    across conditions because the two conditions use different reward functions.
+    The comparable quantity is the movement rate.
+    """
+    present_results: list[dict[str, Any]] = []
+    absent_results: list[dict[str, Any]] = []
+    per_direction: dict[str, dict[str, float]] = {}
+    for direction in directions:
+        config = GravityConfig(horizon=horizon, gravity_choices=(direction,))
+        present_here: list[dict[str, Any]] = []
+        absent_here: list[dict[str, Any]] = []
+        for seed in seeds:
+            present_here.append(
+                run_gravity_episode(seed, Treatment.NO_REVELATION, params, config)
+            )
+            absent_here.append(
+                run_gravity_episode(seed, Treatment.NO_BENEFIT, params, config)
+            )
+        present_results.extend(present_here)
+        absent_results.extend(absent_here)
+        per_direction[str(direction)] = {
+            "present_movement_rate": float(
+                np.mean([movement_rate(item) for item in present_here])
+            ),
+            "absent_movement_rate": float(
+                np.mean([movement_rate(item) for item in absent_here])
+            ),
+            "present_reward": float(
+                np.mean([item["total_reward"] for item in present_here])
+            ),
+            "absent_reward": float(
+                np.mean([item["total_reward"] for item in absent_here])
+            ),
+        }
+    return {
+        "movement_gap": detection_gap(present_results, absent_results),
+        "present_movement_rate": float(
+            np.mean([movement_rate(item) for item in present_results])
+        )
+        if present_results
+        else 0.0,
+        "absent_movement_rate": float(
+            np.mean([movement_rate(item) for item in absent_results])
+        )
+        if absent_results
+        else 0.0,
+        "per_direction": per_direction,
+    }
+
+
 def evaluate_gravity_controller(
     params: dict[str, jax.Array],
     *,
@@ -438,7 +527,10 @@ def evaluate_gravity_controller(
 
 
 __all__ = [
+    "detection_gap",
     "encode_gravity_observation",
+    "measure_law_detection",
+    "movement_rate",
     "evaluate_gravity_controller",
     "run_gravity_episode",
     "train_gravity_controller",

@@ -17,6 +17,7 @@ import jax
 import numpy as np
 
 from hybrid_alife.experiments.latent_law_controller import (
+    measure_law_detection,
     run_gravity_episode,
     train_gravity_actor_critic,
     train_gravity_controller,
@@ -159,6 +160,9 @@ def main() -> None:
     learned = _gravity_reward_and_alignment(
         params, heldout, tuple(args.eval_seeds), args.horizon
     )
+    detection = measure_law_detection(
+        params, heldout, tuple(args.eval_seeds), horizon=args.horizon
+    )
     baselines: dict[str, float] = {}
     for policy in ("rest", "move_down", "random", "oracle"):
         values = [
@@ -188,6 +192,7 @@ def main() -> None:
             "heldout_directions": heldout,
         },
         "training": training,
+        "detection": detection,
         "heldout": learned,
         "heldout_gravity_alignment": learned["alignment"],
         "heldout_baselines": baselines,
@@ -198,6 +203,11 @@ def main() -> None:
     print(
         f"learned held-out reward: {learned['reward']:.4f} "
         f"alignment: {learned['alignment']:.4f}"
+    )
+    print(
+        f"law detection movement gap: {detection['movement_gap']:+.4f} "
+        f"(present {detection['present_movement_rate']:.2f} "
+        f"absent {detection['absent_movement_rate']:.2f})"
     )
     for policy, value in baselines.items():
         print(f"  baseline {policy}: {value:.4f}")
