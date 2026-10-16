@@ -205,9 +205,51 @@ The checks below show the problem is the neural policy update, not the world.
 - Return variance is large, standard deviation `10.39` over 256 rollouts, so a learning signal exists.
 - The initial action logits span only about `0.03`, so the deterministic action is decided by rounding noise and the update never moves it enough to change the choice.
 
-Diagnosis: the recurrent policy-gradient path collapses to a near-uniform policy whose deterministic action never changes, and the update does not escape it.
+Diagnosis, refined: both a recurrent actor-critic and a plain linear policy converge to resting or worse.
+The root cause is the reward landscape, not the optimizer.
 
-Recommended next step: replace the recurrent actor-critic with a simpler or trust-region learner, such as a linear or tabular policy over the encoded observation, or PPO with a trust region, and confirm that it can solve the single-direction task before returning to multi-direction physics.
+## The reward is a needle
+
+Measured at `2.00x` authority on the single direction `(0, -0.2)`, horizon `12`.
+
+Riding gravity and then resting:
+
+| Ride steps | Total reward |
+| --- | --- |
+| 0 (pure rest) | -28.84 |
+| 1 | -33.16 |
+| 2 | -36.54 |
+| 3 or more | -38.46 |
+
+Every partial ride is worse than doing nothing, so there is no improvement path from rest toward the optimum.
+
+Riding gravity and then braking upward:
+
+| Ride steps before braking | Total reward |
+| --- | --- |
+| 0 | -68.26 |
+| 1 | -35.91 |
+| 2 | -11.94 |
+| 3 | -34.66 |
+| 4 or more | -38.46 |
+
+One brake point is good and its immediate neighbours are worse by more than `23` points.
+The optimum is an isolated spike in a discrete schedule space of twelve choices.
+
+A mean-baseline policy-gradient method cannot find a spike like this, so the observed convergence to rest is the expected outcome rather than a learner bug.
+The plumbing checks above still hold and the signal is still real, but the optimum is unreachable by incremental improvement.
+
+## Recommended reward redesign
+
+Replace the position-target reward with a **displacement reward**: each step rewards movement along the gravity axis, and penalises movement against it.
+
+- Rest scores `0`, so it is neutral and no longer a trap.
+- Moving with gravity scores positive, so any improvement is incremental.
+- Moving against gravity scores negative.
+- The optimum is simply to move along gravity.
+
+Because gravity direction varies per episode, a constant policy cannot pass, and the held-out directions remain a real generality test.
+The organism must infer the direction from the velocity change it causes, which is exactly the original question: can it work out the law from exposure and act on it.
 
 The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
 Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.

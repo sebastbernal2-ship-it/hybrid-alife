@@ -61,15 +61,15 @@ def run_gravity_episode(
 ) -> dict[str, Any]:
     config = config or GravityConfig()
     episode = GravityEpisode(seed, treatment, config)
-    hidden = jnp.zeros((1, int(params["w_xz"].shape[-1])), dtype=jnp.float32)
+    state = _policy_state(params)
     agent_trace: list[dict[str, Any]] = []
     evaluator_trace: list[dict[str, Any]] = []
     rewards: list[float] = []
     for _ in range(config.horizon):
         observation = dict(episode.agent_observation)
         encoded = encode_gravity_observation(observation, config.horizon)
-        raw, hidden = forward(params, jnp.asarray(encoded)[None, :], hidden, use_memory=True)
-        action = _action_from_logits(np.asarray(raw[0]))
+        logits, state = _policy_logits(params, encoded, state)
+        action = _action_from_logits(logits)
         result = episode.step(action)
         rewards.append(result.reward)
         agent_trace.append({"observation": observation, "action": action.value})
@@ -104,6 +104,175 @@ def run_gravity_episode(
         "agent_trace": agent_trace,
         "evaluator_trace": evaluator_trace,
         "revelation_log": episode.revelation_log,
+    }
+
+
+def is_linear_policy(policy: dict[str, jax.Array]) -> bool:
+    """A linear policy has ``w`` and ``b``; a recurrent policy has ``w_xz``."""
+    return "w" in policy and "w_xz" not in policy
+
+
+def init_linear_policy(seed: int, *, obs_dim: int = OBS_DIM) -> dict[str, jax.Array]:
+    """A single linear layer over the encoded observation.
+
+    The encoding contains ``step / horizon``, so a linear policy can still
+    express a time-dependent action schedule without recurrence.
+    """
+    keys = jax.random.split(jax.random.PRNGKey(seed + 1234), 2)
+    return {
+        "w": 0.01 * jax.random.normal(keys[0], (obs_dim, len(_ACTIONS))),
+        "b": jnp.zeros((len(_ACTIONS),)),
+    }
+
+
+def _policy_state(policy: dict[str, jax.Array]) -> jax.Array | None:
+    if is_linear_policy(policy):
+        return None
+    return jnp.zeros((1, int(policy["w_xz"].shape[-1])), dtype=jnp.float32)
+
+
+def _policy_logits(
+    policy: dict[str, jax.Array],
+    encoded: np.ndarray,
+    state: jax.Array | None,
+) -> tuple[np.ndarray, jax.Array | None]:
+    """Return action logits and the next policy state for either policy type."""
+    if is_linear_policy(policy):
+        logits = jnp.asarray(encoded) @ policy["w"] + policy["b"]
+        return np.asarray(logits), state
+    raw, next_state = forward(
+        policy, jnp.asarray(encoded)[None, :], state, use_memory=True
+    )
+    return np.asarray(raw[0]), next_state
+
+
+def _linear_episode_log_probs_and_entropy(
+    policy: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+    logits = observations @ policy["w"] + policy["b"]
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
+    probs = jax.nn.softmax(logits, axis=-1)
+    entropy = -jnp.sum(probs * log_probs, axis=-1)
+    return log_probs[jnp.arange(actions.shape[0]), actions], entropy
+
+
+def _linear_loss(
+    policy: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+    advantages: jax.Array,
+    entropy_coef: float,
+) -> jax.Array:
+    log_probs, entropies = jax.vmap(
+        _linear_episode_log_probs_and_entropy, in_axes=(None, 0, 0)
+    )(policy, observations, actions)
+    return -jnp.mean(log_probs * advantages) - entropy_coef * jnp.mean(entropies)
+
+
+def _collect_linear_episode(
+    policy: dict[str, jax.Array],
+    seed: int,
+    treatment: Treatment,
+    config: GravityConfig,
+    key: jax.Array,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    episode = GravityEpisode(seed, treatment, config)
+    observations: list[np.ndarray] = []
+    actions: list[int] = []
+    rewards: list[float] = []
+    for _ in range(config.horizon):
+        encoded = encode_gravity_observation(episode.agent_observation, config.horizon)
+        logits = jnp.asarray(encoded) @ policy["w"] + policy["b"]
+        key, sample_key = jax.random.split(key)
+        index = int(jax.random.categorical(sample_key, logits))
+        result = episode.step(_ACTIONS[index])
+        observations.append(encoded)
+        actions.append(index)
+        rewards.append(result.reward)
+    returns = np.zeros(len(rewards), dtype=np.float32)
+    running = 0.0
+    for index in range(len(rewards) - 1, -1, -1):
+        running = rewards[index] + running
+        returns[index] = running
+    return np.asarray(observations), np.asarray(actions), returns, float(sum(rewards))
+
+
+def train_linear_gravity_policy(
+    seed: int,
+    *,
+    training_seeds: tuple[int, ...] = (0, 1),
+    training_treatments: tuple[Treatment, ...] = (Treatment.NO_REVELATION,),
+    updates: int = 200,
+    episodes_per_update: int = 32,
+    learning_rate: float = 0.05,
+    entropy_coef: float = 0.02,
+    config: GravityConfig | None = None,
+) -> tuple[dict[str, jax.Array], dict[str, Any]]:
+    """Plain REINFORCE with a per-timestep mean baseline and entropy control."""
+    if not training_seeds or not training_treatments:
+        raise ValueError("training seeds and treatments must not be empty")
+    if updates < 1 or episodes_per_update < 2:
+        raise ValueError("updates must be positive and episodes_per_update at least two")
+    if learning_rate <= 0 or entropy_coef < 0:
+        raise ValueError("invalid linear policy hyperparameters")
+    config = config or GravityConfig()
+    policy = init_linear_policy(seed)
+    specs = [
+        (seed_value, treatment)
+        for treatment in training_treatments
+        for seed_value in training_seeds
+    ]
+    key = jax.random.PRNGKey(seed + 80_000)
+    loss_and_grad = jax.jit(jax.value_and_grad(_linear_loss))
+    history: list[dict[str, float | int]] = []
+    for update in range(updates):
+        keys = jax.random.split(key, episodes_per_update + 1)
+        key = keys[0]
+        batches = [
+            _collect_linear_episode(
+                policy, *specs[index % len(specs)], config, keys[index + 1]
+            )
+            for index in range(episodes_per_update)
+        ]
+        observations = np.stack([batch[0] for batch in batches])
+        actions = np.stack([batch[1] for batch in batches])
+        return_matrix = np.stack([batch[2] for batch in batches])
+        # Per-timestep mean baseline, then normalise so the step size is stable.
+        advantages = return_matrix - return_matrix.mean(axis=0, keepdims=True)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
+        loss, gradients = loss_and_grad(
+            policy,
+            jnp.asarray(observations),
+            jnp.asarray(actions),
+            jnp.asarray(advantages),
+            entropy_coef,
+        )
+        policy = jax.tree_util.tree_map(
+            lambda value, gradient: value - learning_rate * jnp.clip(gradient, -1.0, 1.0),
+            policy,
+            gradients,
+        )
+        history.append(
+            {
+                "update": update,
+                "loss": float(loss),
+                "mean_return": float(np.mean([batch[3] for batch in batches])),
+            }
+        )
+    return policy, {
+        "status": "calibration_only",
+        "trainer": "linear_policy_gradient",
+        "jax_loss_jitted": True,
+        "seed": seed,
+        "updates": updates,
+        "episodes_per_update": episodes_per_update,
+        "entropy_coef": entropy_coef,
+        "learning_rate": learning_rate,
+        "training_seeds": list(training_seeds),
+        "training_treatments": [treatment.value for treatment in training_treatments],
+        "history": history,
     }
 
 
@@ -527,6 +696,9 @@ def evaluate_gravity_controller(
 
 
 __all__ = [
+    "init_linear_policy",
+    "is_linear_policy",
+    "train_linear_gravity_policy",
     "detection_gap",
     "encode_gravity_observation",
     "measure_law_detection",

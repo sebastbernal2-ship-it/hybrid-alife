@@ -154,3 +154,62 @@ def test_movement_rate_and_detection_gap_are_not_gameable_by_a_constant_policy()
     assert detection_gap([resting, resting], [resting, resting]) == 0.0
     # A policy that moves only when gravity is present discriminates fully.
     assert detection_gap([moving, resting], [resting, resting]) == 0.5
+
+
+def test_target_reward_is_a_needle_landscape() -> None:
+    """Documents a known defect in the target reward design.
+
+    Riding gravity and then resting is worse than simply resting, for every
+    partial ride. Riding and then braking is good at exactly one brake step,
+    and its immediate neighbours are far worse. A reward with a single isolated
+    optimum and no improvement path cannot be found by gradient policy search.
+    Replace this test when the reward is redesigned.
+    """
+    from hybrid_alife.experiments.latent_law_task import Action, GravityConfig, GravityEpisode
+
+    config = GravityConfig(
+        horizon=12,
+        gravity_choices=((0.0, -0.2),),
+        action_acceleration=0.40,
+    )
+
+    def total(ride_steps, later_action):
+        episode = GravityEpisode(7, Treatment.NO_REVELATION, config)
+        result = 0.0
+        for step in range(12):
+            action = Action.MOVE_DOWN if step < ride_steps else later_action
+            result += episode.step(action).reward
+        return result
+
+    rest_only = total(0, Action.REST)
+    ride_then_rest = [total(k, Action.REST) for k in range(1, 12)]
+    # No improvement path: every partial ride is worse than doing nothing.
+    assert all(value < rest_only for value in ride_then_rest), ride_then_rest
+
+    ride_then_brake = [total(k, Action.MOVE_UP) for k in range(0, 12)]
+    best = max(ride_then_brake)
+    best_index = ride_then_brake.index(best)
+    # One isolated optimum, with far worse neighbours on both sides.
+    assert ride_then_brake[best_index - 1] < best - 10.0
+    assert ride_then_brake[best_index + 1] < best - 10.0
+    assert best > rest_only + 10.0
+
+
+def test_linear_policy_training_is_deterministic() -> None:
+    from hybrid_alife.experiments.latent_law_controller import (
+        train_linear_gravity_policy,
+    )
+    from hybrid_alife.experiments.latent_law_task import GravityConfig
+
+    config = GravityConfig(horizon=6, gravity_choices=((0.0, -0.2),), action_acceleration=0.40)
+    kwargs = {
+        "seed": 2,
+        "training_seeds": (0,),
+        "updates": 2,
+        "episodes_per_update": 4,
+        "config": config,
+    }
+    first, first_meta = train_linear_gravity_policy(**kwargs)
+    second, second_meta = train_linear_gravity_policy(**kwargs)
+    assert first_meta == second_meta
+    assert (first["w"] == second["w"]).all()
