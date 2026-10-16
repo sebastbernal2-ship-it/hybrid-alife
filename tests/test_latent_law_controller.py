@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 from hybrid_alife.experiments.latent_law_controller import (
     evaluate_gravity_controller,
     run_gravity_episode,
@@ -56,3 +58,30 @@ def test_gravity_controller_evaluates_revelation_and_no_benefit_conditions() -> 
     )
     assert set(result["conditions"]) == {t.value for t in Treatment}
     assert result["status"] == "calibration_only"
+
+
+def test_training_loss_is_invariant_to_episode_order() -> None:
+    """Episode boundaries must reset controller hidden state.
+
+    If hidden state is carried across episodes, permuting episodes changes the
+    loss. A correct per-episode rollout makes the order irrelevant.
+    """
+    import jax
+    import jax.numpy as jnp
+
+    from hybrid_alife.agents.controller import init_controller_params
+    from hybrid_alife.experiments.latent_law_controller import (
+        _ACTIONS,
+        OBS_DIM,
+        _policy_loss,
+    )
+
+    params = init_controller_params(1, OBS_DIM, len(_ACTIONS), 8, jax.random.PRNGKey(0))
+    values = np.arange(2 * 3 * OBS_DIM, dtype="float32").reshape(2, 3, OBS_DIM) / 100.0
+    observations = jnp.asarray(values)
+    actions = jnp.asarray([[0, 1, 2], [3, 4, 0]])
+    advantages = jnp.asarray([[1.0, -1.0, 0.5], [0.25, -0.5, 2.0]])
+
+    forward_loss = _policy_loss(params, observations, actions, advantages)
+    reversed_loss = _policy_loss(params, observations[::-1], actions[::-1], advantages[::-1])
+    assert abs(float(forward_loss) - float(reversed_loss)) < 1e-6

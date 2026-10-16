@@ -119,10 +119,44 @@ Use representation probes only as a separate optional analysis.
 - PPO-POET archive controls are a supporting archive question.
 - The latent-law task is calibration infrastructure, not learned-organism evidence.
 - `latent_law_controller.py` now provides a bounded JAX policy-gradient calibration trainer.
-- Its first smoke remains calibration-only and does not show revelation use or gravity exploitation.
+- `scripts/run_gravity_pilot.py` runs the bounded held-out gravity pilot.
 - None of these currently establishes the original organism-in-a-world result.
 
+## Gravity pilot result (calibration only)
+
+The training directions are the four cardinals.
+The evaluation directions are four diagonals that never appear in training, so a constant action cannot pass.
+
+The pilot measures movement alignment with the held-out gravity vector and total reward.
+
+| Condition | Held-out reward |
+| --- | --- |
+| oracle (moves along gravity) | -22.88 |
+| rest (does nothing) | -22.99 |
+| random | -24.05 |
+| constant move-down | -31.74 |
+| learned controller | -23.85 |
+
+The constant move-down baseline fails on held-out directions, which confirms the hold-out works.
+The oracle and rest baselines are close because gravity itself carries the organism toward the target, so exploitation adds little reward on its own.
+
+The learned controller ends with held-out alignment `-0.29`, meaning it moves slightly against gravity, and it scores worse than doing nothing.
+Training return improved from `-21.74` to `-20.03`, so the update does move parameters, but the policy stays near-uniform and the deterministic action is close to random.
+
+The organism has not demonstrated gravity exploitation.
+The task is fair: gravity is recoverable from observed velocity drift plus the organism's own action, and the oracle beats rest.
+The failure is in the learning method, not in the task contract.
+
+The episode-boundary bug below was found and fixed during this pilot, and it is now guarded by a test.
+
 ## Final claim boundary
+
+A known trainer defect found during the pilot:
+
+- The recurrent loss ran one `lax.scan` over concatenated episodes, so hidden state leaked across episode boundaries.
+- `_policy_loss` now resets hidden state per episode and is order-invariant, guarded by `test_training_loss_is_invariant_to_episode_order`.
+
+The next required change is a stronger learner, such as a value-function critic with entropy control, not more objective shaping.
 
 A positive result may support:
 

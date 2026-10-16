@@ -34,6 +34,10 @@ class Action(StrEnum):
 class GravityConfig:
     horizon: int = 8
     gravity: tuple[float, float] = (0.0, -0.2)
+    # When set, each episode draws one gravity vector from this declared set
+    # instead of using ``gravity``. This makes a constant-action policy
+    # insufficient, because the law changes between episodes.
+    gravity_choices: tuple[tuple[float, float], ...] | None = None
     reversal_step: int | None = None
     revelation_step: int | None = None
     revelation_noise: float = 0.0
@@ -48,6 +52,11 @@ class GravityConfig:
             raise ValueError("horizon must be positive")
         if len(self.gravity) != 2:
             raise ValueError("gravity must have two components")
+        if self.gravity_choices is not None:
+            if not self.gravity_choices:
+                raise ValueError("gravity_choices must not be empty when set")
+            if any(len(choice) != 2 for choice in self.gravity_choices):
+                raise ValueError("every gravity choice must have two components")
         for name, step in (
             ("reversal_step", self.reversal_step),
             ("revelation_step", self.revelation_step),
@@ -94,14 +103,23 @@ class GravityEpisode:
         self.treatment = Treatment(treatment)
         self.config = config or GravityConfig()
         self._rng = np.random.default_rng(self.seed)
+        self._gravity_rng = np.random.default_rng(self.seed + 7)
+        self.base_gravity = np.asarray(self._choose_gravity(), dtype=np.float64)
         self.step_index = 0
         self.position = np.zeros(2, dtype=np.float64)
         self.velocity = np.zeros(2, dtype=np.float64)
         self.revelation_log: list[dict[str, Any]] = []
 
+    def _choose_gravity(self) -> tuple[float, float]:
+        choices = self.config.gravity_choices
+        if choices is None:
+            return self.config.gravity
+        index = int(self._gravity_rng.integers(0, len(choices)))
+        return choices[index]
+
     @property
     def gravity_vector(self) -> tuple[float, float]:
-        gravity = np.asarray(self.config.gravity, dtype=np.float64)
+        gravity = np.asarray(self.base_gravity, dtype=np.float64)
         if self.config.reversal_step is not None and self.step_index >= self.config.reversal_step:
             gravity = -gravity
         return tuple(float(value) for value in gravity)
@@ -197,6 +215,8 @@ class GravityEpisode:
             "gravity_affects_outcome": self._gravity_affects_outcome,
             "step": self.step_index,
         }
+        # ``_record_revelation`` is idempotent, so both the incoming payload and
+        # the payload that becomes visible after the step are offered here.
         self._record_revelation(self._revelation_payload())
         return StepResult(
             reward=reward,

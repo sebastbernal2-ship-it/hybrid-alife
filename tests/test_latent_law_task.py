@@ -83,3 +83,25 @@ def test_no_benefit_control_keeps_reward_independent_of_gravity() -> None:
     assert active_result.reward != control_result.reward
     assert control_result.evaluator_labels["gravity_affects_outcome"] is False
     assert control_result.agent_observation["revelation_present"] is False
+
+
+def test_variable_gravity_directions_are_seed_determined() -> None:
+    choices = ((0.0, -0.2), (0.0, 0.2), (-0.2, 0.0), (0.2, 0.0))
+    config = GravityConfig(horizon=3, gravity_choices=choices)
+    first = GravityEpisode(seed=11, treatment=Treatment.NO_REVELATION, config=config)
+    second = GravityEpisode(seed=11, treatment=Treatment.NO_REVELATION, config=config)
+    assert first.gravity_vector == second.gravity_vector
+    assert first.gravity_vector in choices
+    seen = {
+        GravityEpisode(seed=seed, treatment=Treatment.NO_REVELATION, config=config).gravity_vector
+        for seed in range(40)
+    }
+    assert len(seen) > 1
+
+
+def test_gravity_choices_do_not_leak_into_observation() -> None:
+    config = GravityConfig(horizon=3, gravity_choices=((0.0, -0.2), (0.2, 0.0)))
+    episode = GravityEpisode(seed=3, treatment=Treatment.NO_REVELATION, config=config)
+    observation = episode.agent_observation
+    assert "gravity_vector" not in observation
+    assert "gravity_choices" not in observation

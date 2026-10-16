@@ -142,21 +142,38 @@ def _collect_episode(
     return np.asarray(observations), np.asarray(actions), returns, float(sum(rewards))
 
 
-def _loss(
+def _episode_log_probs(
     params: dict[str, jax.Array],
     observations: jax.Array,
     actions: jax.Array,
-    advantages: jax.Array,
 ) -> jax.Array:
+    """Log-probabilities for one episode, with hidden state reset at step zero."""
     hidden = jnp.zeros((1, params["w_xz"].shape[-1]), dtype=jnp.float32)
 
     def scan_step(hidden, inputs):
         observation, action = inputs
         raw, next_hidden = forward(params, observation[None, :], hidden, use_memory=True)
-        log_probs = jax.nn.log_softmax(raw[0])
-        return next_hidden, log_probs[action]
+        return next_hidden, jax.nn.log_softmax(raw[0])[action]
 
     _, log_probs = jax.lax.scan(scan_step, hidden, (observations, actions))
+    return log_probs
+
+
+def _policy_loss(
+    params: dict[str, jax.Array],
+    observations: jax.Array,
+    actions: jax.Array,
+    advantages: jax.Array,
+) -> jax.Array:
+    """Policy-gradient loss over a batch of independent episodes.
+
+    ``observations`` and ``actions`` have shape ``[episodes, steps, ...]``.
+    Each episode starts from a fresh hidden state, so the loss does not depend
+    on how episodes are ordered.
+    """
+    log_probs = jax.vmap(_episode_log_probs, in_axes=(None, 0, 0))(
+        params, observations, actions
+    )
     return -jnp.mean(log_probs * advantages)
 
 
@@ -185,7 +202,7 @@ def train_gravity_controller(
         for seed_value in training_seeds
     ]
     key = jax.random.PRNGKey(seed + 50_000)
-    loss_and_grad = jax.jit(jax.value_and_grad(_loss))
+    loss_and_grad = jax.jit(jax.value_and_grad(_policy_loss))
     history: list[dict[str, float | int]] = []
     for update in range(updates):
         keys = jax.random.split(key, episodes_per_update + 1)
@@ -194,19 +211,16 @@ def train_gravity_controller(
             _collect_episode(params, *specs[index % len(specs)], config, keys[index + 1])
             for index in range(episodes_per_update)
         ]
-        observations = np.concatenate([batch[0] for batch in batches])
-        actions = np.concatenate([batch[1] for batch in batches])
+        observations = np.stack([batch[0] for batch in batches])
+        actions = np.stack([batch[1] for batch in batches])
         return_matrix = np.stack([batch[2] for batch in batches])
         advantages = return_matrix - return_matrix.mean(axis=0, keepdims=True)
-        flat_advantages = advantages.reshape(-1)
-        flat_advantages = (flat_advantages - flat_advantages.mean()) / (
-            flat_advantages.std() + 1e-6
-        )
+        batch_advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
         loss, gradients = loss_and_grad(
             params,
             jnp.asarray(observations),
             jnp.asarray(actions),
-            jnp.asarray(flat_advantages),
+            jnp.asarray(batch_advantages),
         )
         params = jax.tree_util.tree_map(
             lambda value, gradient: value - learning_rate * jnp.clip(gradient, -1.0, 1.0),
