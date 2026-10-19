@@ -301,6 +301,17 @@ So the gap is not a conditioning or feature-scale problem.
 
 The remaining candidate is the optimisation fixed point of the weighted fit, not the representation.
 
+A second hypothesis was tested: simply add more data.
+Increasing dense training to `40` rounds of `192` episodes gave `1 of 5` seeds passing, with worst-direction mean `+6.37` and worst single direction `+4.59`.
+That is no better than `24` rounds of `128` episodes, which gave `3 of 5`.
+So data quantity is not the cause either.
+
+The failure signature is consistent across every experiment: in each failing seed exactly one held-out direction is weak, between `+4.6` and `+7.4`, while the mean across directions stays near `+9.5` with the oracle at `+12`.
+The weak direction differs per seed.
+That is consistent with the reward weighting reducing effective coverage, so some coefficients of the linear fit stay weakly constrained.
+
+The simulator result is therefore reported as **partial transfer**, not a demonstration.
+
 ## Claim boundary for this result
 
 Supported: in this calibration world, an artificial organism learns to exploit an imposed gravity-like law through exposure alone, and generalises it to held-out directions.
