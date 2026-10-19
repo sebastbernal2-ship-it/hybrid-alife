@@ -292,7 +292,14 @@ Failures are a single weak direction rather than a collapse, and that direction 
 
 Status: partial transfer.
 The simulator bridge reproduces the behavior on average but not yet reliably on every held-out direction.
-The next step is to close that reliability gap, most likely through observation feature scaling or a stronger fit regulariser, before this can be reported as a simulator-backed demonstration.
+
+Two hypotheses were tested against the reliability gap.
+
+Observation feature scaling was added to the fit: columns are standardised before the weighted ridge solve and the coefficients are mapped back to raw observations.
+That fixed a real correctness bug, because standardising the appended constant column had been destroying the intercept, but it did **not** change the simulator gate: cardinal training stayed at `1 of 5` seeds and dense training at `3 of 5`, with the same worst-direction numbers.
+So the gap is not a conditioning or feature-scale problem.
+
+The remaining candidate is the optimisation fixed point of the weighted fit, not the representation.
 
 ## Claim boundary for this result
 

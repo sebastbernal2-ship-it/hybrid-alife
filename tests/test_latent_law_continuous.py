@@ -86,3 +86,17 @@ def test_reward_weighted_regression_solves_every_held_out_direction() -> None:
     assert float(np.mean(values)) > 9.0, scores
 
 
+
+
+def test_linear_fit_unstandardises_correctly() -> None:
+    """The fit must return coefficients for raw observations, not scaled ones."""
+    from hybrid_alife.experiments.latent_law_continuous import fit_linear_thrust_policy
+
+    rng = np.random.default_rng(0)
+    observations = rng.normal(0.0, 2.0, size=(400, 4)) + np.asarray([5.0, -3.0, 0.5, 1.0])
+    true_w = np.asarray([[1.0, 0.0], [0.0, 1.0], [2.0, -1.0], [-0.5, 0.5]])
+    true_b = np.asarray([0.25, -0.75])
+    targets = observations @ true_w + true_b
+    policy = fit_linear_thrust_policy(observations, targets, np.ones(400), 1e-6)
+    predicted = observations @ np.asarray(policy["w"]) + np.asarray(policy["b"])
+    assert np.mean(np.abs(predicted - targets)) < 1e-4

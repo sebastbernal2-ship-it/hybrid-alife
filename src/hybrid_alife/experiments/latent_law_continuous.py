@@ -341,18 +341,45 @@ def fit_linear_thrust_policy(
     actions: np.ndarray,
     weights: np.ndarray,
     ridge: float,
+    *,
+    standardize: bool = True,
 ) -> dict[str, jax.Array]:
-    """Closed-form weighted ridge fit of ``mean = w @ obs + b``."""
+    """Closed-form weighted ridge fit of ``mean = w @ obs + b``.
+
+    Columns are standardised before the solve by default. The simulator's
+    observation columns differ in magnitude across worlds, and a raw solve puts
+    most of the ridge penalty on the small-scale columns.
+    """
     design = np.concatenate(
         [observations, np.ones((observations.shape[0], 1))], axis=1
     ).astype(np.float64)
-    weighted = design * weights[:, None]
-    gram = weighted.T @ design + ridge * np.eye(design.shape[1])
+    weights = np.asarray(weights, dtype=np.float64)
+    total = float(weights.sum())
+    n_features = observations.shape[1]
+    if standardize:
+        mean = (design * weights[:, None]).sum(axis=0) / max(total, 1e-12)
+        variance = ((design - mean) ** 2 * weights[:, None]).sum(axis=0) / max(
+            total, 1e-12
+        )
+        scale = np.sqrt(variance)
+        scale[scale < 1e-6] = 1.0
+        # Never standardise the appended constant column, or the intercept is
+        # destroyed and the model is forced through the origin in scaled space.
+        mean[n_features] = 0.0
+        scale[n_features] = 1.0
+    else:
+        mean = np.zeros(design.shape[1])
+        scale = np.ones(design.shape[1])
+    scaled = (design - mean) / scale
+    weighted = scaled * weights[:, None]
+    gram = weighted.T @ scaled + ridge * np.eye(scaled.shape[1])
     rhs = weighted.T @ actions.astype(np.float64)
     theta = np.linalg.solve(gram, rhs)
+    w = theta[:-1] / scale[:-1, None]
+    b = theta[-1] - np.sum(theta[:-1] * (mean[:-1] / scale[:-1])[:, None], axis=0)
     return {
-        "w": jnp.asarray(theta[:-1], dtype=jnp.float32),
-        "b": jnp.asarray(theta[-1], dtype=jnp.float32),
+        "w": jnp.asarray(w, dtype=jnp.float32),
+        "b": jnp.asarray(b, dtype=jnp.float32),
     }
 
 
