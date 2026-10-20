@@ -58,6 +58,7 @@ def embodied_law_config(
     initial_alive_fraction: float = 0.5,
     proprioception: bool = False,
     displacement_reward: float = 0.0,
+    mutate_survivors: bool = False,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -98,6 +99,7 @@ def embodied_law_config(
             flow_alignment_reward=flow_alignment_reward,
             proprioception=proprioception,
             displacement_reward=displacement_reward,
+            mutate_survivors=mutate_survivors,
         ),
         avida=AvidaConfig(
             enabled=False,
@@ -183,6 +185,7 @@ def run_embodied_law_pilot(
     size: int = 12,
     proprioception: bool = False,
     displacement_reward: float = 0.0,
+    mutate_survivors: bool = False,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -197,6 +200,7 @@ def run_embodied_law_pilot(
         size=size,
         proprioception=proprioception,
         displacement_reward=displacement_reward,
+        mutate_survivors=mutate_survivors,
     )
     state = initialize_sim(config)
     initial_genomes = {

@@ -42,6 +42,7 @@ def study_seed(
     size: int,
     proprioception: bool,
     displacement_reward: float,
+    mutate_survivors: bool,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -53,6 +54,7 @@ def study_seed(
         size=size,
         proprioception=proprioception,
         displacement_reward=displacement_reward,
+        mutate_survivors=mutate_survivors,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -95,6 +97,7 @@ def main() -> int:
     parser.add_argument("--eval-steps", type=int, default=12)
     parser.add_argument("--displacement-reward", type=float, default=5.0)
     parser.add_argument("--no-proprioception", action="store_true")
+    parser.add_argument("--mutate-survivors", action="store_true")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -110,9 +113,11 @@ def main() -> int:
                 size=args.size,
                 proprioception=proprioception,
                 displacement_reward=args.displacement_reward,
+                mutate_survivors=args.mutate_survivors,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
+            row["mutate_survivors"] = args.mutate_survivors
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -127,6 +132,7 @@ def main() -> int:
         "seeds": args.seeds,
         "proprioception": not args.no_proprioception,
         "displacement_reward": args.displacement_reward,
+        "mutate_survivors": args.mutate_survivors,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,

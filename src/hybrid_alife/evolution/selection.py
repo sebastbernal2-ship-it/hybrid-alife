@@ -88,7 +88,13 @@ def select_and_mutate_embodied(
         mutated = parent_g + mask * noise
         # broadcast dead mask
         dead_b = dead.reshape((-1,) + (1,) * (value.ndim - 1))
-        new_genomes[name] = jnp.where(dead_b, mutated, value)
+        if cfg.mutate_survivors:
+            # Perturb every genome, including survivors. Dead slots still take the
+            # mutated tournament parent; survivors keep their own genome plus noise.
+            survivor_mutated = value + mask * noise
+            new_genomes[name] = jnp.where(dead_b, mutated, survivor_mutated)
+        else:
+            new_genomes[name] = jnp.where(dead_b, mutated, value)
     _ = mutate_embodied_genomes  # imported for API completeness
     pop.genomes = new_genomes
     if pop.previous_velocity is not None:
