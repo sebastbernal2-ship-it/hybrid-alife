@@ -33,12 +33,20 @@ for the loop, plus a new `src/hybrid_alife/experiments/latent_law_embodied.py`.
 
 ### D2. Reversal adaptation in the simulator
 
+Status: **done**, calibration only. Results in
+`docs/results/reversal_adaptation/README.md`.
+
 Question: does the organism adapt when the imposed law reverses mid-episode?
 
-Bounded scope: reverse the flow at a declared step, measure post-reversal
-alignment and recovery latency against a non-reversal control.
+Outcome: the estimate-driven organism re-aligns in exactly one step on every
+direction and seed, while a frozen-estimate control never adapts and goes fully
+anti-aligned. Regret is `2.00` for the adaptive organism against `16.00` for the
+frozen control. A trained estimate policy reproduces this at post-alignment
+`+0.99`.
 
-Gate: recovery latency below the no-adaptation control, reported per direction.
+Limitation: the one-step recovery is structural, because the estimate is exact
+after one transition. This is fast tracking, not a learned reversal strategy.
+The learned-strategy claim belongs to D1.
 
 ### D3. Independent replication
 

@@ -1,0 +1,262 @@
+{
+  "schema_version": 1,
+  "status": "calibration_only",
+  "protocol": {
+    "horizon": 16,
+    "reversal_step": 8,
+    "transform": "reverse",
+    "directions": [
+      [
+        0.0,
+        -1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        -1.0,
+        0.0
+      ]
+    ],
+    "seeds": [
+      100,
+      101,
+      102,
+      103,
+      104
+    ],
+    "recovery": "alignment >= 0.8 for two consecutive post-reversal actions",
+    "excluded_from_means": "step zero (no history) and the reversal step"
+  },
+  "identity_estimate_policy": {
+    "status": "calibration_only",
+    "adaptive": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0
+      }
+    },
+    "frozen_estimate": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": -1.0,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 16.0
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": -1.0,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 16.0
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": -1.0,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 16.0
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": -1.0,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 16.0
+      }
+    },
+    "no_reversal": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.0
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.0
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.0
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 1.0,
+        "post_alignment": 1.0,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.0
+      }
+    },
+    "gate": {
+      "pre_alignment_min": 1.0,
+      "post_alignment_min": 1.0,
+      "recovered_all_seeds": true,
+      "max_recovery_latency": 1
+    }
+  },
+  "trained_estimate_policy": {
+    "training": {
+      "rounds": 12,
+      "episodes_per_round": 64
+    },
+    "status": "calibration_only",
+    "adaptive": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 0.9974601864814758,
+        "post_alignment": 0.9929326772689819,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0469314455986023
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 0.9929326772689819,
+        "post_alignment": 0.9974601864814758,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.010711371898651
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 0.9961242079734802,
+        "post_alignment": 0.991077184677124,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.058583915233612
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 0.991077184677124,
+        "post_alignment": 0.9961242079734802,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 1.0,
+        "max_recovery_latency": 1,
+        "regret": 2.0182077288627625
+      }
+    },
+    "frozen_estimate": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 0.9974601864814758,
+        "post_alignment": -0.9974601864814758,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 15.979681491851807
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 0.9929326772689819,
+        "post_alignment": -0.9929326772689819,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 15.943461418151855
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 0.9961242079734802,
+        "post_alignment": -0.9961242079734802,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 15.968993663787842
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 0.991077184677124,
+        "post_alignment": -0.991077184677124,
+        "recovered_all_seeds": 0,
+        "mean_recovery_latency": null,
+        "max_recovery_latency": null,
+        "regret": 15.928617477416992
+      }
+    },
+    "no_reversal": {
+      "(0.0, -1.0)": {
+        "pre_alignment": 0.9974601864814758,
+        "post_alignment": 0.9974601864814758,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.02031850814819336
+      },
+      "(0.0, 1.0)": {
+        "pre_alignment": 0.9929326772689819,
+        "post_alignment": 0.9929326772689819,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.05653858184814453
+      },
+      "(1.0, 0.0)": {
+        "pre_alignment": 0.9961242079734802,
+        "post_alignment": 0.9961242079734802,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.031006336212158203
+      },
+      "(-1.0, 0.0)": {
+        "pre_alignment": 0.991077184677124,
+        "post_alignment": 0.991077184677124,
+        "recovered_all_seeds": 1,
+        "mean_recovery_latency": 0.0,
+        "max_recovery_latency": 0,
+        "regret": 0.07138252258300781
+      }
+    },
+    "gate": {
+      "pre_alignment_min": 0.991077184677124,
+      "post_alignment_min": 0.991077184677124,
+      "recovered_all_seeds": true,
+      "max_recovery_latency": 1
+    }
+  }
+}

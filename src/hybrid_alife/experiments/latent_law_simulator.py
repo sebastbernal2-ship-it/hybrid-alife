@@ -91,6 +91,7 @@ class SimulatorOrganism:
         revelation: tuple[float, float] | None = None,
         revelation_step: int = 0,
         revelation_noise: float = 0.0,
+        reversal_step: int | None = None,
     ) -> None:
         if horizon < 1:
             raise ValueError("horizon must be positive")
@@ -98,6 +99,9 @@ class SimulatorOrganism:
             raise ValueError("revelation_step must be inside the episode")
         if revelation_noise < 0:
             raise ValueError("revelation_noise must be non-negative")
+        if reversal_step is not None and not 0 <= reversal_step < horizon:
+            raise ValueError("reversal_step must be inside the episode")
+        self.reversal_step = reversal_step
         self.revelation = revelation
         self.revelation_step = revelation_step
         self.revelation_noise = revelation_noise
@@ -161,6 +165,10 @@ class SimulatorOrganism:
 
     def step(self, thrust: np.ndarray) -> float:
         """Advance the real world one step and move the organism."""
+        # A reversal flips the imposed law in the real world state. The organism
+        # is not told; it can only detect the change from its own sensors.
+        if self.reversal_step is not None and self.step_index == self.reversal_step:
+            self.state.world.flow = -self.state.world.flow
         self.state = step_world(self.state, self.config)
         thrust = np.asarray(thrust, dtype=np.float64).reshape(2)
         norm = float(np.linalg.norm(thrust))
