@@ -49,20 +49,40 @@ def infer_law(
     return velocity - friction * previous_velocity - acceleration * previous_thrust
 
 
-def init_estimate_policy(seed: int) -> dict[str, jax.Array]:
-    """Two-dimensional linear map from law estimate to thrust."""
+REVELATION_INPUT_DIM = 5
+
+
+def init_estimate_policy(
+    seed: int, *, input_dim: int = 2
+) -> dict[str, jax.Array]:
+    """Linear map from the internal estimate (or estimate plus revelation)."""
+    if input_dim not in (2, REVELATION_INPUT_DIM):
+        raise ValueError("input_dim must be 2 or 5")
     key = jax.random.PRNGKey(seed + 2468)
     return {
-        "w": 0.01 * jax.random.normal(key, (2, 2)),
+        "w": 0.01 * jax.random.normal(key, (input_dim, 2)),
         "b": jnp.zeros((2,)),
     }
 
 
-def estimate_thrust(
-    policy: dict[str, jax.Array], estimate: np.ndarray
+def encode_policy_input(
+    observation: dict[str, Any], *, use_revelation: bool
 ) -> np.ndarray:
-    """Thrust produced by the learned map applied to the internal estimate."""
-    value = jnp.asarray(estimate, dtype=jnp.float32) @ policy["w"] + policy["b"]
+    """Policy input: the internal estimate, plus the revelation when enabled."""
+    estimate = infer_law(observation)
+    if not use_revelation:
+        return estimate
+    payload = observation.get("revelation")
+    present = observation.get("revelation_present", False)
+    revelation = np.asarray(payload, dtype=np.float64) if present else np.zeros(2)
+    return np.concatenate([estimate, [float(present)], revelation])
+
+
+def estimate_thrust(
+    policy: dict[str, jax.Array], policy_input: np.ndarray
+) -> np.ndarray:
+    """Thrust produced by the learned map applied to the policy input."""
+    value = jnp.asarray(policy_input, dtype=jnp.float32) @ policy["w"] + policy["b"]
     return np.asarray(value)
 
 
@@ -78,15 +98,28 @@ def run_inference_episode(
     seed: int = 0,
     horizon: int = 12,
     config: WorldConfig | None = None,
+    use_revelation: bool = False,
+    revelation: tuple[float, float] | None = None,
+    revelation_step: int = 0,
+    revelation_noise: float = 0.0,
 ) -> dict[str, Any]:
     """Deterministic deployment of the estimate-driven policy."""
-    organism = SimulatorOrganism(direction, horizon=horizon, seed=seed, config=config)
+    organism = SimulatorOrganism(
+        direction,
+        horizon=horizon,
+        seed=seed,
+        config=config,
+        revelation=revelation,
+        revelation_step=revelation_step,
+        revelation_noise=revelation_noise,
+    )
     rewards: list[float] = []
     estimates: list[np.ndarray] = []
     for _ in range(horizon):
-        estimate = infer_law(organism.agent_observation)
-        estimates.append(estimate)
-        thrust = _unit(estimate_thrust(policy, estimate))
+        observation = organism.agent_observation
+        policy_input = encode_policy_input(observation, use_revelation=use_revelation)
+        estimates.append(infer_law(observation))
+        thrust = _unit(estimate_thrust(policy, policy_input))
         rewards.append(organism.step(thrust))
     return {
         "direction": direction,
@@ -105,17 +138,30 @@ def _collect_inference_episode(
     horizon: int,
     exploration_std: float,
     config: WorldConfig | None = None,
+    use_revelation: bool = False,
+    revelation: tuple[float, float] | None = None,
+    revelation_step: int = 0,
+    revelation_noise: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, float]:
-    organism = SimulatorOrganism(direction, horizon=horizon, seed=seed, config=config)
+    organism = SimulatorOrganism(
+        direction,
+        horizon=horizon,
+        seed=seed,
+        config=config,
+        revelation=revelation,
+        revelation_step=revelation_step,
+        revelation_noise=revelation_noise,
+    )
     estimates: list[np.ndarray] = []
     actions: list[np.ndarray] = []
     rewards: list[float] = []
     for _ in range(horizon):
-        estimate = infer_law(organism.agent_observation)
+        observation = organism.agent_observation
+        policy_input = encode_policy_input(observation, use_revelation=use_revelation)
         key, sample_key = jax.random.split(key)
         noise = exploration_std * jax.random.normal(sample_key, (2,))
-        thrust = _unit(estimate_thrust(policy, estimate) + np.asarray(noise))
-        estimates.append(estimate)
+        thrust = _unit(estimate_thrust(policy, policy_input) + np.asarray(noise))
+        estimates.append(policy_input)
         actions.append(thrust)
         rewards.append(organism.step(thrust))
     return np.asarray(estimates), np.asarray(actions), float(sum(rewards))
@@ -165,13 +211,23 @@ def train_estimate_policy_rwr(
     temperature: float = 2.0,
     ridge: float = 1e-3,
     config: WorldConfig | None = None,
+    use_revelation: bool = False,
+    train_with_revelation: bool = False,
+    revelation_noise: float = 0.0,
 ) -> tuple[dict[str, jax.Array], dict[str, Any]]:
-    """Reward-weighted regression over the internal-estimate policy."""
+    """Reward-weighted regression over the internal-estimate policy.
+
+    With ``use_revelation`` the policy input also carries the revelation and a
+    presence flag. ``train_with_revelation`` delivers a true revelation at step
+    zero during training.
+    """
     if not training_directions or not training_seeds:
         raise ValueError("training directions and seeds must not be empty")
     if rounds < 1 or episodes_per_round < 1:
         raise ValueError("rounds and episodes_per_round must be positive")
-    policy = init_estimate_policy(seed)
+    policy = init_estimate_policy(
+        seed, input_dim=REVELATION_INPUT_DIM if use_revelation else 2
+    )
     specs = [
         (direction, seed_value)
         for direction in training_directions
@@ -191,6 +247,7 @@ def train_estimate_policy_rwr(
         totals: list[float] = []
         for index in range(episodes_per_round):
             direction, seed_value = specs[index % len(specs)]
+            revelation = direction if (use_revelation and train_with_revelation) else None
             estimates, actions, total = _collect_inference_episode(
                 policy,
                 direction,
@@ -199,6 +256,9 @@ def train_estimate_policy_rwr(
                 horizon=horizon,
                 exploration_std=current_std,
                 config=config,
+                use_revelation=use_revelation,
+                revelation=revelation,
+                revelation_noise=revelation_noise,
             )
             all_estimates.append(estimates)
             all_actions.append(actions)
@@ -227,6 +287,8 @@ def train_estimate_policy_rwr(
         "exploration_std": exploration_std,
         "exploration_std_final": exploration_std_final,
         "temperature": temperature,
+        "use_revelation": use_revelation,
+        "train_with_revelation": train_with_revelation,
         "training_directions": [list(direction) for direction in training_directions],
         "history": history,
     }
@@ -239,13 +301,24 @@ def per_direction_inference_rewards(
     *,
     horizon: int = 12,
     config: WorldConfig | None = None,
+    use_revelation: bool = False,
+    reveal: bool = False,
 ) -> dict[str, float]:
-    """Deterministic reward per imposed-flow direction, via the internal estimate."""
+    """Deterministic reward per imposed-flow direction, via the internal estimate.
+
+    With ``reveal`` the true law is delivered at step zero.
+    """
     scores: dict[str, float] = {}
     for direction in directions:
         values = [
             run_inference_episode(
-                policy, direction, seed=seed, horizon=horizon, config=config
+                policy,
+                direction,
+                seed=seed,
+                horizon=horizon,
+                config=config,
+                use_revelation=use_revelation,
+                revelation=direction if reveal else None,
             )["total_reward"]
             for seed in seeds
         ]
@@ -254,6 +327,8 @@ def per_direction_inference_rewards(
 
 
 __all__ = [
+    "REVELATION_INPUT_DIM",
+    "encode_policy_input",
     "fit_estimate_policy",
     "infer_law",
     "init_estimate_policy",

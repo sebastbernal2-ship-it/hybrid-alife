@@ -88,9 +88,21 @@ class SimulatorOrganism:
         config: WorldConfig | None = None,
         magnitude: float = FLOW_MAGNITUDE,
         action_acceleration: float = 0.25,
+        revelation: tuple[float, float] | None = None,
+        revelation_step: int = 0,
+        revelation_noise: float = 0.0,
     ) -> None:
         if horizon < 1:
             raise ValueError("horizon must be positive")
+        if not 0 <= revelation_step < horizon:
+            raise ValueError("revelation_step must be inside the episode")
+        if revelation_noise < 0:
+            raise ValueError("revelation_noise must be non-negative")
+        self.revelation = revelation
+        self.revelation_step = revelation_step
+        self.revelation_noise = revelation_noise
+        self._revelation_seed = seed + 13
+        self._revelation_cache: dict[int, tuple[float, float] | None] = {}
         if action_acceleration <= 0:
             raise ValueError("action_acceleration must be positive")
         self.horizon = horizon
@@ -109,6 +121,24 @@ class SimulatorOrganism:
         self.previous_velocity = np.zeros(2, dtype=np.float64)
         self.previous_thrust = np.zeros(2, dtype=np.float64)
 
+    def revelation_at(self, step_index: int) -> tuple[float, float] | None:
+        """Revelation visible for the action taken at ``step_index``.
+
+        Cached per step so repeated observation reads are deterministic.
+        """
+        if step_index in self._revelation_cache:
+            return self._revelation_cache[step_index]
+        if self.revelation is None or step_index != self.revelation_step:
+            payload: tuple[float, float] | None = None
+        else:
+            value = np.asarray(self.revelation, dtype=np.float64)
+            if self.revelation_noise > 0:
+                rng = np.random.default_rng(self._revelation_seed + step_index)
+                value = value + rng.normal(0.0, self.revelation_noise, size=2)
+            payload = (float(value[0]), float(value[1]))
+        self._revelation_cache[step_index] = payload
+        return payload
+
     def local_flow(self) -> np.ndarray:
         """Flow at the organism's cell, read from the real world state."""
         height, width = self.state.world.flow.shape[0], self.state.world.flow.shape[1]
@@ -125,8 +155,8 @@ class SimulatorOrganism:
             "previous_velocity": tuple(float(value) for value in self.previous_velocity),
             "previous_thrust": tuple(float(value) for value in self.previous_thrust),
             "surface": 0.0,
-            "revelation_present": False,
-            "revelation": None,
+            "revelation_present": self.revelation_at(self.step_index) is not None,
+            "revelation": self.revelation_at(self.step_index),
         }
 
     def step(self, thrust: np.ndarray) -> float:

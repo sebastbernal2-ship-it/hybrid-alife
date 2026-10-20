@@ -358,6 +358,35 @@ The end-to-end discovery claim remains attached to the calibration world, where 
 
 Not supported: biology, the evolved embodied GRU controller, the PPO-POET archive, symbolic representation, or consciousness.
 
+## Revelations
+
+A revelation is a declared information treatment, not an internal realisation claim.
+When enabled, the policy input carries the internal estimate, a presence flag, and the revelation itself.
+A revelation scheduled for step `k` is visible **before** the action taken at step `k`, and its value is cached per step so repeated reads stay deterministic.
+
+Measured with the same simulator world, horizon `12`, over five directions including held-out diagonals:
+
+| Treatment | Mean reward | Per direction |
+| --- | --- | --- |
+| no revelation | +11.00 | all `+11.0` |
+| true revelation at step 0 | +12.00 | all `+12.0` |
+| false revelation, opposite direction | +10.00 | all `+10.0` |
+
+The best achievable is `+11` without a revelation, because step zero has no history to estimate the law from, and `+12` with a true revelation.
+
+Interpretation:
+
+- A **true revelation is used**. It removes the step-zero blind spot and reaches the full optimum of `+12`.
+- A **false revelation is corrected**. It costs exactly one step, one point lost and one point not gained, and then the organism's own estimate overrides the message. It still scores `+10`, far above a control that has no estimate.
+
+So the organism does something sensible with a revelation: it exploits a correct one and does not blindly trust a false one, because its own proprioceptive estimate takes over after a single step.
+
+These table numbers come from the hand-built estimate-plus-revelation map, which isolates the mechanism.
+`test_trained_policy_can_use_a_revelation` confirms a trained policy also exploits a true revelation on held-out directions.
+
+Claim boundary: this is a declared external message channel, not a claim that the organism produced the realisation itself.
+The self-correction result is the interesting part: it shows the internal estimate dominates an unreliable external channel.
+
 ## Claim boundary for this result
 
 Supported: in this calibration world, an artificial organism learns to exploit an imposed gravity-like law through exposure alone, and generalises it to held-out directions.

@@ -79,3 +79,75 @@ def test_no_estimate_control_cannot_solve_the_task() -> None:
     assert min(values) < 0.0, values
     assert max(values) > 0.0, values
     _ = init_estimate_policy(0)
+
+
+def _revelation_policy():
+    """Thrust = estimate + revelation when a revelation is present."""
+    import jax.numpy as jnp
+
+    w = jnp.asarray(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+    )
+    return {"w": w, "b": jnp.zeros((2,))}
+
+
+def test_true_revelation_reaches_the_full_optimum() -> None:
+    """A true revelation at step zero removes the step-zero blind spot."""
+    policy = _revelation_policy()
+    for direction in ((1.0, 0.0), (0.7071, -0.7071), (-0.7071, 0.7071)):
+        result = run_inference_episode(
+            policy,
+            direction,
+            horizon=12,
+            use_revelation=True,
+            revelation=direction,
+        )
+        assert result["total_reward"] > 11.9, result["total_reward"]
+
+
+def test_false_revelation_is_corrected_by_the_internal_estimate() -> None:
+    """A misleading revelation costs one step, then the estimate overrides it."""
+    policy = _revelation_policy()
+    direction = (1.0, 0.0)
+    false_revelation = (-1.0, 0.0)
+    result = run_inference_episode(
+        policy,
+        direction,
+        horizon=12,
+        use_revelation=True,
+        revelation=false_revelation,
+    )
+    # Step zero is misled by one point, then the exact estimate takes over.
+    assert 9.9 < result["total_reward"] < 11.1, result["total_reward"]
+
+
+def test_trained_policy_can_use_a_revelation() -> None:
+    """A policy trained with a true revelation must exploit it at step zero."""
+    policy, metadata = train_estimate_policy_rwr(
+        seed=0,
+        training_directions=DENSE,
+        training_seeds=(0, 1, 2, 3),
+        rounds=12,
+        episodes_per_round=64,
+        horizon=12,
+        use_revelation=True,
+        train_with_revelation=True,
+    )
+    assert metadata["use_revelation"] is True
+    revealed = per_direction_inference_rewards(
+        policy, DIAGONALS, (100, 101, 102), horizon=12, use_revelation=True, reveal=True
+    )
+    unrevealed = per_direction_inference_rewards(
+        policy, DIAGONALS, (100, 101, 102), horizon=12, use_revelation=True
+    )
+    assert min(revealed.values()) > 9.0, revealed
+    assert min(unrevealed.values()) > 8.0, unrevealed
+    assert float(np.mean(list(revealed.values()))) >= float(
+        np.mean(list(unrevealed.values()))
+    ) - 0.5
