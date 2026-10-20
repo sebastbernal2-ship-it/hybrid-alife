@@ -24,19 +24,26 @@ Avida must stay disabled in causal traces.
 Gate: per-direction minimum on the displacement reward, five seeds, with the
 same held-out diagonal rule.
 
-Status: **bounded pilot run, negative**. Results in
-`docs/results/embodied_law_pilot/README.md`.
+Status: **bounded pilot run, negative twice**. Results in
+`docs/results/embodied_law_pilot/README.md` and
+`docs/results/embodied_law_proprioception/README.md`.
 
-Outcome: with the flow hidden and only the existing alignment energy bonus,
-evolution changes genomes but does not improve held-out alignment
-(`+0.001` evolved against `+0.008` initial, delta `-0.007`). Two plumbing defects
-were found and fixed first: no births meant no mutation, and the evaluation
-measured only the unchanged elite half of the population.
+First run: with the flow hidden and only the alignment energy bonus, evolution
+changed genomes but did not improve held-out alignment (`+0.001` evolved against
+`+0.008` initial). Two plumbing defects were found and fixed first: no births
+meant no mutation, and the evaluation measured only the unchanged elite half of
+the population.
 
-This matches the scout finding: the embodied observation has no previous-velocity
-or previous-thrust features, so the organism cannot compute the law from its own
-motion. The claim stays open until proprioception and a displacement-style
-selection reward are added.
+Second run: proprioception (previous velocity and previous thrust) and a
+displacement reward were added. The gate still fails, `0/5` seeds, at reward
+`5.0`, reward `50.0`, and 20 generations. Training alignment tracks the sign of
+the imposed direction, which is the signature of a fixed action bias, not a
+learned response. The reward plumbing is verified; the limiter is evolutionary
+search. Selection only mutates dead slots, so the surviving elite freezes.
+
+The claim stays open. Next candidates: mutate survivors or use a policy-gradient
+update, enlarge the stated budget, or use a controller that can express the
+inferred-flow mapping directly.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`

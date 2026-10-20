@@ -88,6 +88,8 @@ def embodied_observation_dim(embodied_cfg: EmbodiedConfig, world_cfg: WorldConfi
     sense = sixth_sense_dim(world_cfg)
     probe = 2 if embodied_cfg.probe_enabled else 0
     proprio = 6 + embodied_cfg.message_size
+    if embodied_cfg.proprioception:
+        proprio += 4  # previous velocity (2) + previous thrust (2)
     return patch_size + sense + probe + proprio
 
 
@@ -121,6 +123,12 @@ def initialize_embodied_population(
     action_dim = embodied_action_dim(cfg)
     last_action = jnp.zeros((n, action_dim), dtype=jnp.float32)
     action_history = jnp.zeros((n, cfg.action_history_len), dtype=jnp.int32)
+    previous_velocity = (
+        jnp.zeros((n, 2), dtype=jnp.float32) if cfg.proprioception else None
+    )
+    previous_thrust = (
+        jnp.zeros((n, 2), dtype=jnp.float32) if cfg.proprioception else None
+    )
     # Spread initial descriptors across [0,1]^2 so MAP-Elites bins get
     # populated before the EMA running mean has time to differentiate
     # agents. The EMA in apply_embodied_actions will then drag each
@@ -146,6 +154,8 @@ def initialize_embodied_population(
         probe_result=(
             jnp.zeros((n, 2), dtype=jnp.float32) if cfg.probe_enabled else None
         ),
+        previous_velocity=previous_velocity,
+        previous_thrust=previous_thrust,
     )
 
 
@@ -251,17 +261,26 @@ def observe_embodied(
         if embodied_cfg.probe_enabled and pop.probe_result is not None
         else jnp.zeros((pop.positions.shape[0], 2), dtype=jnp.float32)
     )
-    proprio = jnp.concatenate(
-        [
-            pop.positions,
-            pop.energy[:, None],
-            pop.age[:, None].astype(jnp.float32),
-            pop.alive[:, None].astype(jnp.float32),
-            jnp.linalg.norm(pop.hidden, axis=-1, keepdims=True),
-            pop.messages if embodied_cfg.use_comms else jnp.zeros_like(pop.messages),
-        ],
-        axis=-1,
-    )
+    proprio_parts = [
+        pop.positions,
+        pop.energy[:, None],
+        pop.age[:, None].astype(jnp.float32),
+        pop.alive[:, None].astype(jnp.float32),
+        jnp.linalg.norm(pop.hidden, axis=-1, keepdims=True),
+        pop.messages if embodied_cfg.use_comms else jnp.zeros_like(pop.messages),
+    ]
+    if embodied_cfg.proprioception:
+        proprio_parts.append(
+            jnp.zeros_like(pop.positions)
+            if pop.previous_velocity is None
+            else pop.previous_velocity
+        )
+        proprio_parts.append(
+            jnp.zeros_like(pop.positions)
+            if pop.previous_thrust is None
+            else pop.previous_thrust
+        )
+    proprio = jnp.concatenate(proprio_parts, axis=-1)
     parts = [patch_flat, sense]
     if embodied_cfg.probe_enabled:
         parts.append(probe)
@@ -340,6 +359,7 @@ def apply_embodied_actions(
         if embodied_cfg.probe_enabled
         else None
     )
+    commanded_move = move
     move = move + embodied_cfg.flow_movement_scale * local_flow
     eat = actions[..., 2]
     attack = actions[..., 3]
@@ -369,6 +389,14 @@ def apply_embodied_actions(
         jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
     )
     energy_gained = energy_gained + embodied_cfg.flow_alignment_reward * flow_alignment
+    # Displacement reward: the organism's own commanded displacement along the
+    # unit law. The free advection term is excluded because it is identical for
+    # every organism and would only inflate energy without changing selection.
+    unit_flow = local_flow / jnp.maximum(
+        jnp.linalg.norm(local_flow, axis=-1, keepdims=True), 1e-8
+    )
+    displacement = jnp.sum(commanded_move * unit_flow, axis=-1)
+    energy_gained = energy_gained + embodied_cfg.displacement_reward * displacement
 
     # Hazard damage (always applies, gated by attack to "fight"=halve damage)
     haz = hazard_damage(world.hazards, new_pos, pop.alive, h, w)
@@ -491,6 +519,9 @@ def apply_embodied_actions(
     pop.action_history = new_history
     pop.behavior_descriptor = new_bd
     pop.probe_result = probe_result
+    if embodied_cfg.proprioception:
+        pop.previous_velocity = move * alive_f[:, None]
+        pop.previous_thrust = commanded_move * alive_f[:, None]
     return pop, new_world, repro
 
 
@@ -584,6 +615,24 @@ def apply_reproduction(
                 pop.probe_result[children],
             )
         )
+    new_previous_velocity = pop.previous_velocity
+    if pop.previous_velocity is not None:
+        new_previous_velocity = pop.previous_velocity.at[children].set(
+            jnp.where(
+                use[:, None],
+                jnp.zeros_like(pop.previous_velocity[children]),
+                pop.previous_velocity[children],
+            )
+        )
+    new_previous_thrust = pop.previous_thrust
+    if pop.previous_thrust is not None:
+        new_previous_thrust = pop.previous_thrust.at[children].set(
+            jnp.where(
+                use[:, None],
+                jnp.zeros_like(pop.previous_thrust[children]),
+                pop.previous_thrust[children],
+            )
+        )
 
     # Lineage
     new_lineage_ids = next_lineage_start + jnp.arange(n, dtype=jnp.int32)
@@ -605,6 +654,8 @@ def apply_reproduction(
     pop.hidden = new_hidden
     pop.messages = new_messages
     pop.probe_result = new_probe_result
+    pop.previous_velocity = new_previous_velocity
+    pop.previous_thrust = new_previous_thrust
     pop.lineage_id = new_lineage_id
     pop.parent_id = new_parent_id
     pop.lineage_depth = new_lineage_depth

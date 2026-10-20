@@ -119,6 +119,11 @@ class EmbodiedConfig:
     flow_movement_scale: float = 0.0
     # Optional reward for moving with the hidden local flow direction.
     flow_alignment_reward: float = 0.0
+    # Append previous actual movement and previous commanded thrust to the
+    # observation so an organism can infer hidden advection from its own motion.
+    proprioception: bool = False
+    # Reward dot(actual_displacement, unit_flow). Disabled by default.
+    displacement_reward: float = 0.0
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
@@ -254,6 +259,9 @@ class EmbodiedPopulationState:
     behavior_descriptor: Array  # [N, 2] for novelty/map-elites
     # Flow signal returned by the previous active probe, or None for legacy states.
     probe_result: Array | None = None
+    # Previous-step actual movement and commanded thrust, or None when disabled.
+    previous_velocity: Array | None = None
+    previous_thrust: Array | None = None
 
 
 @dataclass
