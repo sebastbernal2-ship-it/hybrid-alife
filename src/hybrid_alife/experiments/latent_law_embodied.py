@@ -194,6 +194,8 @@ def run_embodied_law_pilot(
     mutate_survivors: bool = False,
     linear_policy: bool = False,
     unit_flow_features: bool = False,
+    fitness_mode: str = "energy",
+    fitness_steps: int = 6,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -227,7 +229,14 @@ def run_embodied_law_pilot(
             # The world does not drift, but re-impose so the law is exact.
             state = _impose_flow(state, direction, magnitude)
         training_alignment.append(_mean_alignment_of_state(state))
-        fitness = jnp.asarray(np.asarray(state.embodied.energy))
+        if fitness_mode == "min_alignment":
+            fitness = jnp.asarray(
+                minimum_direction_alignment(
+                    state, config, directions, steps=fitness_steps
+                )
+            )
+        else:
+            fitness = jnp.asarray(np.asarray(state.embodied.energy))
         state.rng, k_sel = jax.random.split(state.rng)
         state.embodied = select_and_mutate_embodied(
             state.embodied, fitness, config.embodied, config.evolution, k_sel
@@ -317,10 +326,72 @@ def per_direction_frozen_alignment(
     }
 
 
+
+def _per_agent_alignment(state) -> np.ndarray:
+    """Cosine alignment per organism, NaN where the move or flow is empty."""
+    moves = np.asarray(state.embodied.last_action[:, :2], dtype=np.float64)
+    flows = _local_flows(state)
+    alive = np.asarray(state.embodied.alive, dtype=bool)
+    move_norm = np.linalg.norm(moves, axis=-1)
+    flow_norm = np.linalg.norm(flows, axis=-1)
+    valid = alive & (move_norm > 1e-8) & (flow_norm > 1e-8)
+    values = np.sum(moves * flows, axis=-1) / np.maximum(
+        move_norm * flow_norm, 1e-12
+    )
+    return np.where(valid, values, np.nan)
+
+
+def minimum_direction_alignment(
+    state,
+    config: ExperimentConfig,
+    directions: tuple[tuple[float, float], ...],
+    *,
+    steps: int = 6,
+    magnitude: float = 0.2,
+    warmup_steps: int = 1,
+) -> np.ndarray:
+    """Per-organism minimum alignment across the training directions.
+
+    A fixed-action policy scores near -1 on its worst direction, while a
+    flow-following policy scores near +1 on every direction. The first step of
+    each frozen rollout is unscored because the proprioceptive flow estimate is
+    still zero there.
+    """
+    if not directions:
+        raise ValueError("directions must not be empty")
+    eval_config = replace(
+        config,
+        embodied=replace(config.embodied, initial_alive_fraction=1.0),
+    )
+    per_direction: list[np.ndarray] = []
+    for direction in directions:
+        target = initialize_sim(eval_config)
+        target.embodied.genomes = {
+            name: jnp.asarray(value) for name, value in state.embodied.genomes.items()
+        }
+        target.avida = None
+        target = _impose_flow(target, direction, magnitude)
+        lineage_counter = int(config.embodied.population_size)
+        history: list[np.ndarray] = []
+        for step in range(warmup_steps + steps):
+            target, lineage_counter = step_sim(
+                target, eval_config, lineage_counter, allow_reproduction=False
+            )
+            target = _impose_flow(target, direction, magnitude)
+            if step >= warmup_steps:
+                history.append(_per_agent_alignment(target))
+        stacked = np.stack(history, axis=0)
+        per_direction.append(np.nanmean(stacked, axis=0))
+    fitness = np.nanmin(np.stack(per_direction, axis=0), axis=0)
+    return np.where(np.isfinite(fitness), fitness, 0.0)
+
+
+
 __all__ = [
     "HIDDEN_GROUPS",
     "embodied_law_config",
     "evaluate_frozen_alignment",
+    "minimum_direction_alignment",
     "per_direction_frozen_alignment",
     "run_embodied_law_pilot",
     "signed_alignment",
