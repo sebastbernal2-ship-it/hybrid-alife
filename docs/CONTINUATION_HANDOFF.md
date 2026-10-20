@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `6398357` (PR #15), with this handoff committed on top.
-- Working tree clean, tests pass (366 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `9188831` (PR #16), with this handoff committed on top.
+- Working tree clean, tests pass (369 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -23,6 +23,7 @@ result documents it points to.
 | D2 reversal adaptation | one-step recovery, frozen control never adapts | `docs/results/reversal_adaptation/` |
 | D4 revelation forms | positive, channel-ordered, false ones self-correct | `docs/results/revelation_forms/` |
 | D1 evolved embodied | negative pilot, plumbing fixed, claim open | `docs/results/embodied_law_pilot/` |
+| D1 proprioception | negative, 0/5 seeds at every budget tried | `docs/results/embodied_law_proprioception/` |
 
 The three studies reproduce with:
 
@@ -30,40 +31,31 @@ The three studies reproduce with:
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_gravity_study.py --seeds 0 1 2 3 4 --output docs/results/gravity_study_v1/summary.json
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_reversal_adaptation.py --output docs/results/reversal_adaptation/summary.json
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/results/revelation_forms/summary.json
+JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 proprioception
+## Next bounded package: D1 search lever (captain decision)
 
-Goal: test whether the **actual evolved embodied organisms** exploit an imposed
-law, with the inference made possible from their own sensors.
+The proprioception package is merged and negative. The reward plumbing is
+verified; the limiter is evolutionary search. Selection only mutates dead slots,
+so the surviving elite freezes. That is why 20 generations equal 8. Evidence in
+`docs/results/embodied_law_proprioception/README.md`.
 
-Why: D1's bounded pilot failed because the embodied observation has no
-previous-velocity or previous-thrust features, so a hidden law cannot be inferred
-from the organism's own motion, and the alignment energy bonus is too weak to
-drive selection. See `docs/results/embodied_law_pilot/README.md`.
+Three candidate levers, cheapest first. The captain picks one before work starts:
 
-Steps:
+1. **Policy-gradient update on the embodied controller.** Reuse the
+   reward-weighted-regression or actor-critic pattern already used for the point
+   organism, and test whether a gradient can move the embodied policy at all.
+2. **Mutate survivors.** Stop freezing the elite: apply mutation to every slot
+   each generation, and check whether the population escapes the fixed action
+   bias.
+3. **Expressive controller.** Replace the GRU with a form that can express the
+   inferred-flow mapping directly, then ask whether evolution finds its weights.
 
-1. Add explicit proprioceptive features to the embodied observation:
-   previous velocity and previous thrust, appended in `observe_embodied`, with
-   `embodied_observation_dim` updated. This changes controller input and genome
-   shapes, so old checkpoints are invalidated. Test the new shape explicitly.
-2. Add a displacement-style reward, default off, that adds
-   `dot(unit_thrust, unit_law)` per step to energy, so selection is driven by the
-   behavior rather than a small bonus. Keep existing dynamics unchanged by default.
-3. Re-run the bounded pilot in `src/hybrid_alife/experiments/latent_law_embodied.py`
-   with the same held-out diagonals, the initial-population control, and the
-   reversed-law control.
-4. Gate: per-direction alignment whose minimum beats the initial-population
-   control on held-out diagonals. Report per direction, never an antipodal mean.
-5. Keep Avida disabled. Keep the flow hidden in the primary condition and use a
-   visible-flow variant only as a cue-availability diagnostic.
-6. Keep the default pytest suite fast: the pilot runs belong in a script, not in
-   more slow tests.
-
-Stop condition: if the new observation shape breaks existing controller tests, or
-the pilot cannot beat the initial-population control within the declared budget,
-report the negative result and do not enlarge the budget without revising the brief.
+Every lever keeps the same gate: per-direction held-out alignment beats the
+initial-population control by `0.2`, and the reversed-law alignment is at most
+`0.0`. State the budget before the run. Report a negative result rather than
+enlarging the budget silently.
 
 ## Constraints and traps learned the hard way
 
@@ -74,6 +66,8 @@ report the negative result and do not enlarge the budget without revising the br
 - Avoid reward designs with an isolated optimum. That needle looked like a learner failure and was not.
 - Prefer continuous actions over a small discrete set when direction is the target, to avoid a mode-versus-mean failure.
 - Two silent plumbing bugs already cost a day in D1: no births meant no mutation, and evaluation resurrected only the elite half of the population. Always verify the control baseline actually differs from the treatment.
+- The embodied selection scheme only mutates dead slots. Once one clone dominates, survivors freeze and later generations change nothing. Do not assume a longer run explores more.
+- A gate can pass by accident if the metric tracks the imposed direction's sign rather than a learned response. Always include the reversed-law control.
 - HiperGator access uses a persistent ControlMaster socket at `~/.ssh/hpg-%r@%h:%p`; plain `ssh hipergator` reuses it. If it prompts, reconnect interactively once.
 
 ## Open decisions
