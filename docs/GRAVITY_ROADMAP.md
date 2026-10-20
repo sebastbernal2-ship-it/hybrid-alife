@@ -41,9 +41,11 @@ the imposed direction, which is the signature of a fixed action bias, not a
 learned response. The reward plumbing is verified; the limiter is evolutionary
 search. Selection only mutates dead slots, so the surviving elite freezes.
 
-The claim stays open. Next candidates: mutate survivors or use a policy-gradient
-update, enlarge the stated budget, or use a controller that can express the
-inferred-flow mapping directly.
+The claim stays open. The survivor-mutation lever was then tested and also
+fails: `0/5` seeds, worst delta `-0.35`, worst reversed `+0.32`, and training
+alignment still tracks the direction sign. The frozen elite was not the blocker.
+Two levers remain: a policy-gradient update on the embodied controller, or a
+controller that can express the inferred-flow mapping directly.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`

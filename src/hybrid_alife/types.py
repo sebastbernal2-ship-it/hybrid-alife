@@ -124,6 +124,8 @@ class EmbodiedConfig:
     proprioception: bool = False
     # Reward dot(actual_displacement, unit_flow). Disabled by default.
     displacement_reward: float = 0.0
+    # Apply a small mutation to survivors each generation, not only to dead slots.
+    mutate_survivors: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
