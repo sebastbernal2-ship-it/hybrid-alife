@@ -19,7 +19,9 @@ jobs:
       MPLBACKEND: Agg
       PYTHONUTF8: "1"
     # Hard ceiling so a hung JAX compile / runaway test can't burn the day.
-    timeout-minutes: 20
+    # The suite trains small JAX models for the gravity study and legitimately
+    # takes about 18 minutes on a shared runner, so 20 minutes was too tight.
+    timeout-minutes: 35
     strategy:
       # Report failures from every Python version even if one fails first.
       fail-fast: false

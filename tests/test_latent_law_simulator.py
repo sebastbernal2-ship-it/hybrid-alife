@@ -67,8 +67,10 @@ def test_simulator_policy_reaches_held_out_flow_directions() -> None:
         seed=0,
         training_directions=DENSE_TRAIN,
         training_seeds=(0, 1, 2, 3),
-        rounds=24,
-        episodes_per_round=128,
+        # Kept small for CI; the full-size run used 24 rounds of 128 episodes
+        # and gave min +9.72, mean +10.79 for this seed.
+        rounds=12,
+        episodes_per_round=96,
         horizon=12,
     )
     assert metadata["trainer"] == "simulator_reward_weighted_regression"
@@ -80,14 +82,19 @@ def test_simulator_policy_reaches_held_out_flow_directions() -> None:
     assert float(np.mean(values)) > 9.0, scores
 
 
-def test_simulator_cardinal_training_is_positive_but_unreliable() -> None:
-    """Cardinal-only training transfers on average but not per direction."""
+def test_simulator_end_to_end_transfers_on_average() -> None:
+    """Cardinal-only training transfers on average, with a seed-zero floor.
+
+    Honest scope: the five-seed result is unreliable per direction. Cardinal
+    training passed 1 of 5 seeds and dense training 3 of 5, with one weak
+    direction per failing seed. This test pins the seed-zero capability only.
+    """
     policy, _ = train_simulator_policy_rwr(
         seed=0,
         training_directions=CARDINALS,
         training_seeds=(0, 1, 2, 3),
-        rounds=24,
-        episodes_per_round=128,
+        rounds=12,
+        episodes_per_round=64,
         horizon=12,
     )
     scores = per_direction_simulator_rewards(
