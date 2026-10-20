@@ -44,6 +44,7 @@ def study_seed(
     displacement_reward: float,
     mutate_survivors: bool,
     linear_policy: bool,
+    unit_flow_features: bool,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -57,6 +58,7 @@ def study_seed(
         displacement_reward=displacement_reward,
         mutate_survivors=mutate_survivors,
         linear_policy=linear_policy,
+        unit_flow_features=unit_flow_features,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -101,6 +103,7 @@ def main() -> int:
     parser.add_argument("--no-proprioception", action="store_true")
     parser.add_argument("--mutate-survivors", action="store_true")
     parser.add_argument("--linear-policy", action="store_true")
+    parser.add_argument("--unit-flow-features", action="store_true")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -118,11 +121,13 @@ def main() -> int:
                 displacement_reward=args.displacement_reward,
                 mutate_survivors=args.mutate_survivors,
                 linear_policy=args.linear_policy,
+                unit_flow_features=args.unit_flow_features,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
             row["mutate_survivors"] = args.mutate_survivors
             row["linear_policy"] = args.linear_policy
+            row["unit_flow_features"] = args.unit_flow_features
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -139,6 +144,7 @@ def main() -> int:
         "displacement_reward": args.displacement_reward,
         "mutate_survivors": args.mutate_survivors,
         "linear_policy": args.linear_policy,
+        "unit_flow_features": args.unit_flow_features,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,
