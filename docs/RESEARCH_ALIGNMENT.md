@@ -312,6 +312,52 @@ That is consistent with the reward weighting reducing effective coverage, so som
 
 The simulator result is therefore reported as **partial transfer**, not a demonstration.
 
+## Internal estimate makes the simulator result reliable
+
+Option 2 of the research alignment was implemented in `latent_law_inference.py`.
+The organism forms an **explicit internal estimate** of the imposed law from proprioception alone:
+
+```text
+law_estimate = velocity - friction * previous_velocity - acceleration * previous_thrust
+```
+
+That estimate uses only quantities the organism measured itself.
+It is legitimate self-inference, not evaluator leakage: `gravity_vector` and the world flow are never inputs.
+The estimate is exact from the second step onward, and zero at step zero because there is no history yet.
+
+The policy is a two-dimensional linear map from that estimate to thrust.
+The optimal map is the identity, so the joint fit problem that caused the earlier per-direction failures disappears.
+
+The rule that produces the estimate is a **fixed declared mechanism**, like an efference-copy forward model.
+The learned part is the policy that acts on the estimate.
+
+Trained on dense directions with the four `45` degree diagonals held out, five seeds:
+
+| Seed | Per-direction rewards | Worst | Mean |
+| --- | --- | --- | --- |
+| 0 | 11.89, 11.35, 10.00, 10.57 | +10.00 | +10.95 |
+| 1 | 11.62, 11.75, 10.19, 10.15 | +10.15 | +10.93 |
+| 2 | 11.51, 11.66, 10.15, 10.12 | +10.12 | +10.86 |
+| 3 | 11.47, 11.87, 10.48, 10.11 | +10.11 | +10.98 |
+| 4 | 10.82, 11.92, 10.97, 9.90 | +9.90 | +10.90 |
+
+Five of five seeds pass.
+Worst direction across seeds: `+10.06 +/- 0.10`.
+Mean across seeds: `+10.92 +/- 0.05`.
+The best achievable is `+11`, because step zero has no history, and the evaluator oracle scores `+12`.
+
+A no-estimate control, where the policy sees only a constant bias, scores positive on some diagonals and negative on others, which confirms the behaviour depends on the internal estimate.
+
+### Claim boundary for the internal-estimate result
+
+Supported: an organism with a proprioceptive forward model forms an internal estimate of an imposed environmental law and learns to exploit it, generalizing reliably to unseen directions inside the real simulator world.
+
+Not supported: that the organism discovers the inference rule itself.
+The rule is hand-declared, and only the policy on top of it is learned.
+The end-to-end discovery claim remains attached to the calibration world, where the whole mapping from sensors to thrust is learned and five of five seeds solve every held-out direction at worst-direction `+9.94`.
+
+Not supported: biology, the evolved embodied GRU controller, the PPO-POET archive, symbolic representation, or consciousness.
+
 ## Claim boundary for this result
 
 Supported: in this calibration world, an artificial organism learns to exploit an imposed gravity-like law through exposure alone, and generalises it to held-out directions.
