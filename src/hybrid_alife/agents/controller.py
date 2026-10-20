@@ -56,6 +56,13 @@ def init_controller_params(
     }
 
 
+def linear_forward(
+    genomes: dict[str, jax.Array], obs: jax.Array
+) -> jax.Array:
+    """Flat linear map from the observation to raw action logits."""
+    return jnp.einsum("no,noa->na", obs, genomes["w_linear"]) + genomes["b_linear"]
+
+
 def forward(
     genomes: dict[str, jax.Array],
     obs: jax.Array,

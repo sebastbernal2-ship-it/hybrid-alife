@@ -32,6 +32,7 @@ import jax.numpy as jnp
 from hybrid_alife.agents.controller import (
     decode_actions,
     init_controller_params,
+    linear_forward,
 )
 from hybrid_alife.agents.controller import (
     forward as controller_forward,
@@ -162,6 +163,15 @@ def initialize_embodied_population(
 def initialize_embodied_genomes(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> dict[str, jax.Array]:
+    if cfg.linear_policy:
+        k_w, _ = jax.random.split(key)
+        obs_dim = embodied_observation_dim(cfg, world_cfg)
+        action_dim = embodied_action_dim(cfg)
+        return {
+            "w_linear": 0.1
+            * jax.random.normal(k_w, (cfg.population_size, obs_dim, action_dim)),
+            "b_linear": jnp.zeros((cfg.population_size, action_dim)),
+        }
     return init_controller_params(
         n=cfg.population_size,
         obs_dim=embodied_observation_dim(cfg, world_cfg),
@@ -300,7 +310,13 @@ def act_embodied(
     is true a key is required for the Bernoulli sample; otherwise the decode
     is deterministic and the key is unused.
     """
-    raw, new_hidden = controller_forward(pop.genomes, obs, pop.hidden, cfg.use_memory)
+    if cfg.linear_policy:
+        raw = linear_forward(pop.genomes, obs)
+        new_hidden = pop.hidden
+    else:
+        raw, new_hidden = controller_forward(
+            pop.genomes, obs, pop.hidden, cfg.use_memory
+        )
     sample_key = key if key is not None else jax.random.PRNGKey(0)
     actions = decode_actions(raw, cfg, sample_key)
     pop.hidden = new_hidden
