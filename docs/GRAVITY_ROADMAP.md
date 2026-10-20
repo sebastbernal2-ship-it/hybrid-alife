@@ -61,16 +61,19 @@ The learned-strategy claim belongs to D1.
 
 ### D3. Independent replication
 
+Status: **done and passed**, calibration only. Details in
+`docs/results/gravity_study_v1/REPLICATION.md`.
+
 Question: does the result hold on a different machine and a cleared cache?
 
-Bounded scope: run `scripts/run_gravity_study.py` on HiperGator with the same
-seed schedule, cleared caches, and recorded provenance, then compare to the v1
-artifact.
+Outcome: a fresh clone on HiperGator `login7`, with the JAX cache cleared,
+reproduced both arms at 5/5 seeds and the same revelations. Per-seed
+worst-direction and mean values agree exactly (maximum difference `0.000e+00`).
+The artifact is `docs/results/gravity_study_v1/summary_hipergator.json`.
 
-Gate: the same gate outcomes, with machine, backend, and dependency versions
-recorded.
-
-Run this last so it replicates the complete state, not an intermediate one.
+Limits: same JAX version (`0.12.0`) and Python minor (`3.12`) on both machines,
+and the same operator. This is a computational replication, not a fully
+human-independent one.
 
 ### D4. Revelation variants
 
