@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `b53c698` (PR #17), with this handoff committed on top.
-- Working tree clean, tests pass (372 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `a180bd9` (PR #18), with this handoff committed on top.
+- Working tree clean, tests pass (374 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -25,6 +25,7 @@ result documents it points to.
 | D1 evolved embodied | negative pilot, plumbing fixed, claim open | `docs/results/embodied_law_pilot/` |
 | D1 proprioception | negative, 0/5 seeds at every budget tried | `docs/results/embodied_law_proprioception/` |
 | D1 survivor mutation | negative, 0/5 seeds, frozen elite not the blocker | `docs/results/embodied_law_survivor_mutation/` |
+| D1 policy gradient | negative, 0/5 seeds, gradient reaches a fixed action | `docs/results/embodied_law_policy_gradient/` |
 
 The three studies reproduce with:
 
@@ -35,32 +36,37 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 policy-gradient update (lever 1)
+## Next bounded package: D1 expressive controller (lever 3)
 
-The captain picked lever 1 after survivor mutation was ruled out. The proprioception
-reward plumbing is verified, and both random-mutation levers fail: `0/5` seeds,
-training alignment tracks the direction sign, which is a fixed action bias.
+The captain picked lever 3 after the policy-gradient lever was ruled out. The
+gradient moves the policy but converges to a fixed action, so the open question
+is representational: can a controller express the inferred-flow mapping at all,
+and can evolution find its weights?
 
-Goal: test whether a gradient update on the embodied controller can move the policy
-where evolution did not.
+Goal: replace the GRU with a linear controller whose movement mean is a linear
+map from the observation, which can express the flow mapping exactly because
+`previous_velocity - previous_thrust` is proportional to the flow.
 
 Steps:
 
-1. Reuse the point-organism pattern in
-   `src/hybrid_alife/experiments/latent_law_controller.py` for the update shape.
-2. Expose the action log-probability from the embodied controller, or add a
-   parallel rollout that returns actions, log-probs, and rewards.
-3. Write `scripts/run_embodied_policy_gradient.py`: roll out episodes on the
-   training cardinals, compute a REINFORCE-style update with a return baseline,
-   apply it to the genome pytree, and evaluate frozen on the held-out diagonals.
-4. Keep the same gate: per-direction held-out alignment beats the
-   initial-population control by `0.2`, and the reversed-law alignment is at most
-   `0.0`. State the budget before the run.
+1. Add `EmbodiedConfig.linear_policy` (default off). When on, initialize genomes
+   as `w_linear` plus `b_linear` and compute
+   `raw = einsum("no,noa->na", obs, w_linear) + b_linear`. Keep the action
+   layout unchanged so `decode_actions` still applies.
+2. Test that the linear controller can represent the mapping: set the weights by
+   hand so the mean follows `previous_velocity - previous_thrust`, and check the
+   deterministic action aligns with the flow.
+3. Run the evolution pilot with the linear controller on the four cardinals, and
+   evaluate frozen on the held-out diagonals with the initial-policy and
+   corrected reversed-law controls.
+4. Gate: per-direction held-out alignment beats the initial population by `0.2`,
+   and the reversed-law alignment is at least `0.2`. State the budget first.
 5. Report a negative result rather than enlarging the budget silently.
 
-Stop condition: if the gradient cannot beat the initial-population control within
-the declared budget, report the negative result and move to the expressive
-controller (lever 3) rather than retuning endlessly.
+Stop condition: if evolution cannot beat the initial control with a controller
+that can represent the mapping, the limiter is the search, not the
+representation, and the claim needs a different study design rather than another
+architecture swap.
 
 ## Constraints and traps learned the hard way
 
@@ -72,7 +78,8 @@ controller (lever 3) rather than retuning endlessly.
 - Prefer continuous actions over a small discrete set when direction is the target, to avoid a mode-versus-mean failure.
 - Two silent plumbing bugs already cost a day in D1: no births meant no mutation, and evaluation resurrected only the elite half of the population. Always verify the control baseline actually differs from the treatment.
 - The embodied selection scheme only mutates dead slots. Once one clone dominates, survivors freeze and later generations change nothing. Do not assume a longer run explores more.
-- A gate can pass by accident if the metric tracks the imposed direction's sign rather than a learned response. Always include the reversed-law control.
+- A gate can pass by accident if the metric tracks the imposed direction's sign rather than a learned response. Always include the reversed-law control, and get its direction right: a law-follower re-infers the reversed flow and stays positive, while a fixed action flips sign. The condition is `reversed >= margin`.
+- A per-episode advantage baseline erases the cross-episode signal that separates a fixed action from a flow-follower. Baseline across episodes at each timestep, matching `latent_law_continuous.py`.
 - HiperGator access uses a persistent ControlMaster socket at `~/.ssh/hpg-%r@%h:%p`; plain `ssh hipergator` reuses it. If it prompts, reconnect interactively once.
 
 ## Open decisions
