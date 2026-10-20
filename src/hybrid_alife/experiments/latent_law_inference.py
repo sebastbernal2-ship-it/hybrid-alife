@@ -102,6 +102,7 @@ def run_inference_episode(
     revelation: tuple[float, float] | None = None,
     revelation_step: int = 0,
     revelation_noise: float = 0.0,
+    revelation_kind: str = "exact",
 ) -> dict[str, Any]:
     """Deterministic deployment of the estimate-driven policy."""
     organism = SimulatorOrganism(
@@ -112,6 +113,7 @@ def run_inference_episode(
         revelation=revelation,
         revelation_step=revelation_step,
         revelation_noise=revelation_noise,
+        revelation_kind=revelation_kind,
     )
     rewards: list[float] = []
     estimates: list[np.ndarray] = []

@@ -17,6 +17,7 @@ for it. Behavioural exploitation is the target.
 - Artifact: `docs/results/gravity_study_v1/summary.json`
 - Checksums: `docs/results/gravity_study_v1/SHA256SUMS`
 - Protocol owner: `docs/RESEARCH_ALIGNMENT.md`
+- Next directions and lessons: `docs/GRAVITY_ROADMAP.md`
 - Reproduce with:
 
 ```bash

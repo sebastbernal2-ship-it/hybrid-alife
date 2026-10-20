@@ -91,13 +91,23 @@ class SimulatorOrganism:
         revelation: tuple[float, float] | None = None,
         revelation_step: int = 0,
         revelation_noise: float = 0.0,
+        revelation_kind: str = "exact",
+        reversal_step: int | None = None,
     ) -> None:
+        if revelation_kind not in {"exact", "demonstration", "noisy", "symbolic"}:
+            raise ValueError(
+                "revelation_kind must be exact, demonstration, noisy, or symbolic"
+            )
+        self.revelation_kind = revelation_kind
         if horizon < 1:
             raise ValueError("horizon must be positive")
         if not 0 <= revelation_step < horizon:
             raise ValueError("revelation_step must be inside the episode")
         if revelation_noise < 0:
             raise ValueError("revelation_noise must be non-negative")
+        if reversal_step is not None and not 0 <= reversal_step < horizon:
+            raise ValueError("reversal_step must be inside the episode")
+        self.reversal_step = reversal_step
         self.revelation = revelation
         self.revelation_step = revelation_step
         self.revelation_noise = revelation_noise
@@ -132,7 +142,14 @@ class SimulatorOrganism:
             payload: tuple[float, float] | None = None
         else:
             value = np.asarray(self.revelation, dtype=np.float64)
-            if self.revelation_noise > 0:
+            if self.revelation_kind == "symbolic":
+                # The symbolic channel can only name a cardinal axis, so it is
+                # lossy for diagonal laws. That is a real channel difference.
+                axis = int(np.argmax(np.abs(value)))
+                sign = float(np.sign(value[axis])) if value[axis] != 0 else 1.0
+                value = np.zeros(2)
+                value[axis] = sign
+            if self.revelation_kind == "noisy" or self.revelation_noise > 0:
                 rng = np.random.default_rng(self._revelation_seed + step_index)
                 value = value + rng.normal(0.0, self.revelation_noise, size=2)
             payload = (float(value[0]), float(value[1]))
@@ -161,6 +178,10 @@ class SimulatorOrganism:
 
     def step(self, thrust: np.ndarray) -> float:
         """Advance the real world one step and move the organism."""
+        # A reversal flips the imposed law in the real world state. The organism
+        # is not told; it can only detect the change from its own sensors.
+        if self.reversal_step is not None and self.step_index == self.reversal_step:
+            self.state.world.flow = -self.state.world.flow
         self.state = step_world(self.state, self.config)
         thrust = np.asarray(thrust, dtype=np.float64).reshape(2)
         norm = float(np.linalg.norm(thrust))

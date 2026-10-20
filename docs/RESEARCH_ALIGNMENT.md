@@ -2,6 +2,7 @@
 
 This document owns the original research question and the terms used by the implementation.
 Other protocol documents must point here instead of changing the research target.
+Prioritized next directions and accumulated lessons live in `docs/GRAVITY_ROADMAP.md`.
 
 ## Origin question
 
