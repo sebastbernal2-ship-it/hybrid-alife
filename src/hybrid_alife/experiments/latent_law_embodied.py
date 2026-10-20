@@ -56,6 +56,8 @@ def embodied_law_config(
     reproduce_energy_threshold: float = 22.0,
     reproduction_energy_cost: float = 5.0,
     initial_alive_fraction: float = 0.5,
+    proprioception: bool = False,
+    displacement_reward: float = 0.0,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -94,6 +96,8 @@ def embodied_law_config(
             true_sixth_sense=True,
             flow_movement_scale=flow_movement_scale,
             flow_alignment_reward=flow_alignment_reward,
+            proprioception=proprioception,
+            displacement_reward=displacement_reward,
         ),
         avida=AvidaConfig(
             enabled=False,
@@ -177,6 +181,8 @@ def run_embodied_law_pilot(
     population: int = 12,
     steps_per_generation: int = 4,
     size: int = 12,
+    proprioception: bool = False,
+    displacement_reward: float = 0.0,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -189,6 +195,8 @@ def run_embodied_law_pilot(
         population=population,
         steps_per_generation=steps_per_generation,
         size=size,
+        proprioception=proprioception,
+        displacement_reward=displacement_reward,
     )
     state = initialize_sim(config)
     initial_genomes = {
@@ -232,6 +240,7 @@ def evaluate_frozen_alignment(
     magnitude: float = 0.2,
     steps: int = 12,
     genomes: dict[str, jnp.ndarray] | None = None,
+    reverse_law: bool = False,
 ) -> dict[str, float]:
     """Evaluate genomes on one direction with mutation disabled.
 
@@ -251,14 +260,17 @@ def evaluate_frozen_alignment(
         name: jnp.asarray(value) for name, value in source.items()
     }
     target.avida = None
-    target = _impose_flow(target, direction, magnitude)
+    applied = (-np.asarray(direction) if reverse_law else np.asarray(direction))
+    target = _impose_flow(target, tuple(float(v) for v in applied), magnitude)
     lineage_counter = config.embodied.population_size
     alignments: list[float] = []
     for _ in range(steps):
         target, lineage_counter = step_sim(
             target, eval_config, lineage_counter, allow_reproduction=False
         )
-        target = _impose_flow(target, direction, magnitude)
+        target = _impose_flow(
+            target, tuple(float(v) for v in applied), magnitude
+        )
         alignments.append(_mean_alignment_of_state(target))
     return {
         "mean_alignment": float(np.mean(alignments)),
@@ -274,6 +286,7 @@ def per_direction_frozen_alignment(
     magnitude: float = 0.2,
     steps: int = 12,
     genomes: dict[str, jnp.ndarray] | None = None,
+    reverse_law: bool = False,
 ) -> dict[str, dict[str, float]]:
     """Per-direction alignment. Never antipodally averaged."""
     return {
@@ -284,6 +297,7 @@ def per_direction_frozen_alignment(
             magnitude=magnitude,
             steps=steps,
             genomes=genomes,
+            reverse_law=reverse_law,
         )
         for direction in directions
     }

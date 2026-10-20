@@ -54,6 +54,10 @@ def reseed_embodied(
         pop.age = jnp.zeros((n,), dtype=jnp.int32)
         pop.hidden = jnp.zeros_like(pop.hidden)
         pop.messages = jnp.zeros_like(pop.messages)
+        if pop.previous_velocity is not None:
+            pop.previous_velocity = jnp.zeros_like(pop.previous_velocity)
+        if pop.previous_thrust is not None:
+            pop.previous_thrust = jnp.zeros_like(pop.previous_thrust)
         pop.lineage_depth = jnp.zeros((n,), dtype=jnp.int32)
     _ = fitness
     return pop
@@ -87,6 +91,10 @@ def select_and_mutate_embodied(
         new_genomes[name] = jnp.where(dead_b, mutated, value)
     _ = mutate_embodied_genomes  # imported for API completeness
     pop.genomes = new_genomes
+    if pop.previous_velocity is not None:
+        pop.previous_velocity = jnp.where(dead[:, None], 0.0, pop.previous_velocity)
+    if pop.previous_thrust is not None:
+        pop.previous_thrust = jnp.where(dead[:, None], 0.0, pop.previous_thrust)
 
     # Revive dead with starter state
     n = pop.alive.shape[0]
