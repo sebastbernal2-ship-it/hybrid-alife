@@ -45,6 +45,8 @@ def study_seed(
     mutate_survivors: bool,
     linear_policy: bool,
     unit_flow_features: bool,
+    fitness_mode: str,
+    fitness_steps: int,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -59,6 +61,8 @@ def study_seed(
         mutate_survivors=mutate_survivors,
         linear_policy=linear_policy,
         unit_flow_features=unit_flow_features,
+        fitness_mode=fitness_mode,
+        fitness_steps=fitness_steps,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -104,6 +108,10 @@ def main() -> int:
     parser.add_argument("--mutate-survivors", action="store_true")
     parser.add_argument("--linear-policy", action="store_true")
     parser.add_argument("--unit-flow-features", action="store_true")
+    parser.add_argument(
+        "--fitness-mode", choices=("energy", "min_alignment"), default="energy"
+    )
+    parser.add_argument("--fitness-steps", type=int, default=6)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -122,12 +130,15 @@ def main() -> int:
                 mutate_survivors=args.mutate_survivors,
                 linear_policy=args.linear_policy,
                 unit_flow_features=args.unit_flow_features,
+                fitness_mode=args.fitness_mode,
+                fitness_steps=args.fitness_steps,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
             row["mutate_survivors"] = args.mutate_survivors
             row["linear_policy"] = args.linear_policy
             row["unit_flow_features"] = args.unit_flow_features
+            row["fitness_mode"] = args.fitness_mode
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -145,6 +156,8 @@ def main() -> int:
         "mutate_survivors": args.mutate_survivors,
         "linear_policy": args.linear_policy,
         "unit_flow_features": args.unit_flow_features,
+        "fitness_mode": args.fitness_mode,
+        "fitness_steps": args.fitness_steps,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,

@@ -74,10 +74,19 @@ diagonal (`+0.71`/`-0.71`). The scale gap shrank; the failure did not. Results i
 The limiter is now the selection scheme. The per-direction displacement reward
 averages to zero for a fixed action across the four training directions, and
 selection uses total energy, where alignment is small next to eating and basal
-costs. Next design: fitness equal to the **minimum alignment across the four
-training directions**, so only a flow-conditioned policy scores high. Alternatives
-are shared fitness across directions or direct selection on alignment with a
-variance penalty.
+costs. The min-alignment fitness package was then tested. The fitness itself is correct
+(a unit test separates a hand-set flow-follower from a fixed action by more than
+`1.0`), but the run is negative: `0/5` seeds, and the training trajectories are
+identical to the energy run for every generation. A different fitness cannot
+produce an identical trajectory, so the fitness never reached the population.
+
+Cause: `select_and_mutate_embodied` only writes genomes into **dead** slots, and
+reproduction revives dead slots before selection runs. On a living population the
+operator is a no-op. Results in `docs/results/embodied_law_min_alignment/`.
+
+Next design: generational replacement by fitness rank. Sort by fitness, keep the
+top `elite_fraction`, replace the rest with mutated copies of the top. That is the
+smallest change that makes fitness act on a living population.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
