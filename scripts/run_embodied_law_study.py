@@ -43,6 +43,7 @@ def study_seed(
     proprioception: bool,
     displacement_reward: float,
     mutate_survivors: bool,
+    linear_policy: bool,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -55,6 +56,7 @@ def study_seed(
         proprioception=proprioception,
         displacement_reward=displacement_reward,
         mutate_survivors=mutate_survivors,
+        linear_policy=linear_policy,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -98,6 +100,7 @@ def main() -> int:
     parser.add_argument("--displacement-reward", type=float, default=5.0)
     parser.add_argument("--no-proprioception", action="store_true")
     parser.add_argument("--mutate-survivors", action="store_true")
+    parser.add_argument("--linear-policy", action="store_true")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -114,10 +117,12 @@ def main() -> int:
                 proprioception=proprioception,
                 displacement_reward=args.displacement_reward,
                 mutate_survivors=args.mutate_survivors,
+                linear_policy=args.linear_policy,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
             row["mutate_survivors"] = args.mutate_survivors
+            row["linear_policy"] = args.linear_policy
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -133,6 +138,7 @@ def main() -> int:
         "proprioception": not args.no_proprioception,
         "displacement_reward": args.displacement_reward,
         "mutate_survivors": args.mutate_survivors,
+        "linear_policy": args.linear_policy,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,

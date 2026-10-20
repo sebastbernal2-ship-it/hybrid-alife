@@ -56,8 +56,17 @@ A gate correction came out of that work: the reversed-law control required
 stays positive; a fixed action flips sign. The correct condition is
 `reversed >= 0.2`. The earlier verdicts are unchanged.
 
-One lever remains: an expressive controller that can represent the
-inferred-flow mapping directly. That is the next package.
+The expressive-controller lever was then tested with a flat linear controller
+whose hand-set weights align with the flow above `0.99`. It also fails: `0/5`
+seeds, worst delta `-0.48`. So the representation is sufficient and the limiter
+is the search. The flow features are about `0.01` (`flow * 0.05`), so the linear
+weights must be about `100`, while genomes initialize at `0.1` and mutate with
+standard deviation `0.05` over 8 generations. Mutation cannot bridge that gap.
+Results in `docs/results/embodied_law_linear_policy/`.
+
+Next design, not another architecture swap: normalize the proprioceptive
+features (for example `(previous_velocity - previous_thrust)/flow_movement_scale`)
+or initialize at the task scale, then rerun the same gate.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`

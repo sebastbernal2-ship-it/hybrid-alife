@@ -126,6 +126,8 @@ class EmbodiedConfig:
     displacement_reward: float = 0.0
     # Apply a small mutation to survivors each generation, not only to dead slots.
     mutate_survivors: bool = False
+    # Flat linear controller: raw = obs @ w_linear + b_linear, no GRU.
+    linear_policy: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
