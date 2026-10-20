@@ -42,10 +42,22 @@ learned response. The reward plumbing is verified; the limiter is evolutionary
 search. Selection only mutates dead slots, so the surviving elite freezes.
 
 The claim stays open. The survivor-mutation lever was then tested and also
-fails: `0/5` seeds, worst delta `-0.35`, worst reversed `+0.32`, and training
-alignment still tracks the direction sign. The frozen elite was not the blocker.
-Two levers remain: a policy-gradient update on the embodied controller, or a
-controller that can express the inferred-flow mapping directly.
+fails: `0/5` seeds, worst delta `-0.35`. The frozen elite was not the blocker.
+
+The policy-gradient lever was then tested and also fails: `0/5` seeds, worst
+delta `-1.90`. The gradient moves the policy (single-direction alignment improves
+by more than `0.1`, trained magnitudes reach `0.99`), but it converges to a fixed
+action, not a flow-conditioned one. Three protocol variants (warm-up, random
+training directions, corrected across-episode advantage baseline) did not change
+that. Results in `docs/results/embodied_law_policy_gradient/`.
+
+A gate correction came out of that work: the reversed-law control required
+`<= 0.0`, which is backwards. A law-follower re-infers the reversed flow and
+stays positive; a fixed action flips sign. The correct condition is
+`reversed >= 0.2`. The earlier verdicts are unchanged.
+
+One lever remains: an expressive controller that can represent the
+inferred-flow mapping directly. That is the next package.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
