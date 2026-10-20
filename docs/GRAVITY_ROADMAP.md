@@ -24,8 +24,19 @@ Avida must stay disabled in causal traces.
 Gate: per-direction minimum on the displacement reward, five seeds, with the
 same held-out diagonal rule.
 
-Risk: the embodied GRU may not use proprioception, may need observation changes,
-and the runner loop is heavier than the point-organism bridge.
+Status: **bounded pilot run, negative**. Results in
+`docs/results/embodied_law_pilot/README.md`.
+
+Outcome: with the flow hidden and only the existing alignment energy bonus,
+evolution changes genomes but does not improve held-out alignment
+(`+0.001` evolved against `+0.008` initial, delta `-0.007`). Two plumbing defects
+were found and fixed first: no births meant no mutation, and the evaluation
+measured only the unchanged elite half of the population.
+
+This matches the scout finding: the embodied observation has no previous-velocity
+or previous-thrust features, so the organism cannot compute the law from its own
+motion. The claim stays open until proprioception and a displacement-style
+selection reward are added.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
