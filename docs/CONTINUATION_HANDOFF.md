@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `52a0839` (PR #19), with this handoff committed on top.
-- Working tree clean, tests pass (377 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `b1b2029` (PR #20), with this handoff committed on top.
+- Working tree clean, tests pass (381 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -27,6 +27,7 @@ result documents it points to.
 | D1 survivor mutation | negative, 0/5 seeds, frozen elite not the blocker | `docs/results/embodied_law_survivor_mutation/` |
 | D1 policy gradient | negative, 0/5 seeds, gradient reaches a fixed action | `docs/results/embodied_law_policy_gradient/` |
 | D1 linear controller | negative, 0/5 seeds, representation sufficient, search is the limiter | `docs/results/embodied_law_linear_policy/` |
+| D1 unit-flow normalization | negative, 0/5 seeds, selection scheme is the limiter | `docs/results/embodied_law_unit_flow/` |
 
 The three studies reproduce with:
 
@@ -37,38 +38,35 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 normalized flow features
+## Next bounded package: D1 min-alignment fitness
 
-All three search levers are ruled out. The linear controller can express the
-mapping (hand-set weights align above `0.99`), but evolution cannot reach the
-needed weight scale: the flow features are about `0.01`, the needed linear
-weights are about `100`, genomes initialize at `0.1`, and mutation has standard
-deviation `0.05` over 8 generations. See
-`docs/results/embodied_law_linear_policy/README.md`.
+Normalization removed the scale gap, and evolution still settles on a fixed
+diagonal. The per-direction displacement reward averages to zero for a fixed
+action, and selection uses total energy, where alignment is small next to eating
+and basal costs. See `docs/results/embodied_law_unit_flow/README.md`.
 
-Goal: remove the scale gap by giving the controller a scale-free flow feature,
-then rerun the same gate.
+Goal: change how fitness is assigned, not the observation or the architecture.
 
 Steps:
 
-1. Add `EmbodiedConfig.unit_flow_features` (default off). When on, append two
-   features: `(previous_velocity - previous_thrust) / max(norm, eps)`, the unit
-   flow estimate. This is order one and scale-free, and it keeps the default
-   observation unchanged.
-2. Test that the feature is unit length after a step, scale-invariant across two
-   flow magnitudes, and that a linear controller with order-one weights aligns
-   above `0.99`.
-3. Run the evolution pilot with the linear controller and the unit-flow feature
-   on the four cardinals, evaluated frozen on the held-out diagonals with the
-   initial-policy and corrected reversed-law controls.
-4. Gate: per-direction held-out alignment beats the initial population by `0.2`,
+1. Add a per-agent alignment helper and a `minimum_direction_alignment` fitness
+   that evaluates each genome on every training direction with a short frozen
+   rollout and returns the minimum per agent.
+2. Add `fitness_mode` to `run_embodied_law_pilot` (`energy` stays the default,
+   `min_alignment` is the new mode). Use the chosen fitness for both selection and
+   reseed.
+3. Test that a hand-set flow-following controller scores a higher minimum across
+   the four cardinals than a hand-set fixed-action controller. This is the core
+   property of the fitness.
+4. Run the evolution pilot with the linear controller, unit-flow feature, and
+   `min_alignment` fitness on the four cardinals. Evaluate frozen on the held-out
+   diagonals with the initial-policy and corrected reversed-law controls.
+5. Gate: per-direction held-out alignment beats the initial population by `0.2`,
    and the reversed-law alignment is at least `0.2`. State the budget first.
-5. Also run one seed at 20 generations as a diagnostic, reported separately, not
-   silently folded into the main budget.
 
-Stop condition: if evolution still fails with order-one features, the limiter is
-the selection scheme itself, and the next design must change how fitness is
-assigned or how genomes are explored, not the observation.
+Stop condition: if min-alignment fitness still fails, report the negative and
+inspect the reproduction gate and the mutation operator next. Do not swap the
+architecture again.
 
 ## Constraints and traps learned the hard way
 
