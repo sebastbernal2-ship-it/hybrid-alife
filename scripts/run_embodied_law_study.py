@@ -30,7 +30,7 @@ CARDINALS = ((0.0, -1.0), (0.0, 1.0), (1.0, 0.0), (-1.0, 0.0))
 DIAGONALS = ((0.7071, -0.7071), (0.7071, 0.7071), (-0.7071, 0.7071), (-0.7071, -0.7071))
 
 GATE_MARGIN = 0.2
-GATE_REVERSED_MAX = 0.0
+GATE_REVERSED_MIN = 0.2
 
 
 def study_seed(
@@ -71,7 +71,7 @@ def study_seed(
     }
     passed = all(
         deltas[key] >= GATE_MARGIN
-        and reversed_law[key]["mean_alignment"] <= GATE_REVERSED_MAX
+        and reversed_law[key]["mean_alignment"] >= GATE_REVERSED_MIN
         for key in evolved
     )
     return {
@@ -82,7 +82,7 @@ def study_seed(
         "reversed_law": {k: v["mean_alignment"] for k, v in reversed_law.items()},
         "delta": deltas,
         "min_delta": float(min(deltas.values())),
-        "max_reversed": float(max(v["mean_alignment"] for v in reversed_law.values())),
+        "min_reversed": float(min(v["mean_alignment"] for v in reversed_law.values())),
         "training_alignment": pilot["training_alignment"],
     }
 
@@ -122,7 +122,7 @@ def main() -> int:
             print(
                 f"seed {seed} proprio={proprioception}: "
                 f"passed={row['passed']} min_delta={row['min_delta']:.3f} "
-                f"max_reversed={row['max_reversed']:.3f}",
+                f"min_reversed={row['min_reversed']:.3f}",
                 flush=True,
             )
 
@@ -138,14 +138,14 @@ def main() -> int:
         "steps_per_generation": args.steps_per_generation,
         "size": args.size,
         "eval_steps": args.eval_steps,
-        "gate": {"margin": GATE_MARGIN, "reversed_max": GATE_REVERSED_MAX},
+        "gate": {"margin": GATE_MARGIN, "reversed_min": GATE_REVERSED_MIN},
         "seeds_passed": passed,
         "seeds_total": len(results),
         "results": results,
     }
     print(
         f"\n{passed}/{len(results)} seeds pass "
-        f"(margin >= {GATE_MARGIN}, reversed <= {GATE_REVERSED_MAX})"
+        f"(margin >= {GATE_MARGIN}, reversed >= {GATE_REVERSED_MIN})"
     )
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

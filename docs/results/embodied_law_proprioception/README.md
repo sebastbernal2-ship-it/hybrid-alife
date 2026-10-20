@@ -32,17 +32,20 @@ then repeats the bounded pilot with the same controls.
 - Controls: the initial population, and the same held-out directions with the
   law reversed.
 - Gate, per direction: evolved alignment must beat the initial population by at
-  least `0.2`, and the reversed-law alignment must be at most `0.0`.
+  least `0.2`, and the reversed-law alignment must be at least `0.2`. A
+  law-following policy re-infers the reversed flow and stays aligned with the
+  imposed law; a fixed-action policy flips sign. See the correction note at the
+  end.
 - Primary run: 5 seeds, 8 generations, 16 agents, 8 steps per generation,
   14x14 world, displacement reward `5.0`.
 
 ## Results
 
-| Run | Seeds passing | Worst evolved minus initial | Worst reversed-law |
+| Run | Seeds passing | Worst evolved minus initial | Worst (minimum) reversed-law |
 | --- | --- | --- | --- |
-| Primary, reward 5.0 | **0/5** | -0.26 | +0.40 |
-| Reward 50.0, seed 0 | 0/1 | -0.21 | +0.41 |
-| 20 generations, reward 50.0, seed 0 | 0/1 | -0.21 | +0.41 |
+| Primary, reward 5.0 | **0/5** | -0.26 | -0.39 |
+| Reward 50.0, seed 0 | 0/1 | -0.21 | -0.41 |
+| 20 generations, reward 50.0, seed 0 | 0/1 | -0.21 | -0.41 |
 
 The gate fails in every configuration. Raising the reward tenfold and doubling
 the generations changed nothing. The held-out values after 20 generations are
@@ -96,3 +99,14 @@ JAX_PLATFORMS=cpu python scripts/run_embodied_law_study.py \
 ```
 
 Diagnostics: `diagnostics/reward_50.json`, `diagnostics/generations_20.json`.
+
+## Correction: reversed-law control direction
+
+An earlier version of this document required the reversed-law alignment to be at
+most `0.0`. That is backwards. A law-following policy re-infers the reversed flow
+and keeps a positive alignment with whatever law is imposed, while a fixed-action
+policy flips sign. The corrected condition is `reversed >= 0.2`, and the table
+above reports the minimum reversed alignment. Every seed still fails: the minimum
+reversed alignment is between -0.14 and -0.39. The verdict is unchanged. The
+correction and the full analysis are in
+`docs/results/embodied_law_policy_gradient/README.md`.
