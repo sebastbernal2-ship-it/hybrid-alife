@@ -1,374 +1,90 @@
-# Continuation Handoff — hybrid-alife
+# Continuation handoff: hybrid-alife
 
-> Purpose: enable a brand-new Claude (or human) chat starting from zero context to
-> continue this project without re-deriving state. For a one-page, KB-ready
-> snapshot (project identity, current main commit, validation status, exact
-> commands, artifact names, next-session first prompt, and bullet facts suitable
-> for a knowledge base), read [`KNOWLEDGE_BASE_HANDOFF.md`](KNOWLEDGE_BASE_HANDOFF.md)
-> first — it is the canonical entry point at the end of the final sprint. Then
-> read this file, then `README.md`, then `docs/scientific_validation.md`. Before
-> launching any multi-hour campaign, also read
-> [`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — it covers
-> preflight, env vars, sessions, resume/force policy, recovery, and the exact
-> recipes for 20-min / 2-hour / overnight runs.
+Purpose: a new session with zero context can continue this project without
+re-deriving state. This file is the checkpoint owner. Deeper detail lives in the
+result documents it points to.
 
-## Pointers
+## Where things stand
 
-- **Repo URL:** https://github.com/sebastbernal2-ship-it/hybrid-alife
-- **Current branch:** `feat-complete-research-direction` at `bd829b9`.
-- **Date of handoff:** 2026-10-13.
-- **Integration status:** PR #11 and follow-up PR #12 are merged; `main` is at `535d3c1`.
-- **Campaign:** the declared 40-cell run completed and is archived in `docs/results/poet_campaign_final_v6/`.
+- Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
+- `main` merged state: `6398357` (PR #15), with this handoff committed on top.
+- Working tree clean, tests pass (366 at the checkpoint), CI green on Python 3.11 and 3.12.
+- Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
+- Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
+- Project memory and sharp edges: `AGENTS.md`
 
-## Current research-direction status
+## Results on main
 
-- The implementation masks selected fields from ordinary patches and sixth-sense channels.
-- Each condition trains with the existing evolutionary runner before frozen-policy evaluation.
-- The field controls are direct, indirect, spatially decorrelated, no-field, reversal, held-out flow-strength transfer, and counterfactual information gain.
-- PPO-POET now retains admitted environment lineage, uses archive transfer in policy parent selection, and mutates archive-selected stepping stones.
-- Causal checks compare downstream fields, observations, and fixed-seed rollout outcomes rather than genotype values.
-- Admission diagnostics use three calibration seeds while retaining the declared raw criterion unchanged.
-- Field-discovery configs now enable an optional active-probe gate that returns local flow only through a probe observation channel and records probe rate, signal magnitude, and probe-outcome information.
-- The one-seed probe smoke is archived in `docs/results/field_probe_diagnostic_smoke_v1/`; it is diagnostic only.
-- The three-seed active-probe pilot is archived in `docs/results/field_probe_pilot_v1/`; probe rate stayed near 0.50 in every condition, so it found no evidence of selective probing.
-- A resource-coupled repeat is archived in `docs/results/field_probe_resource_pilot_v1/`; flow-information diagnostics became positive, but probe rate remained near 0.50 and survival/reproduction remained saturated.
-- Field-discovery configs now add a bounded flow-alignment reward, disabled in the no-field control, to create a direct task payoff for using hidden flow.
-- The flow-alignment pilot is archived in `docs/results/field_probe_alignment_pilot_v1/`; after ten generations, probe rate stayed near 0.50 and no selective-probing evidence appeared despite a non-saturated task payoff.
-- Held-out directional choice metrics now use a separate procedural seed and are archived in `docs/results/field_choice_pilot_v1/`.
-- The three-seed, two-generation choice pilot found below-chance held-out accuracy: direct `0.392`, indirect `0.403`, decorrelated `0.403`, and intervention `0.403`.
-- Final verification reports 278 passing tests and one expected GPU fallback warning.
-- A three-seed field pilot used two training generations and eight evaluation steps.
-- A three-seed PPO-POET ecology pilot used three generations and four held-out environments per seed.
-- The pilot found survival `1.0`, reproduction `0`, and no direct-access advantage.
-- The pilot is engineering evidence only, not evidence of functional field understanding, consciousness, or open-ended evolution.
-- The preregistered campaign completed both declared replications, but its held-out success gate returned `insufficient_evidence`.
-- The bounded transfer result does not support a POET held-out-transfer claim or an open-ended evolution claim.
-- A deterministic selective-causal-inquiry calibration benchmark now lives in `src/hybrid_alife/experiments/awareness_benchmark.py` with CLI `scripts/run_awareness_benchmark.py` and protocol `docs/AWARENESS_BENCHMARK.md`.
-- Its validity gate passes for solvable, surface-shift, reversal, deceptive, impossible, and non-identifiable worlds on seeds 0-2.
-- PPO-POET now exposes matched `archive_disabled`, `random_archive`, and `oracle_stepping_stone` controls through `scripts/run_poet.py`.
-- The archive-control factorial is declared in `configs/poet_archive_control_manifest.json` for 100 cells with a 14-hour wall-clock cap, operator `sebas`, machine `local-cpu-1`, and distinct seed offsets.
-- The preregistered campaign from source commit `62367a7` was stopped after about two hours because only one cell completed; it produced no aggregate result.
-- Partial campaign output remains under `outputs/poet_campaign_final_v4/` and must not be treated as evidence.
-- A profiled rerun from source commit `73931ea` was stopped after about 21 minutes per first cell because the full 40-cell campaign still projected to several hours; one partial summary exists under `outputs/poet_campaign_final_v5/` and is not evidence.
-- The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` with a four-hour wall-clock cap.
-- All 40 cells completed; the aggregate analysis and provenance audit are archived in `docs/results/poet_campaign_final_v6/`.
-- POET improved final in-distribution transfer but had a pooled held-out effect of `-0.5101` with 95% bootstrap CI `[-0.9131, -0.1089]`.
-- The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
-- A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.
-- The benchmark is calibration evidence only and does not replace simulator rollouts.
+| Direction | Outcome | Evidence |
+| --- | --- | --- |
+| Calibration end to end | 5/5 seeds, worst direction +9.94, mean +10.85 | `docs/results/gravity_study_v1/` |
+| Simulator internal estimate | 5/5 seeds, worst direction +10.06, mean +10.92 | same |
+| Independent HiperGator replication | passed, exact per-seed agreement | `docs/results/gravity_study_v1/REPLICATION.md` |
+| D2 reversal adaptation | one-step recovery, frozen control never adapts | `docs/results/reversal_adaptation/` |
+| D4 revelation forms | positive, channel-ordered, false ones self-correct | `docs/results/revelation_forms/` |
+| D1 evolved embodied | negative pilot, plumbing fixed, claim open | `docs/results/embodied_law_pilot/` |
 
-## TL;DR project state
-
-Hybrid artificial-life simulator in JAX. Two coupled branches (embodied GRU/MLP agents +
-Avida-style instruction VM) share a 2D world of proxy microfluidic fields (curvature,
-shear, lift, enrichment, concentration, metabolites). Evolution loop with tournament,
-novelty archive, MAP-Elites. Scientific-depth metrics (Bedau, QD, topsim/posdis/bosdis,
-Hill 1D lineage) are implemented and unit-tested. A v1 transfer matrix and a compute-
-scaling harness exist as scripts. The legacy transfer harness remains fixed-policy.
-The standalone PPO-POET module adds a bounded paired policy and environment
-population loop, but it does not establish open-ended coevolution.
-
-## Known validation (current snapshot)
-
-- The current branch passes 278 tests with one expected GPU fallback warning.
-- Ruff and diff checks pass.
-- The awareness benchmark validity gate passes on seeds 0-2.
-- The held-out directional-choice pilot is diagnostic only and found below-chance transfer accuracy.
-- The final PPO-POET campaign completed 40/40 cells across two replications.
-- Its preregistered held-out success gate returned `insufficient_evidence`.
-
-## Architecture map
-
-```
-src/hybrid_alife/
-├── agents/
-│   ├── controller.py     GRU / MLP forward + decode_actions; vectorized einsum
-│   ├── embodied.py       embodied lifecycle, world coupling, reproduction
-│   └── avida_vm.py       instruction-genome VM, logic tasks, merit cycles
-├── world/
-│   ├── env.py            WorldState, terrain/fields, advection, Dean curvature
-│   └── sensing.py        sixth-sense sampling, noise / blind / shuffle / delay
-├── evolution/
-│   ├── selection.py      tournament, reseeding
-│   └── archives.py       novelty + MAP-Elites
-├── experiments/
-│   ├── runner.py         config loader + main run loop
-│   ├── shadow.py         neutral-shadow runner (Bedau control)
-│   └── transfer.py       median/IQR, bootstrap CI, Cliff's δ
-└── poet.py               bounded paired PPO-POET population loop
-├── metrics/
-│   ├── core.py           per-step survival, entropy, comms, enrichment
-│   ├── bedau.py          A_new, A_cum, A_p
-│   ├── qd.py             QD-score, coverage, archive entropy
-│   ├── communication.py  topsim / posdis / bosdis + MI channel capacity
-│   ├── comm_benchmark.py synthetic comm benchmark with control protocols
-│   └── lineage.py        LineageTree, Hill 1D effective lineage count
-├── logging/              JSONL writer
-├── replay/               deterministic pickle checkpoints
-├── viz/                  matplotlib plotting helpers
-└── types.py              shared dataclasses / configs
-
-scripts/
-├── run_sim.py                main runner (config → outputs/runs/<name>/)
-├── generate_report.py        builds report.md + plots from a run dir
-├── run_ablation_matrix.py    multi-config × multi-seed sweep + stats
-├── run_comm_benchmark.py     synthetic compositionality benchmark
-├── run_compute_scaling.py    budget-vs-coverage scaling harness
-├── run_transfer_matrix.py    fixed-policy transfer evaluation across configs
-├── run_poet.py               PPO-POET campaign runner
-├── analyze_poet_campaign.py  PPO-POET campaign analysis
-├── profile_full_run.py       full-run CPU profile
-└── benchmark_cpu.py          bounded CPU comparison
-
-configs/    YAML configs (base, smoke200, 11 ablations, qd_active,
-            comm_task, lineage_growth, scaling_tiny, transfer_{source,target},
-            poet_{smoke,campaign})
-tests/      CPU-feasible pytest suite with 278 validated tests
-docs/       architecture, world_model, agent_branches, scientific_validation,
-            qd_active, comm_benchmark, transfer, poet_ppo_campaign,
-            lineage_growth, preregistration_template, CONTINUATION_HANDOFF (this file)
-```
-
-Data flow: `WorldState` is the shared substrate. Embodied agents deposit /
-consume resources and metabolites; Avida organisms do I/O via the same fields.
-Both branches feed into the evolution loop (selection → mutation → reseeding)
-and the novelty + MAP-Elites archives. Per-step metrics stream to JSONL.
-
-## Implemented features (what is real today)
-
-**World / sensing**
-- Proxy microfluidic fields: curvature regimes, Dean secondary flow, advection,
-  drift, shear, shear-gradient, inertial-lift proxy, margination/enrichment,
-  diffusing concentration waves, metabolites.
-- Sensing modes: true / delayed / noisy / dropout / shuffled / blind +
-  crowding-context channel from occupancy and neighbor message energy.
-
-**Agents**
-- Embodied branch: GRU controller with MLP ablation (`use_memory=false`),
-  bounded continuous + discrete action vector, action-cost model, gated
-  message channel.
-- Avida branch: instruction-genome VM with logic-task rewards, merit-based
-  CPU-cycle allocation, duplication mutation, branch coupling via metabolites.
-
-**Evolution**
-- Tournament selection, reproductive reseeding into dead slots, novelty
-  archive, MAP-Elites archive with QD logging.
-
-**Metrics & validation**
-- Per-step core metrics (survival, entropy, comms usage, coordination,
-  enrichment separation, mean Avida merit, logic-task count).
-- Bedau-Packard activity (A_new, A_cum, A_p) with paired neutral shadow.
-- QD summary (qd_score, coverage, archive + occupancy entropy).
-- Compositionality (topsim, posdis, bosdis) + channel ablations + MI capacity.
-- Lineage tree JSON export + Hill 1D effective lineage count.
-- Transfer suite: median+IQR, bootstrap CI, Cliff's δ effect size, markdown
-  summary writer. **Caveat:** v1 re-evaluates per-config metrics, not true
-  trained-on-A-evaluated-on-B agent transfer.
-- Compute-scaling harness (`run_compute_scaling.py`): budget × coverage curves.
-- Synthetic communication benchmark with compositional / scrambled / random
-  control protocols.
-
-**Infrastructure**
-- Deterministic pickle checkpoints + JSONL metric stream + auto report.
-- GitHub Actions CI runs the full pytest suite on push.
-- 19 YAML configs covering base, smoke200, 11 ablations, qd_active, comm_task,
-  lineage_growth, scaling_tiny, transfer source/target.
-
-## Not implemented / experimental (what is **not** real yet)
-
-- **Open-ended environment-agent coevolution.** The standalone PPO-POET
-  module provides a bounded paired policy and environment population loop with
-  archive lineage, minimal-criterion filtering, stepping-stone selection, and
-  held-out transfer. It remains bounded and does not establish open-ended
-  coevolution.
-- **Compositionality on the continuous emergent channel.** Currently
-  discretised via argmax; numbers should be read as a lower bound.
-- **Surrogate-assisted QD** and **Meta-Referential evaluation** (memo P2) —
-  scaffolded only.
-- **Headline numbers at scale.** All CI runs are deliberately tiny.
-  Anything publishable should be re-run at ≥10 seeds with longer horizons.
-
-## Open scientific risks
-
-1. **Proxy fields are stylized, not physical.** The "sixth sense" channels are
-   inductive bias, not microfluidic ground truth. The `ablation_uniform_field`
-   config exists to show they are doing measurable work — that comparison
-   *must* accompany any claim about microfluidic-style ecology.
-2. **Discrete compositionality scores are quantised.** topsim / posdis /
-   bosdis remain discrete diagnostics. Raw embodied messages now also expose
-   continuous topographic similarity and eta-squared capacity against action
-   cues. These metrics are channel diagnostics, not language evidence.
-3. **Transfer is fixed-policy transfer.** The transfer mode evaluates policies
-   trained in env A inside env B with the same controller weights. It does not
-   implement environment-agent coevolution or certify generalisation.
-4. **CI runs are tiny.** Headline legacy metrics (coverage, qd_score, novelty
-   archive size) come from gen-5 smoke runs. Variance across seeds at this
-   scale is large; publishable numbers need ≥10 seeds and longer horizons.
-5. **Bedau A_new / A_cum / A_p depend on a paired neutral shadow.** If the
-   shadow runner drifts from the live config (different sensing mode,
-   different mutation rate), Bedau ratios become meaningless. Always run
-   shadow with `--include-shadow` in the ablation matrix.
-6. **Language guardrails.** `docs/scientific_validation.md` §7 commits to
-   labelling, not biology / linguistics. Future PRs should not weaken this
-   without an explicit memo update.
-7. **Reseeding hides extinction.** Embodied alive-fraction stays at 1.0
-   because reseeding refills dead slots. Real selection pressure has to be
-   measured via lineage-depth and Hill 1D, not survival fraction.
-
-For per-metric interpretation, the engineering/preliminary/strong evidence
-tiers, allowed vs disallowed claims, the ablation logic, replication
-requirements, and the calibration thresholds these risks should be judged
-against, see [`docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`](SCIENTIFIC_INTERPRETATION_GUIDE.md).
-Any write-up that quotes numbers from this repo should be checked against
-that guide before publication.
-
-## Next actions
-
-### Next 20 minutes
-
-- Review the final combined PR and keep it open until the captain approves merging.
-- Run the preregistered campaigns only after admission calibration and artifact preflight pass.
-- `python scripts/run_sim.py --config configs/base.yaml` (2-gen smoke) to
-  confirm runner + JSONL writer are healthy end-to-end.
-- Skim `outputs/` for prior sprint artifacts (transfer / scaling); confirm
-  they are still readable by `generate_report.py`.
-
-### Next 2 hours
-
-For anything that will exceed ~10 minutes, follow
-[`LONG_RUN_OPERATOR_RUNBOOK.md`](LONG_RUN_OPERATOR_RUNBOOK.md) — preflight,
-tmux pattern, `--resume` policy, and the 2-hour recipe in §10b.
-
-- Run the full smoke + ablation matrix:
-  ```bash
-  python scripts/run_ablation_matrix.py \
-      --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
-                configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
-      --seeds 10 --include-shadow \
-      --out-dir outputs/ablation_matrix
-  ```
-- Re-run `python scripts/run_comm_benchmark.py` and confirm the compositional
-  control still hits topsim/posdis/bosdis = 1.0.
-- Re-run `python scripts/run_compute_scaling.py` at budgets [6, 12, 24]
-  and update the scaling curve in `docs/poet_transfer.md`.
-- Pick **one** experimental gap from the list above and write a short
-  design memo in `docs/` before coding.
-
-### Next 1 day
-
-- Verify the fixed-policy transfer mode against an archived source checkpoint
-  and document the resulting matrix with its horizon metadata.
-- Stand up surrogate-assisted QD: a small regression head over
-  behaviour-descriptor → fitness, used to gate which mutations get a full
-  rollout. Acceptance: ≥30% reduction in rollouts to reach the current
-  smoke200 coverage at matched seeds.
-- Extend the continuous-channel diagnostics to held-out referents and
-  preregistered semantic cues before interpreting them as communication.
-- Future work may extend the bounded PPO-POET loop with a minimal criterion,
-  environment archive, and stepping-stone selection.
-  That work is not evidence of open-ended coevolution until those controls exist.
-
-## Exact commands
+The three studies reproduce with:
 
 ```bash
-# Setup
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Tests (expect the current 278-test suite to pass on CPU)
-JAX_PLATFORMS=cpu venv/bin/python -m pytest -q
-
-# Lint
-ruff check src tests
-
-# Smokes
-python scripts/run_sim.py --config configs/base.yaml          # 2 gens
-python scripts/run_sim.py --config configs/smoke200.yaml      # 200 gens, ~110 s
-python scripts/generate_report.py outputs/runs/smoke200
-
-# Targeted experiments
-python scripts/run_sim.py --config configs/qd_active.yaml
-python scripts/run_sim.py --config configs/comm_task.yaml
-python scripts/run_sim.py --config configs/lineage_growth.yaml
-python scripts/run_sim.py --config configs/scaling_tiny.yaml
-
-# Benchmarks / harnesses
-python scripts/run_comm_benchmark.py
-python scripts/run_compute_scaling.py
-python scripts/run_transfer_matrix.py \
-    --source configs/transfer_source.yaml \
-    --target configs/transfer_target_uniform.yaml
-
-# Full ablation matrix with stats
-python scripts/run_ablation_matrix.py \
-    --configs configs/smoke200.yaml configs/ablation_no_comms.yaml \
-              configs/ablation_static_world.yaml configs/ablation_uniform_field.yaml \
-    --seeds 10 --include-shadow \
-    --out-dir outputs/ablation_matrix
-
-# Neutral-shadow run only (Bedau control)
-python -c "from hybrid_alife.experiments.runner import load_config; \
-           from hybrid_alife.experiments.shadow import run_shadow; \
-           run_shadow(load_config('configs/smoke200.yaml'))"
+JAX_PLATFORMS=cpu venv/bin/python scripts/run_gravity_study.py --seeds 0 1 2 3 4 --output docs/results/gravity_study_v1/summary.json
+JAX_PLATFORMS=cpu venv/bin/python scripts/run_reversal_adaptation.py --output docs/results/reversal_adaptation/summary.json
+JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/results/revelation_forms/summary.json
 ```
 
-## Branch strategy
+## Next bounded package: D1 proprioception
 
-- `main` is the integration branch. Each completed sprint lands as a merge
-  commit; see `git log --oneline main` for the chronology.
-- Follow-up branches use the pattern `sprint/<topic>-fast` (fast = time-boxed
-  CPU-feasible).
-- The current validation branch is `feat/solidness-performance`.
-- Its corrected PPO-POET implementation, 30-cell campaign archive, and provenance metadata await a PR into `main`.
-- Open a PR from each validation branch back into `main`. CI must be green
-  before merging. The current PPO-POET validation branch is
-  `feat/solidness-performance`. Do **not** force-push to `main`.
-- Never amend merged commits; create new sprint branches off `main` for
-  follow-ups.
+Goal: test whether the **actual evolved embodied organisms** exploit an imposed
+law, with the inference made possible from their own sensors.
 
-## How to recover work from sprint branches
+Why: D1's bounded pilot failed because the embodied observation has no
+previous-velocity or previous-thrust features, so a hidden law cannot be inferred
+from the organism's own motion, and the alignment energy bonus is too weak to
+drive selection. See `docs/results/embodied_law_pilot/README.md`.
 
-```bash
-# List all sprint branches, local + remote
-git branch -a | grep sprint/
+Steps:
 
-# Inspect a sprint without checking out
-git log --oneline main..origin/sprint/<topic>-fast
-git diff main...origin/sprint/<topic>-fast -- <path>
+1. Add explicit proprioceptive features to the embodied observation:
+   previous velocity and previous thrust, appended in `observe_embodied`, with
+   `embodied_observation_dim` updated. This changes controller input and genome
+   shapes, so old checkpoints are invalidated. Test the new shape explicitly.
+2. Add a displacement-style reward, default off, that adds
+   `dot(unit_thrust, unit_law)` per step to energy, so selection is driven by the
+   behavior rather than a small bonus. Keep existing dynamics unchanged by default.
+3. Re-run the bounded pilot in `src/hybrid_alife/experiments/latent_law_embodied.py`
+   with the same held-out diagonals, the initial-population control, and the
+   reversed-law control.
+4. Gate: per-direction alignment whose minimum beats the initial-population
+   control on held-out diagonals. Report per direction, never an antipodal mean.
+5. Keep Avida disabled. Keep the flow hidden in the primary condition and use a
+   visible-flow variant only as a cue-availability diagnostic.
+6. Keep the default pytest suite fast: the pilot runs belong in a script, not in
+   more slow tests.
 
-# Resume an unmerged sprint
-git fetch origin
-git checkout -b sprint/<topic>-fast origin/sprint/<topic>-fast
-# … iterate, push, open PR …
+Stop condition: if the new observation shape breaks existing controller tests, or
+the pilot cannot beat the initial-population control within the declared budget,
+report the negative result and do not enlarge the budget without revising the brief.
 
-# If a sprint branch was deleted on the remote but exists locally
-git push -u origin sprint/<topic>-fast
+## Constraints and traps learned the hard way
 
-# If everything local is lost: clone fresh and recover from origin
-gh repo clone sebastbernal2-ship-it/hybrid-alife
-cd hybrid-alife
-git fetch --all
-git branch -r | grep sprint/        # list remote sprints
-```
+- Run locally with `JAX_PLATFORMS=cpu`. The suite takes about 10 to 15 minutes; CI has a 35-minute job ceiling.
+- Keep decisive gate tests small and put full-size training runs in `scripts/`.
+- Never report a mean across gravity directions as the primary result. Gate on the minimum across directions.
+- Never average signed alignment across antipodal directions; it cancels to zero.
+- Avoid reward designs with an isolated optimum. That needle looked like a learner failure and was not.
+- Prefer continuous actions over a small discrete set when direction is the target, to avoid a mode-versus-mean failure.
+- Two silent plumbing bugs already cost a day in D1: no births meant no mutation, and evaluation resurrected only the elite half of the population. Always verify the control baseline actually differs from the treatment.
+- HiperGator access uses a persistent ControlMaster socket at `~/.ssh/hpg-%r@%h:%p`; plain `ssh hipergator` reuses it. If it prompts, reconnect interactively once.
 
-The current pre-integration point is `main` at
-`6364048`.
-Compare the validation branch against that commit when reviewing the pending PR.
+## Open decisions
 
-## Success criteria for "continuation succeeded"
+- The PPO-POET archive claim stays closed as `insufficient_evidence` unless the
+  captain reopens it deliberately.
+- Any claim about consciousness, sentience, or symbolic representation is out of
+  scope for this study and must not be inferred from these results.
 
-A future chat has successfully continued this project if and only if:
+## Earlier history
 
-1. `JAX_PLATFORMS=cpu venv/bin/python -m pytest -q` still reports 278 passing tests (or more, never fewer
-   without an explicit deletion memo).
-2. The smokes in the **Next 20 minutes** section run to completion on CPU
-   and produce the same shape of JSONL output as today.
-3. Every new claim about emergent communication, transfer, or
-   open-endedness is paired with the corresponding ablation / shadow /
-   transfer evidence already wired into the repo. No new unsupported
-   adjectives in `README.md` or `docs/*.md`.
-4. New sprint branches follow the `sprint/<topic>-fast` pattern, land via
-   PR into `main`, and update `docs/CONTINUATION_HANDOFF.md` if they
-   change project state that a future zero-context reader would need.
-5. Headline numbers in any new memo are reported with seeds, horizon, and
-   compute budget — never as point estimates.
+Older campaign handoffs and field-discovery history were superseded by the
+results above. The archived artifacts remain under `docs/results/`, including
+`poet_campaign_final_v6/` and the field-discovery pilots.
