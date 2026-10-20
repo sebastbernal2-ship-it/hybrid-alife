@@ -6,6 +6,7 @@ checkpoints, and archives into one coherent generation loop.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
@@ -116,6 +117,7 @@ def step_sim(
     lineage_counter: int,
     *,
     allow_reproduction: bool = True,
+    observation_capture: Callable[[jax.Array], None] | None = None,
 ) -> tuple[SimState, int]:
     """Advance one step.
 
@@ -128,6 +130,8 @@ def step_sim(
     if state.embodied is not None and cfg.embodied.enabled:
         alive_before = int(state.embodied.alive.sum())
         obs = observe_embodied(state.embodied, state.world, cfg.embodied, cfg.world, k_obs)
+        if observation_capture is not None:
+            observation_capture(obs)
         actions, embodied = act_embodied(state.embodied, obs, cfg.embodied, k_ctrl)
         embodied, new_world, repro_gate = apply_embodied_actions(
             embodied, actions, state.world, cfg.embodied, cfg.world, k_act
