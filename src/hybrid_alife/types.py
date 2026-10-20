@@ -128,6 +128,9 @@ class EmbodiedConfig:
     mutate_survivors: bool = False
     # Flat linear controller: raw = obs @ w_linear + b_linear, no GRU.
     linear_policy: bool = False
+    # Append the unit flow estimate, (previous_velocity - previous_thrust) / norm,
+    # so the flow signal is order one and scale-free. Needs proprioception.
+    unit_flow_features: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02

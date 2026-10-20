@@ -64,9 +64,20 @@ weights must be about `100`, while genomes initialize at `0.1` and mutate with
 standard deviation `0.05` over 8 generations. Mutation cannot bridge that gap.
 Results in `docs/results/embodied_law_linear_policy/`.
 
-Next design, not another architecture swap: normalize the proprioceptive
-features (for example `(previous_velocity - previous_thrust)/flow_movement_scale`)
-or initialize at the task scale, then rerun the same gate.
+The normalization package was then tested: the unit flow estimate
+`(previous_velocity - previous_thrust)/norm` is order one, and a hand-set linear
+controller aligns above `0.99` with order-one weights. It also fails: `0/5`
+seeds, worst delta `-0.25`, and one seed at 20 generations settles on a fixed
+diagonal (`+0.71`/`-0.71`). The scale gap shrank; the failure did not. Results in
+`docs/results/embodied_law_unit_flow/`.
+
+The limiter is now the selection scheme. The per-direction displacement reward
+averages to zero for a fixed action across the four training directions, and
+selection uses total energy, where alignment is small next to eating and basal
+costs. Next design: fitness equal to the **minimum alignment across the four
+training directions**, so only a flow-conditioned policy scores high. Alternatives
+are shared fitness across directions or direct selection on alignment with a
+variance penalty.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
