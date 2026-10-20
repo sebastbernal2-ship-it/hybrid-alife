@@ -91,8 +91,14 @@ class SimulatorOrganism:
         revelation: tuple[float, float] | None = None,
         revelation_step: int = 0,
         revelation_noise: float = 0.0,
+        revelation_kind: str = "exact",
         reversal_step: int | None = None,
     ) -> None:
+        if revelation_kind not in {"exact", "demonstration", "noisy", "symbolic"}:
+            raise ValueError(
+                "revelation_kind must be exact, demonstration, noisy, or symbolic"
+            )
+        self.revelation_kind = revelation_kind
         if horizon < 1:
             raise ValueError("horizon must be positive")
         if not 0 <= revelation_step < horizon:
@@ -136,7 +142,14 @@ class SimulatorOrganism:
             payload: tuple[float, float] | None = None
         else:
             value = np.asarray(self.revelation, dtype=np.float64)
-            if self.revelation_noise > 0:
+            if self.revelation_kind == "symbolic":
+                # The symbolic channel can only name a cardinal axis, so it is
+                # lossy for diagonal laws. That is a real channel difference.
+                axis = int(np.argmax(np.abs(value)))
+                sign = float(np.sign(value[axis])) if value[axis] != 0 else 1.0
+                value = np.zeros(2)
+                value[axis] = sign
+            if self.revelation_kind == "noisy" or self.revelation_noise > 0:
                 rng = np.random.default_rng(self._revelation_seed + step_index)
                 value = value + rng.normal(0.0, self.revelation_noise, size=2)
             payload = (float(value[0]), float(value[1]))

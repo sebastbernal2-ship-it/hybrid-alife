@@ -63,13 +63,20 @@ Run this last so it replicates the complete state, not an intermediate one.
 
 ### D4. Revelation variants
 
+Status: **done**, calibration only. Results in
+`docs/results/revelation_forms/README.md`.
+
 Question: which revelation forms help, and does a false one get corrected?
 
-Bounded scope: demonstration, noisy sensory hint, symbolic message, and delivery
-timing. Measure reward and self-correction.
+Outcome: every early true form beats the `+11.00` no-revelation baseline:
+exact `+12.00`, demonstration `+12.00`, noisy `+11.94`, symbolic `+11.80`. Late
+true revelations add nothing because the estimate is already exact. False
+revelations cost about one step early and are then corrected. A message-only
+control scores `+1` at best, so the estimate is required.
 
-Gate: true variants beat no revelation, and a false revelation is corrected
-within one step.
+Channel ordering follows the information carried. Symbolic is lossy because it
+names only a cardinal axis. Demonstration is informationally equal to the exact
+vector in a uniform world, and the results confirm that.
 
 ## Execution order
 

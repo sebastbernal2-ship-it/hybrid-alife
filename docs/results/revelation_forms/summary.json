@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "status": "calibration_only",
+  "protocol": {
+    "horizon": 12,
+    "early_step": 0,
+    "late_step": 4,
+    "noisy_sigma": 0.15,
+    "symbolic": "nearest cardinal axis, lossy for diagonals",
+    "directions": [
+      [
+        0.0,
+        -1.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.7071,
+        -0.7071
+      ],
+      [
+        0.7071,
+        0.7071
+      ],
+      [
+        -0.7071,
+        0.7071
+      ],
+      [
+        -0.7071,
+        -0.7071
+      ]
+    ],
+    "baseline_no_revelation": 11.0
+  },
+  "conditions": {
+    "true_exact_early": {
+      "mean_reward": 12.0
+    },
+    "false_exact_early": {
+      "mean_reward": 10.0
+    },
+    "true_exact_late": {
+      "mean_reward": 11.0
+    },
+    "false_exact_late": {
+      "mean_reward": 9.0
+    },
+    "true_demonstration_early": {
+      "mean_reward": 12.0
+    },
+    "false_demonstration_early": {
+      "mean_reward": 10.0
+    },
+    "true_demonstration_late": {
+      "mean_reward": 11.0
+    },
+    "false_demonstration_late": {
+      "mean_reward": 9.0
+    },
+    "true_noisy_early": {
+      "mean_reward": 11.941547727334017
+    },
+    "false_noisy_early": {
+      "mean_reward": 10.089798947834604
+    },
+    "true_noisy_late": {
+      "mean_reward": 10.994694696939805
+    },
+    "false_noisy_late": {
+      "mean_reward": 9.011555338820992
+    },
+    "true_symbolic_early": {
+      "mean_reward": 11.804737854124363
+    },
+    "false_symbolic_early": {
+      "mean_reward": 10.195262145875637
+    },
+    "true_symbolic_late": {
+      "mean_reward": 10.859124216678078
+    },
+    "false_symbolic_late": {
+      "mean_reward": 9.278145123499078
+    },
+    "no_revelation": {
+      "mean_reward": 11.0
+    },
+    "message_only_true_exact_early": {
+      "mean_reward": 1.0
+    },
+    "message_only_false_exact_early": {
+      "mean_reward": -1.0
+    }
+  }
+}
