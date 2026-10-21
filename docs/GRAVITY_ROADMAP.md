@@ -133,9 +133,6 @@ diagonal, reversed `>= 0.2`) was then executed with the same budget. It returned
 So the two criteria are complementary and neither reaches `5/5` at this budget.
 Results in `docs/results/embodied_law_absolute_confirmation/`.
 
-The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
-four-parameter movement head. The absolute-floor five-seed threshold remains open.
-
 The ablation package then tested which ingredients matter, one mechanism at a time,
 at 8 generations and 5 seeds. Necessary: the flow-only head (dense head drops to
 0/5, `-0.730`), min-alignment fitness (energy drops to 0/5, `-0.347`), and rank
@@ -144,6 +141,20 @@ unit-flow normalization (raw features reach 5/5) and immigrants (0% reaches 5/5)
 The `full` configuration is not the best on this budget, so the ablation is a
 mechanism test, not a configuration search. Results in
 `docs/results/d1_ablation/`.
+
+The ablation's best simple configuration was then confirmed with a preregistered
+20-generation, 5-seed run: flow-only head, unit-flow feature, min-alignment fitness,
+rank replacement, no immigrants.
+
+**Result: 5/5 seeds pass the initial-relative gate, and 5/5 pass the absolute
+floor.** Training alignment rises to about `0.95`, and reversed-law alignment is
+positive in every seed. Results in
+`docs/results/embodied_law_no_immigrant_confirmation/`.
+
+Claim, upgraded: evolved embodied organisms behaviorally exploit the imposed law,
+**5 of 5 seeds, 20 generations, four-parameter movement head, rank replacement, no
+immigrants**. Boundary: one uniform-flow environment, held-out diagonals, one
+machine. No consciousness or symbolic-representation claim.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
