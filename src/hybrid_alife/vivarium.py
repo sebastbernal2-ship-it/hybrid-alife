@@ -396,6 +396,48 @@ def render_frame(
 
 
 
+
+def set_uniform_law(
+    state: VivariumState, direction: tuple[float, float], magnitude: float = 0.2
+) -> VivariumState:
+    """Impose a uniform law over the whole world. (0, 0) means no law."""
+    vector = np.asarray(direction, dtype=np.float32)
+    norm = float(np.linalg.norm(vector))
+    if norm > 1e-8:
+        vector = vector / norm * magnitude
+    else:
+        vector = np.zeros(2, dtype=np.float32)
+    flow = np.broadcast_to(
+        vector, state.sim.world.flow.shape
+    ).astype(np.float32)
+    state.sim.world = replace(state.sim.world, flow=jnp.asarray(flow))
+    return state
+
+
+def reference_alignment(state: VivariumState, reference: tuple[float, float]) -> float:
+    """Mean cosine of the commanded thrust with a reference direction."""
+    alive = np.asarray(state.sim.embodied.alive)
+    moves = np.asarray(state.sim.embodied.last_action[alive, 0:2])
+    if moves.size == 0:
+        return float("nan")
+    norm = np.linalg.norm(moves, axis=-1)
+    valid = norm > 1e-8
+    if not valid.any():
+        return float("nan")
+    unit = np.asarray(reference, dtype=np.float64)
+    unit = unit / max(float(np.linalg.norm(unit)), 1e-12)
+    return float(np.mean((moves[valid] @ unit) / norm[valid]))
+
+
+def mean_body_radius(state: VivariumState) -> float:
+    alive = np.asarray(state.sim.embodied.alive)
+    if not alive.any():
+        return float("nan")
+    genes = state.sim.embodied.genomes
+    body = np.asarray(genes.get("body_radius", np.ones(alive.shape[0])))
+    return float(body[alive].mean())
+
+
 def encode_jpeg(frame, quality: int = 85) -> bytes:
     """Encode a Pillow frame as JPEG bytes for a live stream."""
     import io
