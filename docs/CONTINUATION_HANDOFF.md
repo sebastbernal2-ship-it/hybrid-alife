@@ -45,40 +45,40 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Preregistered package: no-immigrant confirmation
+## Last package: no-immigrant confirmation (5/5, claim upgraded)
 
-The captain chose option 2 after the ablation: confirm the strongest simple
-configuration. This budget and gate are declared **before** launch.
+The preregistered no-immigrant confirmation ran with the declared 20-generation,
+5-seed budget. Result: **5/5 seeds pass** the initial-relative gate, and **5/5**
+pass the secondary absolute floor.
 
-Configuration: the `no_immigrants` ablation cell.
+| Seed | Passed | Evolved minus initial | Evolved (worst) | Minimum reversed |
+| --- | --- | --- | --- | --- |
+| 0 | yes | +0.734 | +0.694 | +0.694 |
+| 1 | yes | +0.513 | +0.551 | +0.551 |
+| 2 | yes | +0.697 | +0.830 | +0.830 |
+| 3 | yes | +0.516 | +0.687 | +0.687 |
+| 4 | yes | +0.377 | +0.792 | +0.792 |
 
-- Flow-only head (`w_flow`, `b_flow`), unit-flow feature, proprioception on.
-- Min-alignment fitness, 6 frozen steps per direction.
-- Rank replacement with `elite_fraction = 0.5`.
-- Immigrant fraction `0.0`.
-- Displacement reward `5.0`, eval steps `12`.
+Training alignment rises to about `0.95` and stays, and reversed-law alignment is
+positive in every seed and equals the evolved alignment. See
+`docs/results/embodied_law_no_immigrant_confirmation/README.md`.
 
-Budget:
+## Claim, upgraded
 
-- 5 seeds: 0, 1, 2, 3, 4.
-- 20 generations, 16 agents, 8 steps per generation, 14x14 world.
+Evolved embodied organisms behaviorally exploit the imposed law: **5 of 5 seeds, 20
+generations, under a four-parameter movement head with rank replacement and no
+immigrants. The initial-relative gate and the absolute floor both pass 5/5.**
 
-Gate, per held-out diagonal (the accepted criterion):
+Boundary: one uniform-flow environment, held-out diagonals, five seeds, one machine.
+No consciousness or symbolic-representation claim.
 
-- evolved beats the initial population by at least `0.2`, and
-- reversed-law alignment at least `0.2`.
+## Current state
 
-The absolute floor (`evolved >= 0.5`) is reported as a secondary diagnostic, not
-the gate.
+No work is in flight. Open follow-ups, on the captain's word:
 
-Recording rule:
-
-- If 5/5 pass, upgrade the claim to a five-seed bounded claim and say so plainly.
-- Otherwise report every seed, no retune, and no relaunch in this session without
-  the captain's word.
-
-Ablation reference: `docs/results/d1_ablation/README.md`. The `no_immigrants` cell
-scored 5/5 with worst delta `+0.393` at 8 generations.
+1. Second-machine replication of the 5/5 result.
+2. Open a new research question from `docs/RESEARCH_ALIGNMENT.md` with a fresh spec.
+3. Stop here.
 
 ## Constraints and traps learned the hard way
 
