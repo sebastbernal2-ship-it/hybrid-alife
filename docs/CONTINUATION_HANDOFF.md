@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `2c33449` (PR #26), with this handoff committed on top.
-- Working tree clean, tests pass (396 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `9b0a3d2` (PR #27), with this handoff committed on top.
+- Working tree clean, tests pass (403 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -34,6 +34,7 @@ result documents it points to.
 | D1 flow-only head | **positive pilot, 4/5 seeds**; seed 1 clears at 20 generations | `docs/results/embodied_law_flow_head/` |
 | D1 confirmation (20 gen, preregistered) | **4/5 seeds**; threshold not met, failing seed changed | `docs/results/embodied_law_confirmation/` |
 | D1 absolute floor (preregistered) | **3/5 seeds**; seeds 1,2 below 0.5, seed 4 passes | `docs/results/embodied_law_absolute_confirmation/` |
+| D1 ablation | **mechanism identified**; flow head, min-alignment, rank replacement necessary | `docs/results/d1_ablation/` |
 
 The three studies reproduce with:
 
@@ -57,46 +58,42 @@ initial population that can align on a diagonal by chance. Seed 4 missed `0.2` b
 `0.016` while its own alignment was `+0.598` and its reversed-law alignment was
 `+0.598`.
 
-## Last package: absolute-floor confirmation (3/5, claim unchanged, merged)
+## Last package: D1 flow-head ablation (merged)
 
-The preregistered absolute-floor confirmation ran with the declared budget. Gate
-per held-out diagonal: evolved at least `0.5` and reversed at least `0.2`.
+The ablation removed one mechanism at a time from the accepted configuration, with
+the same 5 seeds and 8-generation budget. Results:
 
-Result: **3/5 seeds**.
-
-| Seed | Passed | Minimum evolved | Minimum reversed |
+| Condition | Change | Seeds | Worst delta |
 | --- | --- | --- | --- |
-| 0 | yes | +0.616 | +0.616 |
-| 1 | no | +0.480 | +0.480 |
-| 2 | no | +0.392 | +0.392 |
-| 3 | yes | +0.539 | +0.539 |
-| 4 | yes | +0.598 | +0.598 |
+| `full` | none | 4/5 | +0.193 |
+| `no_flow_head` | dense linear head | 0/5 | -0.730 |
+| `raw_flow` | raw features, no unit normalization | 5/5 | +0.218 |
+| `energy_fitness` | energy fitness | 0/5 | -0.347 |
+| `no_rank` | no rank replacement | 0/5 | -0.292 |
+| `no_immigrants` | immigrant fraction 0 | 5/5 | +0.393 |
 
-Seeds 1 and 2 are law-following but below the floor. Seed 4 passes the floor and
-fails the initial-relative delta. The two criteria are complementary, and neither
-reaches `5/5` at this budget. See
-`docs/results/embodied_law_absolute_confirmation/README.md`.
+Necessary: the flow-only head, min-alignment fitness, and rank replacement. Not
+necessary in this low-dimensional regime: unit-flow normalization and immigrants.
+The `full` configuration is not the best at this budget, so this is a mechanism
+test, not a configuration search. See `docs/results/d1_ablation/README.md`.
 
 The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
-four-parameter movement head. The absolute-floor five-seed threshold remains open.
-No retune was made.
+four-parameter movement head.
 
-Both bounded results are accepted and merged:
+## Current state
 
-- 4/5 on the initial-relative delta, confirmed at two budgets.
-- 3/5 on the absolute floor.
+No work is in flight. All roadmap directions D1 to D4 are complete, and the D1
+mechanism is identified. Open decisions are unchanged: the PPO-POET archive claim
+stays closed, and no consciousness claims.
 
-The two criteria are complementary and neither reaches `5/5` at this budget. The
-accepted claim is unchanged.
+The next action needs the captain's word. Options:
 
-No work is in flight. The next action needs the captain's word. Options:
-
-1. Move to the next research direction (see `docs/RESEARCH_ALIGNMENT.md` and the
-   ranked list below).
-2. Preregister a new confirmation run in a new session with a stated change: more
-   seeds (for example 10), a larger generation budget, or a different criterion.
-
-Do not relaunch or retune the settled runs silently.
+1. Stop here. The research program has a bounded positive claim, a confirmed
+   negative control structure, and an ablation.
+2. Rerun the best ablation configuration (`raw_flow` or `no_immigrants`, both 5/5 at
+   8 generations) as a new preregistered confirmation. State the budget first.
+3. Open a new research question from `docs/RESEARCH_ALIGNMENT.md`, with a fresh spec
+   before any run.
 
 ## Constraints and traps learned the hard way
 
