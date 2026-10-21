@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `fd64721` (PR #21), with this handoff committed on top.
-- Working tree clean, tests pass (383 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `8f6b604` (PR #22), with this handoff committed on top.
+- Working tree clean, tests pass (387 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -29,6 +29,7 @@ result documents it points to.
 | D1 linear controller | negative, 0/5 seeds, representation sufficient, search is the limiter | `docs/results/embodied_law_linear_policy/` |
 | D1 unit-flow normalization | negative, 0/5 seeds, selection scheme is the limiter | `docs/results/embodied_law_unit_flow/` |
 | D1 min-alignment fitness | negative, 0/5 seeds, exposes a no-op selection operator | `docs/results/embodied_law_min_alignment/` |
+| D1 rank replacement | negative, 0/5 seeds, stuck in an anti-aligned basin | `docs/results/embodied_law_rank_replacement/` |
 
 The three studies reproduce with:
 
@@ -39,34 +40,35 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 rank replacement
+## Next bounded package: D1 exploration
 
-The min-alignment fitness is correct but never acted: `select_and_mutate_embodied`
-only writes genomes into dead slots, and reproduction revives dead slots before
-selection runs. On a living population the operator is a no-op. That is why every
-fitness and architecture change so far was invisible. See
-`docs/results/embodied_law_min_alignment/README.md`.
+Rank replacement now acts, but a diagnostic shows every slot starts anti-aligned
+(minimum alignment `-0.60` to `-0.99`) and local mutation never flips the sign of
+the unit-flow gain. The fitness and the operator are correct; the population is
+stuck in a basin. See `docs/results/embodied_law_rank_replacement/README.md`.
 
-Goal: make fitness act on a living population.
+Goal: add exploration so the population can reach an aligned basin.
 
 Steps:
 
-1. Add `EmbodiedConfig.rank_replacement` (default off).
-2. When on, sort slots by fitness, keep the top `elite_fraction` untouched, and
-   replace the rest with mutated copies of the elite. Reset the replaced slots'
-   energy, age, hidden, messages, and previous-velocity fields, and set them
-   alive. Keep `elite_fraction = 0.5`, so 8 of 16 survive each generation.
-3. Test that the best genome is preserved exactly and that the bottom slots
-   change when their fitness is lower.
+1. Add `EmbodiedConfig.immigrant_fraction` (default `0.0`). When rank replacement
+   is on, the bottom `round(fraction * n)` slots receive freshly initialized
+   genomes instead of mutated elite copies. The elite and the mutated-middle
+   slots keep their current behavior.
+2. Extend `select_and_mutate_embodied` with an optional `world_cfg` so immigrant
+   genomes reuse `initialize_embodied_genomes`. Keep the default path unchanged.
+3. Test that immigrants are fresh (far from a constant elite genome), that the
+   middle slots stay near the elite, and that the pilot config carries the flag.
 4. Run the evolution pilot with the linear controller, unit-flow feature,
-   min-alignment fitness, and rank replacement. Gate unchanged: per-direction
-   held-out alignment beats the initial population by `0.2`, and the reversed-law
-   alignment is at least `0.2`. State the budget first.
-5. Report a negative result rather than enlarging the budget silently.
+   min-alignment fitness, rank replacement, and `immigrant_fraction = 0.25`.
+   Gate unchanged: per-direction held-out alignment beats the initial population
+   by `0.2`, and the reversed-law alignment is at least `0.2`. State the budget
+   first.
+5. Also run one seed at 20 generations as a separate diagnostic.
 
-Stop condition: if rank replacement still fails, inspect the mutation operator
-and the reproduction gate next. Do not change the observation or the
-architecture again.
+Stop condition: if immigrants still fail, report the negative and inspect the
+fitness rollout itself next (which steps and which directions it scores). Do not
+change the observation or the architecture again.
 
 ## Constraints and traps learned the hard way
 
@@ -82,6 +84,7 @@ architecture again.
 - A per-episode advantage baseline erases the cross-episode signal that separates a fixed action from a flow-follower. Baseline across episodes at each timestep, matching `latent_law_continuous.py`.
 - Check feature and initial-genome scale before blaming the search. A mapping that is expressible can still be unreachable when the needed weights are three orders of magnitude from the initialization and the mutation scale.
 - Verify the selection operator actually acts. A fitness that is never used looks exactly like a bad fitness. If every result is identical across fitness changes, the operator is the suspect.
+- Verify a flag reaches the config that actually runs. A flag dropped in an inner config call looks exactly like a flag that had no effect.
 - HiperGator access uses a persistent ControlMaster socket at `~/.ssh/hpg-%r@%h:%p`; plain `ssh hipergator` reuses it. If it prompts, reconnect interactively once.
 
 ## Open decisions
