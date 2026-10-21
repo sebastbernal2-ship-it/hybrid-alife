@@ -15,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from dataclasses import replace  # noqa: E402
+
 from hybrid_alife.experiments.latent_law_embodied import embodied_law_config  # noqa: E402
 from hybrid_alife.vivarium import VivariumConfig, write_video  # noqa: E402
 
@@ -44,6 +46,7 @@ def main() -> int:
         proprioception=True,
         initial_alive_fraction=0.6,
     )
+    sim = replace(sim, world=replace(sim.world, curvature_regime="straight"))
     config = VivariumConfig(
         sim=sim,
         season_length=args.season_length,

@@ -61,19 +61,36 @@ class VivariumState:
             self.corpses = []
 
 
+def _periodic_fertility(
+    h: int, w: int, fraction: float, patch: int, seed: int
+) -> np.ndarray:
+    """Smooth fertility that wraps seamlessly at the toroidal seam."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:h, 0:w]
+    base = max(1, w // max(2 * patch, 2))
+    field = np.zeros((h, w), dtype=np.float64)
+    for harmonic in (1, 2, 3, 4, 5, 6):
+        kx = base * harmonic
+        ky = base * harmonic
+        phase_x, phase_y = rng.uniform(0.0, 2.0 * np.pi, 2)
+        amp_x, amp_y = rng.uniform(0.5, 1.0, 2)
+        field += amp_x * np.sin(2.0 * np.pi * kx * xx / w + phase_x)
+        field += amp_y * np.cos(2.0 * np.pi * ky * yy / h + phase_y)
+    threshold = np.quantile(field, 1.0 - fraction)
+    return (field > threshold).astype(np.float32)
+
+
 def initialize_vivarium(cfg: VivariumConfig) -> VivariumState:
     state = initialize_sim(cfg.sim)
     h, w = cfg.sim.world.height, cfg.sim.world.width
-    patch = max(2, cfg.fertility_patch)
-    rng = np.random.default_rng(cfg.sim.seed)
-    coarse = rng.random((max(2, h // patch + 1), max(2, w // patch + 1)))
-    mask = coarse > (1.0 - cfg.fertility_fraction)
-    fertility = np.repeat(np.repeat(mask, patch, axis=0), patch, axis=1)[:h, :w]
+    fertility = _periodic_fertility(
+        h, w, cfg.fertility_fraction, cfg.fertility_patch, cfg.sim.seed
+    )
     return VivariumState(
         sim=state,
         corpses=[],
         lineage_counter=int(cfg.sim.embodied.population_size),
-        fertility=fertility.astype(np.float32),
+        fertility=fertility,
     )
 
 
@@ -202,7 +219,7 @@ def render_frame(
     cfg: VivariumConfig,
     *,
     size: int = 800,
-    trails: dict[int, list[tuple[float, float]]] | None = None,
+    trails: dict[tuple[int, int], list[tuple[float, float]]] | None = None,
 ):
     """Draw one frame. Returns a Pillow RGB image."""
     from PIL import Image, ImageDraw
@@ -234,7 +251,7 @@ def render_frame(
             )
 
     flow = np.asarray(state.sim.world.flow)
-    grid = np.linspace(0.06, 0.94, 8)
+    grid = np.linspace(0.1, 0.9, 5)
     for gx in grid:
         for gy in grid:
             xi = int(gx * w)
@@ -247,8 +264,8 @@ def render_frame(
                     gx * size + u * size * 0.06,
                     gy * size + v * size * 0.06,
                 ),
-                fill=(96, 116, 136),
-                width=2,
+                fill=(70, 84, 100),
+                width=1,
             )
 
     positions = np.asarray(state.sim.embodied.positions)
@@ -258,15 +275,16 @@ def render_frame(
     last_action = np.asarray(state.sim.embodied.last_action)
 
     if trails is not None:
-        for index in list(trails):
-            if not alive[index]:
-                trails.pop(index, None)
+        for key in list(trails):
+            index, trail_lineage = key
+            if not alive[index] or int(lineage[index]) != trail_lineage:
+                trails.pop(key, None)
                 continue
-            points = trails[index]
+            points = trails[key]
             if len(points) < 2:
                 continue
-            color = _lineage_color(int(lineage[index]))
-            for a, b in zip(points[-14:], points[-13:], strict=False):
+            color = _lineage_color(trail_lineage)
+            for a, b in zip(points[-10:], points[-9:], strict=False):
                 if abs(a[0] - b[0]) > 0.2 or abs(a[1] - b[1]) > 0.2:
                     continue
                 draw.line(
@@ -294,12 +312,20 @@ def render_frame(
         x, y = positions[index]
         radius = 3 + 7 * float(np.sqrt(max(energy[index] / initial, 0.0)))
         color = _lineage_color(int(lineage[index]))
-        draw.ellipse(
-            (x * size - radius, y * size - radius, x * size + radius, y * size + radius),
-            fill=color,
-            outline=(235, 240, 245),
-            width=1,
-        )
+        for ox in (-1, 0, 1):
+            for oy in (-1, 0, 1):
+                px = (x + ox) * size
+                py = (y + oy) * size
+                if not (-radius <= px <= size + radius):
+                    continue
+                if not (-radius <= py <= size + radius):
+                    continue
+                draw.ellipse(
+                    (px - radius, py - radius, px + radius, py + radius),
+                    fill=color,
+                    outline=(235, 240, 245),
+                    width=1,
+                )
         dx, dy = last_action[index, 0], last_action[index, 1]
         draw.line(
             (
@@ -312,8 +338,9 @@ def render_frame(
             width=2,
         )
         if trails is not None:
-            trails.setdefault(int(index), []).append((float(x), float(y)))
-            trails[int(index)] = trails[int(index)][-20:]
+            key = (int(index), int(lineage[index]))
+            trails.setdefault(key, []).append((float(x), float(y)))
+            trails[key] = trails[key][-12:]
 
     font = _font(max(14, size // 32))
     small = _font(max(12, size // 44))
@@ -400,19 +427,19 @@ def write_video(
     process = subprocess.Popen(
         command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
-    trails: dict[int, list[tuple[float, float]]] = {}
+    trails: dict[tuple[int, int], list[tuple[float, float]]] = {}
     populations: list[int] = []
     alignments: list[float] = []
     poster = None
-    for _ in range(steps):
+    for step in range(steps):
         state = vivarium_step(state, cfg)
+        state.sim.step = step + 1
         frame = render_frame(state, cfg, size=size, trails=trails)
         if process.stdin is None:
             raise RuntimeError("ffmpeg stdin is unavailable")
         process.stdin.write(frame.tobytes())
         populations.append(int(np.asarray(state.sim.embodied.alive).sum()))
-        if poster is None or len(populations) == steps // 2:
-            poster = frame
+        poster = frame
         alignments.append(0.0)
     process.stdin.close()
     process.wait()
