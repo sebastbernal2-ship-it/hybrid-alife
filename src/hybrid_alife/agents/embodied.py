@@ -165,6 +165,13 @@ def initialize_embodied_population(
 def initialize_embodied_genomes(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> dict[str, jax.Array]:
+    if cfg.flow_head:
+        k_w, _ = jax.random.split(key)
+        return {
+            "w_flow": 0.1
+            * jax.random.normal(k_w, (cfg.population_size, 2, 2)),
+            "b_flow": jnp.zeros((cfg.population_size, 2)),
+        }
     if cfg.linear_policy:
         k_w, _ = jax.random.split(key)
         obs_dim = embodied_observation_dim(cfg, world_cfg)
@@ -327,7 +334,17 @@ def act_embodied(
     is true a key is required for the Bernoulli sample; otherwise the decode
     is deterministic and the key is unused.
     """
-    if cfg.linear_policy:
+    if cfg.flow_head:
+        unit_flow = obs[:, -2:]
+        raw_move = (
+            jnp.einsum("nf,nfa->na", unit_flow, pop.genomes["w_flow"])
+            + pop.genomes["b_flow"]
+        )
+        raw = jnp.zeros(
+            (obs.shape[0], embodied_action_dim(cfg)), dtype=obs.dtype
+        ).at[:, 0:2].set(raw_move)
+        new_hidden = pop.hidden
+    elif cfg.linear_policy:
         raw = linear_forward(pop.genomes, obs)
         new_hidden = pop.hidden
     else:
