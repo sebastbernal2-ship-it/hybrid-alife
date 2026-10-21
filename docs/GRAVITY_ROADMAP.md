@@ -124,10 +124,17 @@ imposed law in a bounded pilot, **4 of 5 seeds, confirmed at two budgets**, unde
 four-parameter movement head. Not a five-seed claim.
 
 The relative-improvement margin is seed-sensitive because the comparison is a
-random initial population that can align on a diagonal by chance. The next
-preregistered confirmation therefore uses an absolute floor of `0.5` on every
-held-out diagonal, plus the reversed-law check at `0.2`, instead of the
-initial-relative margin.
+random initial population that can align on a diagonal by chance.
+
+The preregistered absolute-floor confirmation (evolved `>= 0.5` on every held-out
+diagonal, reversed `>= 0.2`) was then executed with the same budget. It returned
+**3/5 seeds**. Seeds 1 and 2 are law-following but their worst evolved alignment is
+`0.480` and `0.392`, below the floor. Seed 4 passes the floor and fails the delta.
+So the two criteria are complementary and neither reaches `5/5` at this budget.
+Results in `docs/results/embodied_law_absolute_confirmation/`.
+
+The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
+four-parameter movement head. The absolute-floor five-seed threshold remains open.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`

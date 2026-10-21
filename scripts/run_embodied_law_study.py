@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hybrid_alife.experiments.latent_law_embodied import (  # noqa: E402
+    alignment_gate_passes,
     per_direction_frozen_alignment,
     run_embodied_law_pilot,
 )
@@ -51,6 +52,7 @@ def study_seed(
     immigrant_fraction: float,
     flow_head: bool,
     eval_steps: int,
+    min_evolved: float | None,
 ) -> dict:
     pilot = run_embodied_law_pilot(
         seed=seed,
@@ -83,11 +85,24 @@ def study_seed(
         key: evolved[key]["mean_alignment"] - initial[key]["mean_alignment"]
         for key in evolved
     }
-    passed = all(
-        deltas[key] >= GATE_MARGIN
-        and reversed_law[key]["mean_alignment"] >= GATE_REVERSED_MIN
-        for key in evolved
-    )
+    evolved_means = {k: v["mean_alignment"] for k, v in evolved.items()}
+    initial_means = {k: v["mean_alignment"] for k, v in initial.items()}
+    reversed_means = {k: v["mean_alignment"] for k, v in reversed_law.items()}
+    if min_evolved is not None:
+        passed = alignment_gate_passes(
+            evolved_means,
+            reversed_means,
+            min_evolved=min_evolved,
+            reversed_min=GATE_REVERSED_MIN,
+        )
+    else:
+        passed = alignment_gate_passes(
+            evolved_means,
+            reversed_means,
+            min_delta=GATE_MARGIN,
+            initial=initial_means,
+            reversed_min=GATE_REVERSED_MIN,
+        )
     return {
         "seed": seed,
         "passed": bool(passed),
@@ -96,6 +111,7 @@ def study_seed(
         "reversed_law": {k: v["mean_alignment"] for k, v in reversed_law.items()},
         "delta": deltas,
         "min_delta": float(min(deltas.values())),
+        "min_evolved": float(min(evolved_means.values())),
         "min_reversed": float(min(v["mean_alignment"] for v in reversed_law.values())),
         "training_alignment": pilot["training_alignment"],
     }
@@ -121,6 +137,12 @@ def main() -> int:
     parser.add_argument("--rank-replacement", action="store_true")
     parser.add_argument("--immigrant-fraction", type=float, default=0.0)
     parser.add_argument("--flow-head", action="store_true")
+    parser.add_argument(
+        "--min-evolved",
+        type=float,
+        default=None,
+        help="absolute per-direction floor; replaces the initial-relative delta gate",
+    )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -145,6 +167,7 @@ def main() -> int:
                 immigrant_fraction=args.immigrant_fraction,
                 flow_head=args.flow_head,
                 eval_steps=args.eval_steps,
+                min_evolved=args.min_evolved,
             )
             row["proprioception"] = proprioception
             row["mutate_survivors"] = args.mutate_survivors
@@ -181,15 +204,22 @@ def main() -> int:
         "steps_per_generation": args.steps_per_generation,
         "size": args.size,
         "eval_steps": args.eval_steps,
-        "gate": {"margin": GATE_MARGIN, "reversed_min": GATE_REVERSED_MIN},
+        "gate": {
+            "margin": GATE_MARGIN,
+            "min_evolved": args.min_evolved,
+            "reversed_min": GATE_REVERSED_MIN,
+        },
         "seeds_passed": passed,
         "seeds_total": len(results),
         "results": results,
     }
-    print(
-        f"\n{passed}/{len(results)} seeds pass "
-        f"(margin >= {GATE_MARGIN}, reversed >= {GATE_REVERSED_MIN})"
-    )
+    if args.min_evolved is not None:
+        gate_line = (
+            f"evolved >= {args.min_evolved}, reversed >= {GATE_REVERSED_MIN}"
+        )
+    else:
+        gate_line = f"margin >= {GATE_MARGIN}, reversed >= {GATE_REVERSED_MIN}"
+    print(f"\n{passed}/{len(results)} seeds pass ({gate_line})")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
