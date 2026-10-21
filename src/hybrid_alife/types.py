@@ -131,6 +131,9 @@ class EmbodiedConfig:
     # Append the unit flow estimate, (previous_velocity - previous_thrust) / norm,
     # so the flow signal is order one and scale-free. Needs proprioception.
     unit_flow_features: bool = False
+    # Generational replacement by fitness rank: keep the top elite_fraction and
+    # replace the rest with mutated copies of the elite, every generation.
+    rank_replacement: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02

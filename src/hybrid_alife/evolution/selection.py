@@ -63,6 +63,55 @@ def reseed_embodied(
     return pop
 
 
+def _rank_replace_embodied(
+    pop: EmbodiedPopulationState,
+    fitness: jax.Array,
+    cfg: EmbodiedConfig,
+    evo: EvolutionConfig,
+    key: PRNGKey,
+) -> EmbodiedPopulationState:
+    """Keep the top elite and replace the rest with mutated elite copies."""
+    n = pop.alive.shape[0]
+    n_elite = max(1, int(round(evo.elite_fraction * n)))
+    ranked = jnp.argsort(-jnp.asarray(fitness))
+    elite_idx = ranked[:n_elite]
+    is_elite = jnp.zeros((n,), dtype=bool).at[elite_idx].set(True)
+    parent_idx = elite_idx[jnp.arange(n) % n_elite]
+
+    new_genomes: dict[str, jax.Array] = {}
+    for genome_index, (name, value) in enumerate(pop.genomes.items()):
+        parent_g = value[parent_idx]
+        sub_key = jax.random.fold_in(key, genome_index)
+        k_mask, k_noise = jax.random.split(sub_key)
+        mask = jax.random.bernoulli(k_mask, cfg.genome_mutation_prob, parent_g.shape)
+        noise = cfg.genome_mutation_std * jax.random.normal(k_noise, parent_g.shape)
+        mutated = parent_g + mask * noise
+        keep = is_elite.reshape((-1,) + (1,) * (value.ndim - 1))
+        new_genomes[name] = jnp.where(keep, value, mutated)
+
+    replaced = ~is_elite
+    pop.genomes = new_genomes
+    pop.energy = jnp.where(replaced, cfg.initial_energy * 0.5, pop.energy)
+    pop.alive = jnp.ones((n,), dtype=bool)
+    pop.age = jnp.where(replaced, 0, pop.age)
+    pop.hidden = jnp.where(replaced[:, None], jnp.zeros_like(pop.hidden), pop.hidden)
+    pop.messages = jnp.where(
+        replaced[:, None], jnp.zeros_like(pop.messages), pop.messages
+    )
+    if pop.previous_velocity is not None:
+        pop.previous_velocity = jnp.where(
+            replaced[:, None], jnp.zeros_like(pop.previous_velocity), pop.previous_velocity
+        )
+    if pop.previous_thrust is not None:
+        pop.previous_thrust = jnp.where(
+            replaced[:, None], jnp.zeros_like(pop.previous_thrust), pop.previous_thrust
+        )
+    pop.lineage_depth = jnp.where(
+        replaced, pop.lineage_depth[parent_idx] + 1, pop.lineage_depth
+    )
+    return pop
+
+
 def select_and_mutate_embodied(
     pop: EmbodiedPopulationState,
     fitness: jax.Array,
@@ -71,6 +120,8 @@ def select_and_mutate_embodied(
     key: PRNGKey,
 ) -> EmbodiedPopulationState:
     """End-of-generation selection: replace dead with mutated children from tournament parents."""
+    if cfg.rank_replacement:
+        return _rank_replace_embodied(pop, fitness, cfg, evo, key)
     k_sel, k_mut = jax.random.split(key)
     parent_idx = tournament_select(fitness, evo.tournament_size, k_sel)
 
