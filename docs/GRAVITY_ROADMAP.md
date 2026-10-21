@@ -136,6 +136,15 @@ Results in `docs/results/embodied_law_absolute_confirmation/`.
 The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
 four-parameter movement head. The absolute-floor five-seed threshold remains open.
 
+The ablation package then tested which ingredients matter, one mechanism at a time,
+at 8 generations and 5 seeds. Necessary: the flow-only head (dense head drops to
+0/5, `-0.730`), min-alignment fitness (energy drops to 0/5, `-0.347`), and rank
+replacement (removal drops to 0/5). Not necessary in this low-dimensional regime:
+unit-flow normalization (raw features reach 5/5) and immigrants (0% reaches 5/5).
+The `full` configuration is not the best on this budget, so the ablation is a
+mechanism test, not a configuration search. Results in
+`docs/results/d1_ablation/`.
+
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
 for the loop, plus a new `src/hybrid_alife/experiments/latent_law_embodied.py`.

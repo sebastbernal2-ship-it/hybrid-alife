@@ -93,6 +93,8 @@ def embodied_observation_dim(embodied_cfg: EmbodiedConfig, world_cfg: WorldConfi
         proprio += 4  # previous velocity (2) + previous thrust (2)
     if embodied_cfg.unit_flow_features:
         proprio += 2  # unit flow estimate
+    if embodied_cfg.raw_flow_features:
+        proprio += 2  # raw flow estimate
     return patch_size + sense + probe + proprio
 
 
@@ -314,6 +316,18 @@ def observe_embodied(
         proprio_parts.append(
             delta / jnp.maximum(jnp.linalg.norm(delta, axis=-1, keepdims=True), 1e-8)
         )
+    if embodied_cfg.raw_flow_features:
+        velocity = (
+            jnp.zeros_like(pop.positions)
+            if pop.previous_velocity is None
+            else pop.previous_velocity
+        )
+        thrust = (
+            jnp.zeros_like(pop.positions)
+            if pop.previous_thrust is None
+            else pop.previous_thrust
+        )
+        proprio_parts.append(velocity - thrust)
     proprio = jnp.concatenate(proprio_parts, axis=-1)
     parts = [patch_flat, sense]
     if embodied_cfg.probe_enabled:
