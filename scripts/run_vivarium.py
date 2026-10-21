@@ -46,7 +46,11 @@ def main() -> int:
         proprioception=True,
         initial_alive_fraction=0.6,
     )
-    sim = replace(sim, world=replace(sim.world, curvature_regime="straight"))
+    sim = replace(
+        sim,
+        world=replace(sim.world, curvature_regime="straight"),
+        embodied=replace(sim.embodied, body_morphology=True),
+    )
     config = VivariumConfig(
         sim=sim,
         season_length=args.season_length,

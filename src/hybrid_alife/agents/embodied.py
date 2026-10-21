@@ -164,15 +164,27 @@ def initialize_embodied_population(
     )
 
 
+def _body_genes(cfg: EmbodiedConfig, key: PRNGKey) -> dict[str, jax.Array]:
+    if not cfg.body_morphology:
+        return {}
+    k_radius, k_aspect = jax.random.split(key)
+    n = cfg.population_size
+    radius = jnp.clip(1.0 + 0.25 * jax.random.normal(k_radius, (n,)), 0.6, 1.8)
+    aspect = jnp.clip(1.0 + 0.2 * jax.random.normal(k_aspect, (n,)), 0.7, 1.4)
+    return {"body_radius": radius, "body_aspect": aspect}
+
+
 def initialize_embodied_genomes(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> dict[str, jax.Array]:
+    body = _body_genes(cfg, key)
     if cfg.flow_head:
         k_w, _ = jax.random.split(key)
         return {
             "w_flow": 0.1
             * jax.random.normal(k_w, (cfg.population_size, 2, 2)),
             "b_flow": jnp.zeros((cfg.population_size, 2)),
+            **body,
         }
     if cfg.linear_policy:
         k_w, _ = jax.random.split(key)
@@ -182,14 +194,18 @@ def initialize_embodied_genomes(
             "w_linear": 0.1
             * jax.random.normal(k_w, (cfg.population_size, obs_dim, action_dim)),
             "b_linear": jnp.zeros((cfg.population_size, action_dim)),
+            **body,
         }
-    return init_controller_params(
-        n=cfg.population_size,
-        obs_dim=embodied_observation_dim(cfg, world_cfg),
-        action_dim=embodied_action_dim(cfg),
-        hidden=cfg.hidden_size,
-        key=key,
-    )
+    return {
+        **init_controller_params(
+            n=cfg.population_size,
+            obs_dim=embodied_observation_dim(cfg, world_cfg),
+            action_dim=embodied_action_dim(cfg),
+            hidden=cfg.hidden_size,
+            key=key,
+        ),
+        **body,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -441,8 +457,18 @@ def apply_embodied_actions(
     else:
         new_pos = jnp.clip(new_pos, 0.0, 0.999)
 
+    # Body size trades eating capacity against metabolic cost when enabled.
+    if embodied_cfg.body_morphology:
+        body_radius = jnp.clip(
+            pop.genomes.get("body_radius", jnp.ones_like(pop.energy)), 0.6, 1.8
+        )
+        body_factor = 0.5 + 0.5 * body_radius
+    else:
+        body_radius = jnp.ones_like(pop.energy)
+        body_factor = jnp.ones_like(pop.energy)
+
     # Eat: drain resources at cell
-    eat_rate = 0.2 * eat * alive_f
+    eat_rate = 0.2 * eat * alive_f * body_radius
     grid = positions_to_grid(new_pos, h, w)
     cell_resources = world.resources[grid[:, 0], grid[:, 1]]  # [N, C]
     take_per_channel = cell_resources * eat_rate[:, None]
@@ -498,7 +524,11 @@ def apply_embodied_actions(
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the
     # other gates so behavior diversity has a tangible price.
-    move_cost = jnp.linalg.norm(move, axis=-1) * embodied_cfg.cost_move_scale
+    move_cost = (
+        jnp.linalg.norm(move, axis=-1)
+        * embodied_cfg.cost_move_scale
+        * body_factor
+    )
     action_cost = (
         embodied_cfg.cost_eat * eat
         + embodied_cfg.cost_attack * attack
@@ -516,7 +546,7 @@ def apply_embodied_actions(
         + energy_gained
         - damage
         - move_cost
-        - embodied_cfg.basal_metabolic_cost
+        - embodied_cfg.basal_metabolic_cost * body_factor
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
 
@@ -633,11 +663,12 @@ def apply_reproduction(
         noise = cfg.genome_mutation_std * jax.random.normal(k_noise, parent_g.shape)
         child_g = parent_g + mask * noise
         # write only into actual children (use_mask)
-        use_b = use[:, None]
         if value.ndim == 3:
             use_b = use[:, None, None]
         elif value.ndim == 2:
             use_b = use[:, None]
+        else:
+            use_b = use
         # we need to update value[children[i]] when use[i]
         updated = value.at[children].set(jnp.where(use_b, child_g, value[children]))
         new_genomes[name] = updated
