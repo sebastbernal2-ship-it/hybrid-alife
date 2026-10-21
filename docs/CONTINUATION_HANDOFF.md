@@ -13,6 +13,33 @@ result documents it points to.
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
 
+## Current direction: Bibites-like vivarium
+
+The captain's real target is a Bibites-like living world first, with the research
+question embedded inside it later. The D1 work is the completed research core, not
+the product.
+
+- `src/hybrid_alife/vivarium.py` owns seasons, periodic fertile food patches,
+  corpses that decay into food, births and deaths, lineage colours, trails, and a
+  Pillow renderer plus ffmpeg video writer.
+- `scripts/run_vivarium.py` runs the world.
+- `docs/results/vivarium_v0/` holds the 30 second video and poster.
+- Tests: `tests/test_vivarium.py` (seasons, corpse decay, death leaves a corpse,
+  renderer writes a frame).
+
+Decisions:
+
+- **The world stays toroidal.** No walls. The captain chose the torus. The seam is
+  cosmetic; creatures wrap left to right and top to bottom. The edge fix made the
+  food pattern periodic, keyed trails by slot and lineage, and wrapped the bodies.
+- **Next milestone: bodies and morphology.** Replace plain dots with oriented
+  bodies, add body genes that inherit and mutate, and scale metabolism and eating
+  with body size. Then a live viewer, then the research question embedded as a
+  law-present versus law-absent condition.
+
+No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
+at two budgets, four-parameter movement head.
+
 ## Results on main
 
 | Direction | Outcome | Evidence |
