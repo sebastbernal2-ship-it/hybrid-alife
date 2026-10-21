@@ -273,6 +273,12 @@ def render_frame(
     energy = np.asarray(state.sim.embodied.energy)
     lineage = np.asarray(state.sim.embodied.lineage_id)
     last_action = np.asarray(state.sim.embodied.last_action)
+    body_radius = np.asarray(
+        state.sim.embodied.genomes.get("body_radius", np.ones(len(positions)))
+    )
+    body_aspect = np.asarray(
+        state.sim.embodied.genomes.get("body_aspect", np.ones(len(positions)))
+    )
 
     if trails is not None:
         for key in list(trails):
@@ -310,33 +316,42 @@ def render_frame(
     initial = max(float(cfg.sim.embodied.initial_energy), 1e-6)
     for index in np.flatnonzero(alive):
         x, y = positions[index]
-        radius = 3 + 7 * float(np.sqrt(max(energy[index] / initial, 0.0)))
+        radius = (3 + 7 * float(np.sqrt(max(energy[index] / initial, 0.0)))) * float(
+            body_radius[index]
+        )
+        aspect = float(body_aspect[index])
         color = _lineage_color(int(lineage[index]))
+        dx, dy = last_action[index, 0], last_action[index, 1]
+        if abs(dx) + abs(dy) < 1e-6:
+            dx, dy = 1.0, 0.0
+        angle = float(np.arctan2(dy, dx))
+        a = radius * 1.35 * aspect
+        b = radius * 0.8
         for ox in (-1, 0, 1):
             for oy in (-1, 0, 1):
-                px = (x + ox) * size
-                py = (y + oy) * size
-                if not (-radius <= px <= size + radius):
+                cx = (x + ox) * size
+                cy = (y + oy) * size
+                if not (-2 * a <= cx <= size + 2 * a):
                     continue
-                if not (-radius <= py <= size + radius):
+                if not (-2 * a <= cy <= size + 2 * a):
                     continue
+                points = []
+                for t in np.linspace(0.0, 2.0 * np.pi, 18):
+                    ex = a * np.cos(t)
+                    ey = b * np.sin(t)
+                    points.append(
+                        (
+                            cx + ex * np.cos(angle) - ey * np.sin(angle),
+                            cy + ex * np.sin(angle) + ey * np.cos(angle),
+                        )
+                    )
+                draw.polygon(points, fill=color, outline=(235, 240, 245))
+                eye_x = cx + 0.62 * a * np.cos(angle)
+                eye_y = cy + 0.62 * a * np.sin(angle)
                 draw.ellipse(
-                    (px - radius, py - radius, px + radius, py + radius),
-                    fill=color,
-                    outline=(235, 240, 245),
-                    width=1,
+                    (eye_x - 2, eye_y - 2, eye_x + 2, eye_y + 2),
+                    fill=(18, 20, 24),
                 )
-        dx, dy = last_action[index, 0], last_action[index, 1]
-        draw.line(
-            (
-                x * size,
-                y * size,
-                x * size + dx * radius * 2.2,
-                y * size + dy * radius * 2.2,
-            ),
-            fill=(240, 245, 250),
-            width=2,
-        )
         if trails is not None:
             key = (int(index), int(lineage[index]))
             trails.setdefault(key, []).append((float(x), float(y)))
@@ -372,7 +387,8 @@ def render_frame(
     )
     draw.text(
         (18, 12 + 2 * size // 30),
-        f"mean thrust alignment {alignment:+.2f}   corpses {len(state.corpses or [])}",
+        f"mean thrust alignment {alignment:+.2f}   corpses {len(state.corpses or [])}   "
+        f"mean body {float(np.mean(body_radius[alive])) if population else 1.0:.2f}",
         fill=(180, 210, 235),
         font=small,
     )

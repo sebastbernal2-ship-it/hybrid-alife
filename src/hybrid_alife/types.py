@@ -143,6 +143,9 @@ class EmbodiedConfig:
     # Append the raw flow estimate (previous_velocity - previous_thrust), not
     # normalized. Used to ablate the unit-flow normalization.
     raw_flow_features: bool = False
+    # Morphology genes: body radius and aspect. Off by default so the D1 studies
+    # keep their exact dynamics.
+    body_morphology: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
