@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `6e913a0` (PR #32), with this handoff committed on top.
-- Working tree clean, tests pass (412 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `96027f6` (PR #33), with this handoff committed on top.
+- Working tree clean, tests pass (415 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -36,10 +36,13 @@ Decisions:
   `body_aspect` inherit and mutate. Larger bodies eat more and pay more cost.
   Oriented ellipse bodies with eyes. Morphology is opt-in so D1 stays exact.
   `docs/results/vivarium_bodies/` holds the video.
-- **Next milestone: a live viewer.** A zero-install MJPEG stream from the Pillow
-  renderer through a small local server, so the captain opens a browser and watches
-  the world live. Then the research question embedded as a law-present versus
-  law-absent condition.
+- **Live viewer is done** (PR #33). `scripts/serve_vivarium.py` streams MJPEG from
+  the Pillow renderer. Open http://127.0.0.1:8765.
+- **Next milestone: the research question inside the world.** Run matched
+  vivarium worlds with a uniform law present in two opposite directions and one
+  law-absent control. Measure the population's commanded thrust alignment with the
+  law. The law conditions must both beat the absent control to count, so a fixed
+  direction bias cannot pass. Reward is off; the law is only physically coupled.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.
