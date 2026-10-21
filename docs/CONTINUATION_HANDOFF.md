@@ -38,11 +38,16 @@ Decisions:
   `docs/results/vivarium_bodies/` holds the video.
 - **Live viewer is done** (PR #33). `scripts/serve_vivarium.py` streams MJPEG from
   the Pillow renderer. Open http://127.0.0.1:8765.
-- **Next milestone: the research question inside the world.** Run matched
-  vivarium worlds with a uniform law present in two opposite directions and one
-  law-absent control. Measure the population's commanded thrust alignment with the
-  law. The law conditions must both beat the absent control to count, so a fixed
-  direction bias cannot pass. Reward is off; the law is only physically coupled.
+- **World-embedded law experiment is done: 1/3 seeds, a fixed bias, not
+  law-following.** `docs/results/vivarium_law/` holds the plot and summary. The
+  population drifts to -x even with no law. The -x law looks positive because it
+  reinforces that bias; the +x law does not turn the population. This matches the
+  D1 history: the 5/5 claim needed the flow head, min-alignment fitness, and rank
+  replacement, which the natural world does not use.
+- **Next milestone: add the D1 mechanisms as a vivarium condition.** Flow head,
+  min-alignment fitness, rank replacement, inside the same living world. Compare
+  against the natural world. If the mechanisms are what matter, law-following
+  should appear there and not in the natural world.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.
