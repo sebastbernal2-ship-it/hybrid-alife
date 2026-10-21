@@ -56,30 +56,39 @@ initial population that can align on a diagonal by chance. Seed 4 missed `0.2` b
 `0.016` while its own alignment was `+0.598` and its reversed-law alignment was
 `+0.598`.
 
-## Next bounded package: absolute-floor confirmation
+## Last package: absolute-floor confirmation (3/5, claim unchanged)
 
-Preregistered plan, to be stated before launch and not changed during the run.
+The preregistered absolute-floor confirmation ran with the declared budget. Gate
+per held-out diagonal: evolved at least `0.5` and reversed at least `0.2`.
 
-Declared budget, same as the last confirmation:
+Result: **3/5 seeds**.
 
-- 5 seeds: 0, 1, 2, 3, 4.
-- 20 generations, 16 agents, 8 steps per generation, 14x14 world.
-- Proprioception on, unit-flow feature, flow head.
-- Min-alignment fitness, 6 frozen steps per direction.
-- Rank replacement with `elite_fraction = 0.5`, immigrant fraction `0.25`.
-- Displacement reward `5.0`, eval steps `12`.
+| Seed | Passed | Minimum evolved | Minimum reversed |
+| --- | --- | --- | --- |
+| 0 | yes | +0.616 | +0.616 |
+| 1 | no | +0.480 | +0.480 |
+| 2 | no | +0.392 | +0.392 |
+| 3 | yes | +0.539 | +0.539 |
+| 4 | yes | +0.598 | +0.598 |
 
-Gate, per held-out diagonal:
+Seeds 1 and 2 are law-following but below the floor. Seed 4 passes the floor and
+fails the initial-relative delta. The two criteria are complementary, and neither
+reaches `5/5` at this budget. See
+`docs/results/embodied_law_absolute_confirmation/README.md`.
 
-- evolved alignment at least `0.5`, and
-- reversed-law alignment at least `0.2`.
+The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
+four-parameter movement head. The absolute-floor five-seed threshold remains open.
+No retune was made.
 
-The initial-relative delta stays reported per seed as a diagnostic, not as the
-gate.
+No work is in flight. The next action needs the captain's word. Options:
 
-Recording rule: report every seed. If 5/5 pass the absolute floor, the claim
-upgrades to a five-seed bounded claim. Otherwise report the result and do not
-retune in the same session.
+1. Accept both bounded results (4/5 delta, 3/5 absolute) and move to the next
+   research direction.
+2. Preregister a new run in a new session with a stated change: more seeds (for
+   example 10), a larger generation budget, or a different criterion. State it
+   before launch.
+
+Do not relaunch this run or retune its budget silently.
 
 ## Constraints and traps learned the hard way
 
