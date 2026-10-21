@@ -36,11 +36,27 @@ the experiment: run the same vivarium with the law present and absent, and measu
 whether the organisms discover and exploit it. The world stays the product. The
 experiment is a condition inside it.
 
+## Edge fix
+
+The first render had messy far-left and far-right edges. Three causes, all fixed:
+
+- The world is toroidal, but the food mask was not periodic, so the food pattern
+  cut at the seam. The mask is now built from integer-frequency waves, so it wraps
+  seamlessly.
+- Trails were keyed by slot index, and slots are reused after death. A revived
+  creature inherited the dead one's trail. Trails are now keyed by slot and
+  lineage, so a new lineage starts clean.
+- Creatures near the seam were clipped. They are now drawn wrapped when they touch
+  an edge.
+
+The flow is also a straight uniform current now, which reads calmer than the
+earlier swirl.
+
 ## Current result
 
 The render is 30 seconds, 600 steps, 800x800, 20 fps. Starting population 128,
-population range 45 to 64, 54 births and 86 deaths during the run, up to 12
-corpses on the ground. Seed 0.
+population range 90 to 114, final 107, 76 births and 46 deaths during the run, up
+to 16 corpses on the ground. Seed 0.
 
 ## Reproduce
 
