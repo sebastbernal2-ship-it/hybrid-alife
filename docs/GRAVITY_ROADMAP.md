@@ -97,11 +97,20 @@ near `0.04` while the weights on the other observation features have norm about
 `4.5`, so the flow contribution is buried in a noisy sum. Results in
 `docs/results/embodied_law_immigrants/`.
 
-The limiter is now sparse credit: the useful signal is a few weights inside a
-large dense genome. Next design: a flow-only movement head
-(`w_flow @ unit_flow + b_flow`, a 2x2 matrix), or a strong weight penalty on the
-non-flow movement weights. The flow-only head is the decisive low-dimensional test
-of whether the population can learn the sign of the gain at all.
+The limiter was sparse credit: the useful signal was a few weights inside a large
+dense genome. The flow-only head package then produced the **first positive
+result**. The movement head is `w_flow @ unit_flow + b_flow`, four parameters.
+
+- 4/5 seeds pass at the declared 8-generation budget, worst passing delta `+0.21`.
+- Seed 1 misses at `+0.193` against the `0.200` margin, and passes at 20
+  generations with `+0.283` (separate diagnostic).
+- Training alignment trends upward, and reversed-law alignment is positive in
+  every seed (`+0.41` to `+0.62`). That is the law-following signature, not a
+  fixed action.
+
+Results in `docs/results/embodied_law_flow_head/`. This is a bounded pilot, not a
+`5/5` claim. Next step: one preregistered 20-generation, 5-seed run with the same
+gate. If it passes `5/5`, the claim upgrades; otherwise report per seed again.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
