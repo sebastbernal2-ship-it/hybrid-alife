@@ -7,7 +7,7 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `9b0a3d2` (PR #27), with this handoff committed on top.
+- `main` merged state: `689f7ab` (PR #28), with this handoff committed on top.
 - Working tree clean, tests pass (403 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
@@ -35,6 +35,7 @@ result documents it points to.
 | D1 confirmation (20 gen, preregistered) | **4/5 seeds**; threshold not met, failing seed changed | `docs/results/embodied_law_confirmation/` |
 | D1 absolute floor (preregistered) | **3/5 seeds**; seeds 1,2 below 0.5, seed 4 passes | `docs/results/embodied_law_absolute_confirmation/` |
 | D1 ablation | **mechanism identified**; flow head, min-alignment, rank replacement necessary | `docs/results/d1_ablation/` |
+| D1 no-immigrant confirmation | **5/5 seeds, claim upgraded**; delta and absolute floor both 5/5 | `docs/results/embodied_law_no_immigrant_confirmation/` |
 
 The three studies reproduce with:
 
