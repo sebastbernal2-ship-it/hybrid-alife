@@ -60,9 +60,16 @@ seed and do not retune. No retune was made and no budget was changed.
 
 ## Claim
 
-The claim stays: **evolved embodied organisms behaviorally exploit the imposed law
-in a bounded pilot, 4 of 5 seeds, confirmed at two budgets, under a four-parameter
-movement head.** It is not a five-seed claim, and the `5/5` threshold remains open.
+Accepted as the current result on 2026-10-21:
+
+**evolved embodied organisms behaviorally exploit the imposed law in a bounded
+pilot, 4 of 5 seeds, confirmed at two budgets, under a four-parameter movement
+head.**
+
+It is not a five-seed claim. The relative-improvement margin is seed-sensitive
+because the comparison is a random initial population that can align strongly on a
+diagonal by chance. The next confirmation therefore uses an absolute floor instead
+of the initial-relative margin as the primary criterion.
 
 If a five-seed claim is required, the next action is a new preregistered run in a new
 session with a stated change, for example more seeds or a stronger margin, not a

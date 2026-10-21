@@ -119,10 +119,15 @@ reversed-law alignment and high training alignment. So the mechanism is stable a
 the `5/5` threshold is not met at this budget. Results in
 `docs/results/embodied_law_confirmation/`.
 
-Claim: evolved embodied organisms behaviorally exploit the imposed law in a bounded
-pilot, **4 of 5 seeds, confirmed at two budgets**, under a four-parameter movement
-head. Not a five-seed claim. A five-seed claim would need a new preregistered run
-with a stated change (more seeds or a stronger margin), not a silent retune.
+Accepted claim (2026-10-21): evolved embodied organisms behaviorally exploit the
+imposed law in a bounded pilot, **4 of 5 seeds, confirmed at two budgets**, under a
+four-parameter movement head. Not a five-seed claim.
+
+The relative-improvement margin is seed-sensitive because the comparison is a
+random initial population that can align on a diagonal by chance. The next
+preregistered confirmation therefore uses an absolute floor of `0.5` on every
+held-out diagonal, plus the reversed-law check at `0.2`, instead of the
+initial-relative margin.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
