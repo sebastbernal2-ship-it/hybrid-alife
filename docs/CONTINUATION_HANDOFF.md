@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `0dbac2d`, with this handoff committed on top.
-- Working tree clean, tests pass (392 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `2c33449` (PR #26), with this handoff committed on top.
+- Working tree clean, tests pass (396 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -33,6 +33,7 @@ result documents it points to.
 | D1 random immigrants | negative, 0/5 seeds, sparse-credit problem | `docs/results/embodied_law_immigrants/` |
 | D1 flow-only head | **positive pilot, 4/5 seeds**; seed 1 clears at 20 generations | `docs/results/embodied_law_flow_head/` |
 | D1 confirmation (20 gen, preregistered) | **4/5 seeds**; threshold not met, failing seed changed | `docs/results/embodied_law_confirmation/` |
+| D1 absolute floor (preregistered) | **3/5 seeds**; seeds 1,2 below 0.5, seed 4 passes | `docs/results/embodied_law_absolute_confirmation/` |
 
 The three studies reproduce with:
 
@@ -56,7 +57,7 @@ initial population that can align on a diagonal by chance. Seed 4 missed `0.2` b
 `0.016` while its own alignment was `+0.598` and its reversed-law alignment was
 `+0.598`.
 
-## Last package: absolute-floor confirmation (3/5, claim unchanged)
+## Last package: absolute-floor confirmation (3/5, claim unchanged, merged)
 
 The preregistered absolute-floor confirmation ran with the declared budget. Gate
 per held-out diagonal: evolved at least `0.5` and reversed at least `0.2`.
@@ -80,15 +81,22 @@ The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
 four-parameter movement head. The absolute-floor five-seed threshold remains open.
 No retune was made.
 
+Both bounded results are accepted and merged:
+
+- 4/5 on the initial-relative delta, confirmed at two budgets.
+- 3/5 on the absolute floor.
+
+The two criteria are complementary and neither reaches `5/5` at this budget. The
+accepted claim is unchanged.
+
 No work is in flight. The next action needs the captain's word. Options:
 
-1. Accept both bounded results (4/5 delta, 3/5 absolute) and move to the next
-   research direction.
-2. Preregister a new run in a new session with a stated change: more seeds (for
-   example 10), a larger generation budget, or a different criterion. State it
-   before launch.
+1. Move to the next research direction (see `docs/RESEARCH_ALIGNMENT.md` and the
+   ranked list below).
+2. Preregister a new confirmation run in a new session with a stated change: more
+   seeds (for example 10), a larger generation budget, or a different criterion.
 
-Do not relaunch this run or retune its budget silently.
+Do not relaunch or retune the settled runs silently.
 
 ## Constraints and traps learned the hard way
 
