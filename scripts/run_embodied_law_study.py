@@ -47,6 +47,7 @@ def study_seed(
     unit_flow_features: bool,
     fitness_mode: str,
     fitness_steps: int,
+    rank_replacement: bool,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -63,6 +64,7 @@ def study_seed(
         unit_flow_features=unit_flow_features,
         fitness_mode=fitness_mode,
         fitness_steps=fitness_steps,
+        rank_replacement=rank_replacement,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -112,6 +114,7 @@ def main() -> int:
         "--fitness-mode", choices=("energy", "min_alignment"), default="energy"
     )
     parser.add_argument("--fitness-steps", type=int, default=6)
+    parser.add_argument("--rank-replacement", action="store_true")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -132,6 +135,7 @@ def main() -> int:
                 unit_flow_features=args.unit_flow_features,
                 fitness_mode=args.fitness_mode,
                 fitness_steps=args.fitness_steps,
+                rank_replacement=args.rank_replacement,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
@@ -139,6 +143,7 @@ def main() -> int:
             row["linear_policy"] = args.linear_policy
             row["unit_flow_features"] = args.unit_flow_features
             row["fitness_mode"] = args.fitness_mode
+            row["rank_replacement"] = args.rank_replacement
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -158,6 +163,7 @@ def main() -> int:
         "unit_flow_features": args.unit_flow_features,
         "fitness_mode": args.fitness_mode,
         "fitness_steps": args.fitness_steps,
+        "rank_replacement": args.rank_replacement,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,

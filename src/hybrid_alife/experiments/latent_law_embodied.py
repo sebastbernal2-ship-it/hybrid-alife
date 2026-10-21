@@ -61,6 +61,7 @@ def embodied_law_config(
     mutate_survivors: bool = False,
     linear_policy: bool = False,
     unit_flow_features: bool = False,
+    rank_replacement: bool = False,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -106,6 +107,7 @@ def embodied_law_config(
             mutate_survivors=mutate_survivors,
             linear_policy=linear_policy,
             unit_flow_features=unit_flow_features,
+            rank_replacement=rank_replacement,
         ),
         avida=AvidaConfig(
             enabled=False,
@@ -196,6 +198,7 @@ def run_embodied_law_pilot(
     unit_flow_features: bool = False,
     fitness_mode: str = "energy",
     fitness_steps: int = 6,
+    rank_replacement: bool = False,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -213,6 +216,7 @@ def run_embodied_law_pilot(
         mutate_survivors=mutate_survivors,
         linear_policy=linear_policy,
         unit_flow_features=unit_flow_features,
+        rank_replacement=rank_replacement,
     )
     state = initialize_sim(config)
     initial_genomes = {

@@ -84,9 +84,15 @@ Cause: `select_and_mutate_embodied` only writes genomes into **dead** slots, and
 reproduction revives dead slots before selection runs. On a living population the
 operator is a no-op. Results in `docs/results/embodied_law_min_alignment/`.
 
-Next design: generational replacement by fitness rank. Sort by fitness, keep the
-top `elite_fraction`, replace the rest with mutated copies of the top. That is the
-smallest change that makes fitness act on a living population.
+The rank-replacement package was then tested and also fails: `0/5` seeds, worst
+delta `-0.96`. The operator acts (the run differs), but a diagnostic shows every
+slot starts with a negative minimum alignment and local mutation never flips the
+sign of the unit-flow gain, so the population is stuck in an anti-aligned basin.
+Results in `docs/results/embodied_law_rank_replacement/`.
+
+Next design: exploration. Random immigrants into the bottom slots, a larger
+mutation scale, or a positive initialization of the unit-flow weights. The
+mutation operator is now the limiter, not the fitness or the selection.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
