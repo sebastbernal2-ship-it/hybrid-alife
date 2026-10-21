@@ -109,8 +109,20 @@ result**. The movement head is `w_flow @ unit_flow + b_flow`, four parameters.
   fixed action.
 
 Results in `docs/results/embodied_law_flow_head/`. This is a bounded pilot, not a
-`5/5` claim. Next step: one preregistered 20-generation, 5-seed run with the same
-gate. If it passes `5/5`, the claim upgrades; otherwise report per seed again.
+`5/5` claim.
+
+The preregistered 20-generation, 5-seed confirmation run was then executed with the
+budget declared before launch. It returned **4/5 seeds**. The failing seed changed
+(1 at 8 generations, 4 at 20 generations), and both failures sit just below the
+`0.2` margin (`0.193` and `0.184`), while all ten seed-runs show positive
+reversed-law alignment and high training alignment. So the mechanism is stable and
+the `5/5` threshold is not met at this budget. Results in
+`docs/results/embodied_law_confirmation/`.
+
+Claim: evolved embodied organisms behaviorally exploit the imposed law in a bounded
+pilot, **4 of 5 seeds, confirmed at two budgets**, under a four-parameter movement
+head. Not a five-seed claim. A five-seed claim would need a new preregistered run
+with a stated change (more seeds or a stronger margin), not a silent retune.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`
