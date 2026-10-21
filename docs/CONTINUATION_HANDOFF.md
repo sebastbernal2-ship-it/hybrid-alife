@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `3aefa7c` (PR #31), with this handoff committed on top.
-- Working tree clean, tests pass (410 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `6e913a0` (PR #32), with this handoff committed on top.
+- Working tree clean, tests pass (412 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -32,10 +32,14 @@ Decisions:
 - **The world stays toroidal.** No walls. The captain chose the torus. The seam is
   cosmetic; creatures wrap left to right and top to bottom. The edge fix made the
   food pattern periodic, keyed trails by slot and lineage, and wrapped the bodies.
-- **Next milestone: bodies and morphology.** Replace plain dots with oriented
-  bodies, add body genes that inherit and mutate, and scale metabolism and eating
-  with body size. Then a live viewer, then the research question embedded as a
-  law-present versus law-absent condition.
+- **Bodies and morphology is done** (PR #32). Body genes `body_radius` and
+  `body_aspect` inherit and mutate. Larger bodies eat more and pay more cost.
+  Oriented ellipse bodies with eyes. Morphology is opt-in so D1 stays exact.
+  `docs/results/vivarium_bodies/` holds the video.
+- **Next milestone: a live viewer.** A zero-install MJPEG stream from the Pillow
+  renderer through a small local server, so the captain opens a browser and watches
+  the world live. Then the research question embedded as a law-present versus
+  law-absent condition.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.
