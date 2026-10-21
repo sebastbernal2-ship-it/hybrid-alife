@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `689f7ab` (PR #28), with this handoff committed on top.
-- Working tree clean, tests pass (403 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `3aefa7c` (PR #31), with this handoff committed on top.
+- Working tree clean, tests pass (410 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
