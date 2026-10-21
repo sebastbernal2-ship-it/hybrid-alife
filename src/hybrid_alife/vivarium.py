@@ -395,6 +395,63 @@ def render_frame(
     return canvas
 
 
+
+def encode_jpeg(frame, quality: int = 85) -> bytes:
+    """Encode a Pillow frame as JPEG bytes for a live stream."""
+    import io
+
+    buffer = io.BytesIO()
+    frame.save(buffer, format="JPEG", quality=quality)
+    return buffer.getvalue()
+
+
+def live_page(title: str = "Vivarium") -> str:
+    """A minimal page that displays the MJPEG stream."""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>
+  html, body {{ margin: 0; background: #0b0f14; color: #dfe8f1;
+    font-family: system-ui, sans-serif; }}
+  .wrap {{ display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; gap: 12px; }}
+  img {{ width: min(92vw, 92vh); height: auto; image-rendering: auto;
+    border-radius: 6px; box-shadow: 0 0 40px #0008; }}
+  .bar {{ display: flex; gap: 16px; align-items: center; font-size: 14px;
+    color: #9fb2c6; }}
+  .dot {{ width: 9px; height: 9px; border-radius: 50%; background: #4cc9f0;
+    box-shadow: 0 0 10px #4cc9f0; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img src="/stream.mjpg" alt="live vivarium">
+  <div class="bar">
+    <span class="dot"></span>
+    <span>live</span>
+    <span id="stats">loading</span>
+  </div>
+</div>
+<script>
+async function tick() {{
+  try {{
+    const r = await fetch('/stats.json', {{cache: 'no-store'}});
+    const s = await r.json();
+    document.getElementById('stats').textContent =
+      `${{s.season}} · step ${{s.step}} · population ${{s.population}} · ` +
+      `births ${{s.births}} · deaths ${{s.deaths}} · body ${{s.mean_body}}`;
+  }} catch (e) {{}}
+}}
+setInterval(tick, 1000); tick();
+</script>
+</body>
+</html>
+"""
+
+
 def write_video(
     cfg: VivariumConfig,
     *,
