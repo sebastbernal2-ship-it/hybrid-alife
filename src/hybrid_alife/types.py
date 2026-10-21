@@ -137,9 +137,12 @@ class EmbodiedConfig:
     # Fraction of the bottom slots that receive fresh random genomes (immigrants)
     # instead of mutated elite copies. Needs rank_replacement.
     immigrant_fraction: float = 0.0
-    # Four-parameter movement head: raw_move = w_flow @ unit_flow + b_flow.
-    # Gates and messages are zero. Needs unit_flow_features.
+    # Four-parameter movement head: raw_move = w_flow @ flow_features + b_flow.
+    # Gates and messages are zero. Needs unit_flow_features or raw_flow_features.
     flow_head: bool = False
+    # Append the raw flow estimate (previous_velocity - previous_thrust), not
+    # normalized. Used to ablate the unit-flow normalization.
+    raw_flow_features: bool = False
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02

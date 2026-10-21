@@ -64,14 +64,17 @@ def embodied_law_config(
     rank_replacement: bool = False,
     immigrant_fraction: float = 0.0,
     flow_head: bool = False,
+    raw_flow_features: bool = False,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
         raise ValueError("generations, population, and steps must be positive")
     if unit_flow_features and not proprioception:
         raise ValueError("unit_flow_features needs proprioception")
-    if flow_head and not unit_flow_features:
-        raise ValueError("flow_head needs unit_flow_features")
+    if raw_flow_features and not proprioception:
+        raise ValueError("raw_flow_features needs proprioception")
+    if flow_head and not (unit_flow_features or raw_flow_features):
+        raise ValueError("flow_head needs unit_flow_features or raw_flow_features")
     return ExperimentConfig(
         seed=seed,
         run_name=f"embodied-law-{seed}",
@@ -114,6 +117,7 @@ def embodied_law_config(
             rank_replacement=rank_replacement,
             immigrant_fraction=immigrant_fraction,
             flow_head=flow_head,
+            raw_flow_features=raw_flow_features,
         ),
         avida=AvidaConfig(
             enabled=False,
@@ -207,6 +211,7 @@ def run_embodied_law_pilot(
     rank_replacement: bool = False,
     immigrant_fraction: float = 0.0,
     flow_head: bool = False,
+    raw_flow_features: bool = False,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -227,6 +232,7 @@ def run_embodied_law_pilot(
         rank_replacement=rank_replacement,
         immigrant_fraction=immigrant_fraction,
         flow_head=flow_head,
+        raw_flow_features=raw_flow_features,
     )
     state = initialize_sim(config)
     initial_genomes = {

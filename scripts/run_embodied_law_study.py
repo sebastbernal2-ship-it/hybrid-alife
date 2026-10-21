@@ -51,6 +51,7 @@ def study_seed(
     rank_replacement: bool,
     immigrant_fraction: float,
     flow_head: bool,
+    raw_flow_features: bool,
     eval_steps: int,
     min_evolved: float | None,
 ) -> dict:
@@ -71,6 +72,7 @@ def study_seed(
         rank_replacement=rank_replacement,
         immigrant_fraction=immigrant_fraction,
         flow_head=flow_head,
+        raw_flow_features=raw_flow_features,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -137,6 +139,7 @@ def main() -> int:
     parser.add_argument("--rank-replacement", action="store_true")
     parser.add_argument("--immigrant-fraction", type=float, default=0.0)
     parser.add_argument("--flow-head", action="store_true")
+    parser.add_argument("--raw-flow-features", action="store_true")
     parser.add_argument(
         "--min-evolved",
         type=float,
@@ -166,6 +169,7 @@ def main() -> int:
                 rank_replacement=args.rank_replacement,
                 immigrant_fraction=args.immigrant_fraction,
                 flow_head=args.flow_head,
+                raw_flow_features=args.raw_flow_features,
                 eval_steps=args.eval_steps,
                 min_evolved=args.min_evolved,
             )
@@ -177,6 +181,7 @@ def main() -> int:
             row["rank_replacement"] = args.rank_replacement
             row["immigrant_fraction"] = args.immigrant_fraction
             row["flow_head"] = args.flow_head
+            row["raw_flow_features"] = args.raw_flow_features
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -199,6 +204,7 @@ def main() -> int:
         "rank_replacement": args.rank_replacement,
         "immigrant_fraction": args.immigrant_fraction,
         "flow_head": args.flow_head,
+        "raw_flow_features": args.raw_flow_features,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,
