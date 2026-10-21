@@ -90,9 +90,18 @@ slot starts with a negative minimum alignment and local mutation never flips the
 sign of the unit-flow gain, so the population is stuck in an anti-aligned basin.
 Results in `docs/results/embodied_law_rank_replacement/`.
 
-Next design: exploration. Random immigrants into the bottom slots, a larger
-mutation scale, or a positive initialization of the unit-flow weights. The
-mutation operator is now the limiter, not the fitness or the selection.
+The exploration package was then tested with 25% random immigrants. It also
+fails: `0/5` seeds, worst delta `-0.73`. Immigrants help at the margin but do not
+produce the mapping. A diagnostic shows the best genome's unit-flow gain stays
+near `0.04` while the weights on the other observation features have norm about
+`4.5`, so the flow contribution is buried in a noisy sum. Results in
+`docs/results/embodied_law_immigrants/`.
+
+The limiter is now sparse credit: the useful signal is a few weights inside a
+large dense genome. Next design: a flow-only movement head
+(`w_flow @ unit_flow + b_flow`, a 2x2 matrix), or a strong weight penalty on the
+non-flow movement weights. The flow-only head is the decisive low-dimensional test
+of whether the population can learn the sign of the gain at all.
 
 Owner files: `src/hybrid_alife/agents/embodied.py` for observation,
 `src/hybrid_alife/world/env.py` for the law, `src/hybrid_alife/experiments/runner.py`

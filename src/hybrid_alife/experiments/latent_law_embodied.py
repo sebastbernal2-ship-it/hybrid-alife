@@ -62,6 +62,7 @@ def embodied_law_config(
     linear_policy: bool = False,
     unit_flow_features: bool = False,
     rank_replacement: bool = False,
+    immigrant_fraction: float = 0.0,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -108,6 +109,7 @@ def embodied_law_config(
             linear_policy=linear_policy,
             unit_flow_features=unit_flow_features,
             rank_replacement=rank_replacement,
+            immigrant_fraction=immigrant_fraction,
         ),
         avida=AvidaConfig(
             enabled=False,
@@ -199,6 +201,7 @@ def run_embodied_law_pilot(
     fitness_mode: str = "energy",
     fitness_steps: int = 6,
     rank_replacement: bool = False,
+    immigrant_fraction: float = 0.0,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -217,6 +220,7 @@ def run_embodied_law_pilot(
         linear_policy=linear_policy,
         unit_flow_features=unit_flow_features,
         rank_replacement=rank_replacement,
+        immigrant_fraction=immigrant_fraction,
     )
     state = initialize_sim(config)
     initial_genomes = {
@@ -243,7 +247,12 @@ def run_embodied_law_pilot(
             fitness = jnp.asarray(np.asarray(state.embodied.energy))
         state.rng, k_sel = jax.random.split(state.rng)
         state.embodied = select_and_mutate_embodied(
-            state.embodied, fitness, config.embodied, config.evolution, k_sel
+            state.embodied,
+            fitness,
+            config.embodied,
+            config.evolution,
+            k_sel,
+            world_cfg=config.world,
         )
         state.rng, k_re = jax.random.split(state.rng)
         state.embodied = reseed_embodied(

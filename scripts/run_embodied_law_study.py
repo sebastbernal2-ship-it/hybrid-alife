@@ -48,6 +48,7 @@ def study_seed(
     fitness_mode: str,
     fitness_steps: int,
     rank_replacement: bool,
+    immigrant_fraction: float,
     eval_steps: int,
 ) -> dict:
     pilot = run_embodied_law_pilot(
@@ -65,6 +66,7 @@ def study_seed(
         fitness_mode=fitness_mode,
         fitness_steps=fitness_steps,
         rank_replacement=rank_replacement,
+        immigrant_fraction=immigrant_fraction,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -115,6 +117,7 @@ def main() -> int:
     )
     parser.add_argument("--fitness-steps", type=int, default=6)
     parser.add_argument("--rank-replacement", action="store_true")
+    parser.add_argument("--immigrant-fraction", type=float, default=0.0)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -136,6 +139,7 @@ def main() -> int:
                 fitness_mode=args.fitness_mode,
                 fitness_steps=args.fitness_steps,
                 rank_replacement=args.rank_replacement,
+                immigrant_fraction=args.immigrant_fraction,
                 eval_steps=args.eval_steps,
             )
             row["proprioception"] = proprioception
@@ -144,6 +148,7 @@ def main() -> int:
             row["unit_flow_features"] = args.unit_flow_features
             row["fitness_mode"] = args.fitness_mode
             row["rank_replacement"] = args.rank_replacement
+            row["immigrant_fraction"] = args.immigrant_fraction
             results.append(row)
             print(
                 f"seed {seed} proprio={proprioception}: "
@@ -164,6 +169,7 @@ def main() -> int:
         "fitness_mode": args.fitness_mode,
         "fitness_steps": args.fitness_steps,
         "rank_replacement": args.rank_replacement,
+        "immigrant_fraction": args.immigrant_fraction,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,
