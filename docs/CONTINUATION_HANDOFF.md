@@ -45,55 +45,40 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Current state: D1 4/5 bounded claim accepted
+## Preregistered package: no-immigrant confirmation
 
-The captain accepted the 4/5 bounded claim on 2026-10-21:
+The captain chose option 2 after the ablation: confirm the strongest simple
+configuration. This budget and gate are declared **before** launch.
 
-**evolved embodied organisms behaviorally exploit the imposed law in a bounded
-pilot, 4 of 5 seeds, confirmed at two budgets, under a four-parameter movement
-head.**
+Configuration: the `no_immigrants` ablation cell.
 
-The relative-improvement margin is seed-sensitive: the comparison is a random
-initial population that can align on a diagonal by chance. Seed 4 missed `0.2` by
-`0.016` while its own alignment was `+0.598` and its reversed-law alignment was
-`+0.598`.
+- Flow-only head (`w_flow`, `b_flow`), unit-flow feature, proprioception on.
+- Min-alignment fitness, 6 frozen steps per direction.
+- Rank replacement with `elite_fraction = 0.5`.
+- Immigrant fraction `0.0`.
+- Displacement reward `5.0`, eval steps `12`.
 
-## Last package: D1 flow-head ablation (merged)
+Budget:
 
-The ablation removed one mechanism at a time from the accepted configuration, with
-the same 5 seeds and 8-generation budget. Results:
+- 5 seeds: 0, 1, 2, 3, 4.
+- 20 generations, 16 agents, 8 steps per generation, 14x14 world.
 
-| Condition | Change | Seeds | Worst delta |
-| --- | --- | --- | --- |
-| `full` | none | 4/5 | +0.193 |
-| `no_flow_head` | dense linear head | 0/5 | -0.730 |
-| `raw_flow` | raw features, no unit normalization | 5/5 | +0.218 |
-| `energy_fitness` | energy fitness | 0/5 | -0.347 |
-| `no_rank` | no rank replacement | 0/5 | -0.292 |
-| `no_immigrants` | immigrant fraction 0 | 5/5 | +0.393 |
+Gate, per held-out diagonal (the accepted criterion):
 
-Necessary: the flow-only head, min-alignment fitness, and rank replacement. Not
-necessary in this low-dimensional regime: unit-flow normalization and immigrants.
-The `full` configuration is not the best at this budget, so this is a mechanism
-test, not a configuration search. See `docs/results/d1_ablation/README.md`.
+- evolved beats the initial population by at least `0.2`, and
+- reversed-law alignment at least `0.2`.
 
-The accepted claim is unchanged: 4 of 5 seeds, confirmed at two budgets, under a
-four-parameter movement head.
+The absolute floor (`evolved >= 0.5`) is reported as a secondary diagnostic, not
+the gate.
 
-## Current state
+Recording rule:
 
-No work is in flight. All roadmap directions D1 to D4 are complete, and the D1
-mechanism is identified. Open decisions are unchanged: the PPO-POET archive claim
-stays closed, and no consciousness claims.
+- If 5/5 pass, upgrade the claim to a five-seed bounded claim and say so plainly.
+- Otherwise report every seed, no retune, and no relaunch in this session without
+  the captain's word.
 
-The next action needs the captain's word. Options:
-
-1. Stop here. The research program has a bounded positive claim, a confirmed
-   negative control structure, and an ablation.
-2. Rerun the best ablation configuration (`raw_flow` or `no_immigrants`, both 5/5 at
-   8 generations) as a new preregistered confirmation. State the budget first.
-3. Open a new research question from `docs/RESEARCH_ALIGNMENT.md`, with a fresh spec
-   before any run.
+Ablation reference: `docs/results/d1_ablation/README.md`. The `no_immigrants` cell
+scored 5/5 with worst delta `+0.393` at 8 generations.
 
 ## Constraints and traps learned the hard way
 
