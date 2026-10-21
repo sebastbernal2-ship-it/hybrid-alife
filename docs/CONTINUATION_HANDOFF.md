@@ -7,7 +7,7 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `f15bfcd` (PR #24), with this handoff committed on top.
+- `main` merged state: `0dbac2d`, with this handoff committed on top.
 - Working tree clean, tests pass (392 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
@@ -32,6 +32,7 @@ result documents it points to.
 | D1 rank replacement | negative, 0/5 seeds, stuck in an anti-aligned basin | `docs/results/embodied_law_rank_replacement/` |
 | D1 random immigrants | negative, 0/5 seeds, sparse-credit problem | `docs/results/embodied_law_immigrants/` |
 | D1 flow-only head | **positive pilot, 4/5 seeds**; seed 1 clears at 20 generations | `docs/results/embodied_law_flow_head/` |
+| D1 confirmation (20 gen, preregistered) | **4/5 seeds**; threshold not met, failing seed changed | `docs/results/embodied_law_confirmation/` |
 
 The three studies reproduce with:
 
@@ -42,35 +43,26 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 confirmation run (preregistered)
+## Current state: D1 bounded positive, five-seed threshold open
 
-The flow-only head produced the first positive D1 result: **4/5 seeds** pass at the
-declared 8-generation budget, and seed 1 passes at 20 generations in a separate
-diagnostic. The law-following signature is present: training alignment trends
-upward and reversed-law alignment is positive in every seed. See
-`docs/results/embodied_law_flow_head/README.md`.
+The preregistered confirmation run returned **4/5 seeds**. The failing seed changed
+between budgets (1 at 8 generations, 4 at 20 generations), and both failures sit just
+below the `0.2` margin (`0.193` and `0.184`). All ten seed-runs across both budgets
+show positive reversed-law alignment and high training alignment. See
+`docs/results/embodied_law_confirmation/README.md`.
 
-This package is a single confirmation run with the budget declared **before**
-launch.
+Claim: evolved embodied organisms behaviorally exploit the imposed law in a bounded
+pilot, **4 of 5 seeds, confirmed at two budgets**, under a four-parameter movement
+head. This is not a five-seed claim, and no retune was made.
 
-Declared budget:
+No work is in flight. The next action needs the captain's word. Options:
 
-- 5 seeds: 0, 1, 2, 3, 4.
-- 20 generations, 16 agents, 8 steps per generation, 14x14 world.
-- Proprioception on, unit-flow feature, flow head.
-- Min-alignment fitness, 6 frozen steps per direction.
-- Rank replacement with `elite_fraction = 0.5`, immigrant fraction `0.25`.
-- Displacement reward `5.0`, eval steps `12`.
+1. Accept the 4/5 bounded claim as the current result and move to the next research
+   direction.
+2. Preregister a new confirmation run with a stated change: more seeds (for example
+   10), a stronger margin, or a larger budget. State it before launch.
 
-Gate, per held-out diagonal: evolved beats the initial population by at least
-`0.2`, and the reversed-law alignment is at least `0.2`.
-
-Recording rule:
-
-- If 5/5 pass, upgrade the claim to a five-seed bounded-pilot claim and say so
-  plainly.
-- Otherwise report every seed, do not retune, and do not relaunch with a different
-  budget in the same session without the captain's word.
+Do not silently retune this run or relaunch it with a different budget.
 
 ## Constraints and traps learned the hard way
 
