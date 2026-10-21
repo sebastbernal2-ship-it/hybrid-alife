@@ -406,8 +406,41 @@ def minimum_direction_alignment(
 
 
 
+
+def alignment_gate_passes(
+    evolved: dict[str, float],
+    reversed_law: dict[str, float],
+    *,
+    min_evolved: float | None = None,
+    min_delta: float | None = None,
+    initial: dict[str, float] | None = None,
+    reversed_min: float = 0.2,
+) -> bool:
+    """Per-direction gate. Never averages across opposite directions.
+
+    ``min_evolved`` checks an absolute floor. ``min_delta`` checks improvement
+    over ``initial``. ``reversed_min`` rejects a fixed action, which flips sign
+    under reversal. At least one of the first two must be supplied.
+    """
+    if min_evolved is None and min_delta is None:
+        raise ValueError("supply min_evolved or min_delta")
+    if not evolved:
+        return False
+    for key, value in evolved.items():
+        if min_evolved is not None and value < min_evolved:
+            return False
+        if min_delta is not None:
+            if initial is None or value - initial[key] < min_delta:
+                return False
+        if reversed_law[key] < reversed_min:
+            return False
+    return True
+
+
+
 __all__ = [
     "HIDDEN_GROUPS",
+    "alignment_gate_passes",
     "embodied_law_config",
     "evaluate_frozen_alignment",
     "minimum_direction_alignment",
