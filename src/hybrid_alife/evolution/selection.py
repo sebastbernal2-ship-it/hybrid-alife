@@ -69,14 +69,28 @@ def _rank_replace_embodied(
     cfg: EmbodiedConfig,
     evo: EvolutionConfig,
     key: PRNGKey,
+    world_cfg: WorldConfig | None = None,
 ) -> EmbodiedPopulationState:
     """Keep the top elite and replace the rest with mutated elite copies."""
     n = pop.alive.shape[0]
     n_elite = max(1, int(round(evo.elite_fraction * n)))
+    n_immigrants = min(
+        n - n_elite, max(0, int(round(cfg.immigrant_fraction * n)))
+    )
+    if n_immigrants > 0 and world_cfg is None:
+        raise ValueError("immmigrant_fraction needs world_cfg")
     ranked = jnp.argsort(-jnp.asarray(fitness))
     elite_idx = ranked[:n_elite]
+    immigrant_idx = ranked[n_elite : n_elite + n_immigrants]
     is_elite = jnp.zeros((n,), dtype=bool).at[elite_idx].set(True)
+    is_immigrant = jnp.zeros((n,), dtype=bool).at[immigrant_idx].set(True)
     parent_idx = elite_idx[jnp.arange(n) % n_elite]
+    k_fresh = jax.random.fold_in(key, 1)
+    fresh = (
+        initialize_embodied_genomes(cfg, world_cfg, k_fresh)
+        if n_immigrants > 0
+        else None
+    )
 
     new_genomes: dict[str, jax.Array] = {}
     for genome_index, (name, value) in enumerate(pop.genomes.items()):
@@ -87,7 +101,13 @@ def _rank_replace_embodied(
         noise = cfg.genome_mutation_std * jax.random.normal(k_noise, parent_g.shape)
         mutated = parent_g + mask * noise
         keep = is_elite.reshape((-1,) + (1,) * (value.ndim - 1))
-        new_genomes[name] = jnp.where(keep, value, mutated)
+        if fresh is not None:
+            immigrant = is_immigrant.reshape((-1,) + (1,) * (value.ndim - 1))
+            new_genomes[name] = jnp.where(
+                keep, value, jnp.where(immigrant, fresh[name], mutated)
+            )
+        else:
+            new_genomes[name] = jnp.where(keep, value, mutated)
 
     replaced = ~is_elite
     pop.genomes = new_genomes
@@ -118,10 +138,12 @@ def select_and_mutate_embodied(
     cfg: EmbodiedConfig,
     evo: EvolutionConfig,
     key: PRNGKey,
+    *,
+    world_cfg: WorldConfig | None = None,
 ) -> EmbodiedPopulationState:
     """End-of-generation selection: replace dead with mutated children from tournament parents."""
     if cfg.rank_replacement:
-        return _rank_replace_embodied(pop, fitness, cfg, evo, key)
+        return _rank_replace_embodied(pop, fitness, cfg, evo, key, world_cfg)
     k_sel, k_mut = jax.random.split(key)
     parent_idx = tournament_select(fitness, evo.tournament_size, k_sel)
 

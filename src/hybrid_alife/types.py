@@ -134,6 +134,9 @@ class EmbodiedConfig:
     # Generational replacement by fitness rank: keep the top elite_fraction and
     # replace the rest with mutated copies of the elite, every generation.
     rank_replacement: bool = False
+    # Fraction of the bottom slots that receive fresh random genomes (immigrants)
+    # instead of mutated elite copies. Needs rank_replacement.
+    immigrant_fraction: float = 0.0
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
