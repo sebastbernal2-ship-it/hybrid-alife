@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `8f6b604` (PR #22), with this handoff committed on top.
-- Working tree clean, tests pass (387 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `d4206ec` (PR #23), with this handoff committed on top.
+- Working tree clean, tests pass (389 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -30,6 +30,7 @@ result documents it points to.
 | D1 unit-flow normalization | negative, 0/5 seeds, selection scheme is the limiter | `docs/results/embodied_law_unit_flow/` |
 | D1 min-alignment fitness | negative, 0/5 seeds, exposes a no-op selection operator | `docs/results/embodied_law_min_alignment/` |
 | D1 rank replacement | negative, 0/5 seeds, stuck in an anti-aligned basin | `docs/results/embodied_law_rank_replacement/` |
+| D1 random immigrants | negative, 0/5 seeds, sparse-credit problem | `docs/results/embodied_law_immigrants/` |
 
 The three studies reproduce with:
 
@@ -40,35 +41,33 @@ JAX_PLATFORMS=cpu venv/bin/python scripts/run_revelation_study.py --output docs/
 JAX_PLATFORMS=cpu venv/bin/python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16 --steps-per-generation 8 --size 14 --eval-steps 12 --displacement-reward 5.0 --output docs/results/embodied_law_proprioception/summary.json
 ```
 
-## Next bounded package: D1 exploration
+## Next bounded package: D1 flow-only movement head
 
-Rank replacement now acts, but a diagnostic shows every slot starts anti-aligned
-(minimum alignment `-0.60` to `-0.99`) and local mutation never flips the sign of
-the unit-flow gain. The fitness and the operator are correct; the population is
-stuck in a basin. See `docs/results/embodied_law_rank_replacement/README.md`.
+Immigrants help at the margin but the flow signal stays buried. A diagnostic shows
+the best genome's unit-flow gain near `0.04` while the other movement weights have
+norm about `4.5`, so dense local mutation cannot zero the hundred other weights.
+See `docs/results/embodied_law_immigrants/README.md`.
 
-Goal: add exploration so the population can reach an aligned basin.
+Goal: make the movement decision four-dimensional and test whether the population
+can learn the sign of the gain at all.
 
 Steps:
 
-1. Add `EmbodiedConfig.immigrant_fraction` (default `0.0`). When rank replacement
-   is on, the bottom `round(fraction * n)` slots receive freshly initialized
-   genomes instead of mutated elite copies. The elite and the mutated-middle
-   slots keep their current behavior.
-2. Extend `select_and_mutate_embodied` with an optional `world_cfg` so immigrant
-   genomes reuse `initialize_embodied_genomes`. Keep the default path unchanged.
-3. Test that immigrants are fresh (far from a constant elite genome), that the
-   middle slots stay near the elite, and that the pilot config carries the flag.
-4. Run the evolution pilot with the linear controller, unit-flow feature,
-   min-alignment fitness, rank replacement, and `immigrant_fraction = 0.25`.
-   Gate unchanged: per-direction held-out alignment beats the initial population
-   by `0.2`, and the reversed-law alignment is at least `0.2`. State the budget
-   first.
-5. Also run one seed at 20 generations as a separate diagnostic.
+1. Add `EmbodiedConfig.flow_head` (default off). When on, the genome is
+   `w_flow` (n, 2, 2) and `b_flow` (n, 2), and the movement raw is
+   `einsum("nf,nfa->na", unit_flow, w_flow) + b_flow`. Gates and messages are zero;
+   the task is movement only. Require `unit_flow_features` and `proprioception`.
+2. Test the genome keys, the action shape, and a hand-set `w_flow = I` that reaches
+   alignment above `0.99`.
+3. Run the evolution pilot with the flow head, unit-flow feature, min-alignment
+   fitness, rank replacement, and 25% immigrants. Gate unchanged: per-direction
+   held-out alignment beats the initial population by `0.2`, and the reversed-law
+   alignment is at least `0.2`. State the budget first.
+4. Report a negative result rather than enlarging the budget silently.
 
-Stop condition: if immigrants still fail, report the negative and inspect the
-fitness rollout itself next (which steps and which directions it scores). Do not
-change the observation or the architecture again.
+Stop condition: if the four-dimensional head cannot learn the sign of the gain,
+the fitness or the selection is broken. Inspect `minimum_direction_alignment` and
+the fitness values directly, not the controller.
 
 ## Constraints and traps learned the hard way
 
@@ -85,6 +84,7 @@ change the observation or the architecture again.
 - Check feature and initial-genome scale before blaming the search. A mapping that is expressible can still be unreachable when the needed weights are three orders of magnitude from the initialization and the mutation scale.
 - Verify the selection operator actually acts. A fitness that is never used looks exactly like a bad fitness. If every result is identical across fitness changes, the operator is the suspect.
 - Verify a flag reaches the config that actually runs. A flag dropped in an inner config call looks exactly like a flag that had no effect.
+- When a dense genome cannot find a sparse solution, shrink the genome before adding more mutation. A four-parameter head answers whether the search can learn a sign at all.
 - HiperGator access uses a persistent ControlMaster socket at `~/.ssh/hpg-%r@%h:%p`; plain `ssh hipergator` reuses it. If it prompts, reconnect interactively once.
 
 ## Open decisions
