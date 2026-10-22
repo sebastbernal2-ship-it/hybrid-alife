@@ -49,7 +49,13 @@ def main() -> int:
     sim = replace(
         sim,
         world=replace(sim.world, curvature_regime="straight"),
-        embodied=replace(sim.embodied, body_morphology=True),
+        embodied=replace(
+            sim.embodied,
+            body_morphology=True,
+            max_energy=80.0,
+            predation_rate=0.35,
+            predation_radius=0.04,
+        ),
     )
     config = VivariumConfig(
         sim=sim,

@@ -153,6 +153,10 @@ class EmbodiedConfig:
     # reflex. Off by default.
     food_gradient_features: bool = False
     food_gradient_gain: float = 0.0
+    # World balance: soft energy ceiling (0 = off) and predation.
+    max_energy: float = 0.0
+    predation_rate: float = 0.0
+    predation_radius: float = 0.04
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
