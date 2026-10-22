@@ -93,6 +93,29 @@ def build_config(seed: int, args) -> VivariumConfig:
             fitness_mode="min_alignment",
             fitness_steps=6,
         )
+    if args.arm == "hybrid":
+        sim = replace(
+            sim,
+            world=replace(sim.world, curvature_regime="straight"),
+            embodied=replace(
+                sim.embodied,
+                body_morphology=True,
+                flow_head=True,
+                unit_flow_features=True,
+                flow_head_eat_gate=0.9,
+                food_gradient_features=True,
+                food_gradient_gain=1.5,
+                rank_replacement=True,
+                immigrant_fraction=0.0,
+            ),
+        )
+        return VivariumConfig(
+            sim=sim,
+            season_length=args.season_length,
+            generation_length=200,
+            fitness_mode="min_alignment",
+            fitness_steps=6,
+        )
     sim = replace(
         sim,
         world=replace(sim.world, curvature_regime="straight"),
@@ -190,7 +213,9 @@ def main() -> int:
     parser.add_argument("--season-length", type=int, default=150)
     parser.add_argument("--record-every", type=int, default=10)
     parser.add_argument(
-        "--arm", choices=("natural", "d1", "d1_flow"), default="natural"
+        "--arm",
+        choices=("natural", "d1", "d1_flow", "hybrid"),
+        default="natural",
     )
     parser.add_argument("--out", type=Path, default=Path("docs/results/vivarium_law"))
     args = parser.parse_args()

@@ -73,6 +73,12 @@ def test_d1_arm_config_carries_the_mechanisms() -> None:
     assert flow.sim.embodied.flow_head_eat_gate == 0.9
     assert flow.fitness_mode == "min_alignment"
 
+    args.arm = "hybrid"
+    hybrid = build_config(0, args)
+    assert hybrid.sim.embodied.food_gradient_features is True
+    assert hybrid.sim.embodied.food_gradient_gain == 1.5
+    assert hybrid.sim.embodied.flow_head is True
+
     args.arm = "natural"
     natural = build_config(0, args)
     assert natural.sim.embodied.linear_policy is False

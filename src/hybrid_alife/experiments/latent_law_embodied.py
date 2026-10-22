@@ -66,6 +66,8 @@ def embodied_law_config(
     flow_head: bool = False,
     raw_flow_features: bool = False,
     flow_head_eat_gate: float = 0.0,
+    food_gradient_features: bool = False,
+    food_gradient_gain: float = 0.0,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -78,6 +80,8 @@ def embodied_law_config(
         raise ValueError("flow_head needs unit_flow_features or raw_flow_features")
     if flow_head_eat_gate > 0.0 and not flow_head:
         raise ValueError("flow_head_eat_gate needs flow_head")
+    if food_gradient_gain > 0.0 and not food_gradient_features:
+        raise ValueError("food_gradient_gain needs food_gradient_features")
     return ExperimentConfig(
         seed=seed,
         run_name=f"embodied-law-{seed}",
@@ -122,6 +126,8 @@ def embodied_law_config(
             flow_head=flow_head,
             raw_flow_features=raw_flow_features,
             flow_head_eat_gate=flow_head_eat_gate,
+            food_gradient_features=food_gradient_features,
+            food_gradient_gain=food_gradient_gain,
         ),
         avida=AvidaConfig(
             enabled=False,

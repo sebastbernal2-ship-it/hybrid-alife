@@ -149,6 +149,10 @@ class EmbodiedConfig:
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
+    # Append the local food gradient so a movement head can add a food-seeking
+    # reflex. Off by default.
+    food_gradient_features: bool = False
+    food_gradient_gain: float = 0.0
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02

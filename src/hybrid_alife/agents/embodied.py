@@ -95,6 +95,8 @@ def embodied_observation_dim(embodied_cfg: EmbodiedConfig, world_cfg: WorldConfi
         proprio += 2  # unit flow estimate
     if embodied_cfg.raw_flow_features:
         proprio += 2  # raw flow estimate
+    if embodied_cfg.food_gradient_features:
+        proprio += 2  # local food gradient
     return patch_size + sense + probe + proprio
 
 
@@ -258,6 +260,20 @@ def build_world_field(
     return jnp.concatenate(parts, axis=-1)
 
 
+def _food_gradient(
+    world: WorldState, positions: jax.Array, h: int, w: int
+) -> jax.Array:
+    resources = world.resources[..., 0]
+    grid = positions_to_grid(positions, h, w)
+    y, x = grid[:, 0], grid[:, 1]
+    right = resources[y, (x + 1) % w]
+    left = resources[y, (x - 1) % w]
+    down = resources[(y + 1) % h, x]
+    up = resources[(y - 1) % h, x]
+    grad = jnp.stack([right - left, down - up], axis=-1)
+    return grad / jnp.maximum(jnp.linalg.norm(grad, axis=-1, keepdims=True), 1e-8)
+
+
 def observe_embodied(
     pop: EmbodiedPopulationState,
     world: WorldState,
@@ -344,6 +360,8 @@ def observe_embodied(
             else pop.previous_thrust
         )
         proprio_parts.append(velocity - thrust)
+    if embodied_cfg.food_gradient_features:
+        proprio_parts.append(_food_gradient(world, pop.positions, h, w))
     proprio = jnp.concatenate(proprio_parts, axis=-1)
     parts = [patch_flat, sense]
     if embodied_cfg.probe_enabled:
@@ -365,11 +383,18 @@ def act_embodied(
     is deterministic and the key is unused.
     """
     if cfg.flow_head:
-        unit_flow = obs[:, -2:]
+        if cfg.food_gradient_features:
+            unit_flow = obs[:, -4:-2]
+            food = obs[:, -2:]
+        else:
+            unit_flow = obs[:, -2:]
+            food = None
         raw_move = (
             jnp.einsum("nf,nfa->na", unit_flow, pop.genomes["w_flow"])
             + pop.genomes["b_flow"]
         )
+        if food is not None and cfg.food_gradient_gain > 0.0:
+            raw_move = raw_move + cfg.food_gradient_gain * food
         raw = jnp.zeros(
             (obs.shape[0], embodied_action_dim(cfg)), dtype=obs.dtype
         ).at[:, 0:2].set(raw_move)
