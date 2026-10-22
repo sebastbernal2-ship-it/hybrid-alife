@@ -338,9 +338,9 @@ def render_frame(
     initial = max(float(cfg.sim.embodied.initial_energy), 1e-6)
     for index in np.flatnonzero(alive):
         x, y = positions[index]
-        radius = (3 + 7 * float(np.sqrt(max(energy[index] / initial, 0.0)))) * float(
-            body_radius[index]
-        )
+        radius = min(
+            3 + 7 * float(np.sqrt(max(energy[index] / initial, 0.0))), 14.0
+        ) * float(body_radius[index])
         aspect = float(body_aspect[index])
         color = _lineage_color(int(lineage[index]))
         dx, dy = last_action[index, 0], last_action[index, 1]
