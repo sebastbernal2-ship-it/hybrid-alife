@@ -550,6 +550,32 @@ def apply_embodied_actions(
     if not embodied_cfg.use_comms:
         new_msg = jnp.zeros_like(new_msg)
 
+    # Predation: an attacking organism drains the nearest neighbour inside the
+    # predation radius. The transfer is a fraction of the prey's energy.
+    if embodied_cfg.predation_rate > 0.0:
+        n = pop.alive.shape[0]
+        diff = new_pos[:, None, :] - new_pos[None, :, :]
+        if world_cfg.toroidal:
+            diff = diff - jnp.round(diff)
+        dist = jnp.linalg.norm(diff, axis=-1)
+        eye = jnp.eye(n, dtype=bool)
+        valid = pop.alive[:, None] & pop.alive[None, :] & ~eye
+        dist = jnp.where(valid, dist, jnp.inf)
+        nearest = jnp.argmin(dist, axis=1)
+        in_range = dist[jnp.arange(n), nearest] < embodied_cfg.predation_radius
+        attackers = (attack > 0.5) & in_range & pop.alive
+        prey = nearest
+        transfer = (
+            embodied_cfg.predation_rate
+            * pop.energy[prey]
+            * attackers.astype(jnp.float32)
+        )
+        transfer_in = transfer
+        transfer_out = jnp.zeros((n,), dtype=jnp.float32).at[prey].add(
+            jnp.where(attackers, transfer, 0.0)
+        )
+        energy_gained = energy_gained + transfer_in - transfer_out
+
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the
     # other gates so behavior diversity has a tangible price.
@@ -578,6 +604,8 @@ def apply_embodied_actions(
         - embodied_cfg.basal_metabolic_cost * body_factor
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
+    if embodied_cfg.max_energy > 0.0:
+        new_energy = jnp.minimum(new_energy, embodied_cfg.max_energy)
 
     # Reproduction is handled in apply_reproduction; here we only zero-out
     # parents' energy cost when triggered.
