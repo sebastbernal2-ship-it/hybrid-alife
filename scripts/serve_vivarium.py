@@ -41,6 +41,8 @@ class Controls:
     paused: bool = False
     speed: float = 1.0
     reset: bool = False
+    selected: int | None = None
+    selected_lineage: int | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def apply(self, action: str | None, speed: str | None) -> dict:
@@ -60,11 +62,11 @@ class Controls:
                     pass
             return {"paused": self.paused, "speed": self.speed}
 
-    def snapshot(self) -> tuple[bool, float, bool]:
+    def snapshot(self) -> tuple[bool, float, bool, int | None, int | None]:
         with self._lock:
             reset = self.reset
             self.reset = False
-            return self.paused, self.speed, reset
+            return self.paused, self.speed, reset, self.selected, self.selected_lineage
 
 
 class FrameBroadcaster:
@@ -75,12 +77,14 @@ class FrameBroadcaster:
         self._serial = 0
         self._frame: bytes | None = None
         self._stats: dict = {}
+        self._agents: list[dict] = []
 
-    def publish(self, frame: bytes, stats: dict) -> None:
+    def publish(self, frame: bytes, stats: dict, agents: list[dict]) -> None:
         with self._condition:
             self._serial += 1
             self._frame = frame
             self._stats = stats
+            self._agents = agents
             self._condition.notify_all()
 
     def latest(self, after_serial: int, timeout: float = 5.0):
@@ -88,7 +92,7 @@ class FrameBroadcaster:
             self._condition.wait_for(
                 lambda: self._serial > after_serial, timeout=timeout
             )
-            return self._serial, self._frame, dict(self._stats)
+            return self._serial, self._frame, dict(self._stats), list(self._agents)
 
 
 def build_config(args) -> VivariumConfig:
@@ -117,6 +121,45 @@ def build_config(args) -> VivariumConfig:
     return VivariumConfig(
         sim=sim, season_length=args.season_length, generation_length=200
     )
+
+
+def _agents(state) -> list[dict]:
+    alive = np.asarray(state.sim.embodied.alive)
+    positions = np.asarray(state.sim.embodied.positions)
+    lineage = np.asarray(state.sim.embodied.lineage_id)
+    energy = np.asarray(state.sim.embodied.energy)
+    age = np.asarray(state.sim.embodied.age)
+    genes = state.sim.embodied.genomes
+    body = np.asarray(genes.get("body_radius", np.ones(alive.shape[0])))
+    aspect = np.asarray(genes.get("body_aspect", np.ones(alive.shape[0])))
+    return [
+        {
+            "index": int(i),
+            "x": float(positions[i, 0]),
+            "y": float(positions[i, 1]),
+            "lineage": int(lineage[i]),
+            "energy": float(energy[i]),
+            "age": int(age[i]),
+            "body_radius": float(body[i]),
+            "body_aspect": float(aspect[i]),
+        }
+        for i in np.flatnonzero(alive)
+    ]
+
+
+def nearest_agent(agents: list[dict], x: float, y: float) -> dict | None:
+    best = None
+    best_dist = float("inf")
+    for agent in agents:
+        dx = agent["x"] - x
+        dy = agent["y"] - y
+        dx -= round(dx)
+        dy -= round(dy)
+        dist = dx * dx + dy * dy
+        if dist < best_dist:
+            best_dist = dist
+            best = agent
+    return best
 
 
 def _stats(state, cfg) -> dict:
@@ -148,7 +191,7 @@ def sim_loop(
     trails: dict[tuple[int, int], list[tuple[float, float]]] = {}
     step = 0
     while not stop.is_set():
-        paused, speed, reset = controls.snapshot()
+        paused, speed, reset, selected, selected_lineage = controls.snapshot()
         if reset:
             state = initialize_vivarium(config)
             state.season = 0
@@ -163,8 +206,18 @@ def sim_loop(
         state = vivarium_step(state, config)
         step += 1
         state.sim.step = step
-        frame = render_frame(state, config, size=args.size, trails=trails)
-        broadcaster.publish(encode_jpeg(frame, quality=args.quality), _stats(state, config))
+        if selected is not None:
+            lineage = np.asarray(state.sim.embodied.lineage_id)
+            if selected >= len(lineage) or int(lineage[selected]) != selected_lineage:
+                selected = None
+        frame = render_frame(
+            state, config, size=args.size, trails=trails, selected=selected
+        )
+        broadcaster.publish(
+            encode_jpeg(frame, quality=args.quality),
+            _stats(state, config),
+            _agents(state),
+        )
         interval = 1.0 / max(args.fps * speed, 1e-6)
         elapsed = time.monotonic() - started
         if elapsed < interval:
@@ -187,6 +240,21 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith("/inspect"):
+            query = parse_qs(urlparse(self.path).query)
+            x = float(query.get("x", ["0.5"])[0])
+            y = float(query.get("y", ["0.5"])[0])
+            _, _, _, agents = self.broadcaster.latest(-1, timeout=0.05)
+            agent = nearest_agent(agents, x, y)
+            self.controls.selected = agent["index"] if agent else None
+            self.controls.selected_lineage = agent["lineage"] if agent else None
+            body = json.dumps(agent if agent else {"index": None}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/control"):
             query = parse_qs(urlparse(self.path).query)
             action = query.get("action", [None])[0]
@@ -200,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path == "/stats.json":
-            _, _, stats = self.broadcaster.latest(-1, timeout=0.1)
+            _, _, stats, _ = self.broadcaster.latest(-1, timeout=0.1)
             body = json.dumps(stats).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -218,7 +286,9 @@ class Handler(BaseHTTPRequestHandler):
             last = -1
             try:
                 while True:
-                    serial, frame, _ = self.broadcaster.latest(last, timeout=10.0)
+                    serial, frame, _, _ = self.broadcaster.latest(
+                        last, timeout=10.0
+                    )
                     if frame is None:
                         continue
                     last = serial
