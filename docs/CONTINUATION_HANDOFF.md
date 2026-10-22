@@ -7,7 +7,7 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `82e7ce2` (PR #39), with this handoff committed on top.
+- `main` merged state: `2570cd7` (PR #40), with this handoff committed on top.
 - Working tree clean, tests pass (425 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
@@ -66,8 +66,10 @@ Decisions:
 - **The living world is the product.** `scripts/serve_vivarium.py` runs it live at
   http://127.0.0.1:8765. Seasons, food patches, bodies, births, deaths, corpses,
   an energy cap, and predation are in place. The long-run giant is fixed.
-- **Next product step (in progress): a visible attack animation.** Draw the
-  attacker-to-prey strike and a prey ring so predation is visible in the live view.
+- **Attack animation is done** (PR #40). Red strike lines and prey rings are
+  visible in the live view and the clip.
+- **Next product step (in progress): prey escape behavior.** When a neighbour is
+  close, the prey moves away, so the strike becomes a chase.
 - No work is in flight. The next step is a world/product direction or a new
   research question, both needing the captain's word.
 
