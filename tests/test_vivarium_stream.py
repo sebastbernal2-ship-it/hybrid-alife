@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from serve_vivarium import FrameBroadcaster  # noqa: E402
+from serve_vivarium import Controls, FrameBroadcaster  # noqa: E402
 
 from hybrid_alife.vivarium import encode_jpeg, live_page  # noqa: E402
 
@@ -24,6 +24,9 @@ def test_live_page_references_the_stream_and_stats() -> None:
     page = live_page("Test Vivarium")
     assert "/stream.mjpg" in page
     assert "/stats.json" in page
+    assert "/control" in page
+    assert 'id="toggle"' in page
+    assert 'id="reset"' in page
     assert "Test Vivarium" in page
 
 
@@ -34,3 +37,16 @@ def test_broadcaster_returns_the_latest_frame() -> None:
     assert serial == 1
     assert frame == b"frame-a"
     assert stats["step"] == 1
+
+
+def test_controls_toggle_speed_and_reset() -> None:
+    controls = Controls()
+    assert controls.apply("toggle", None)["paused"] is True
+    assert controls.apply("toggle", None)["paused"] is False
+    assert controls.apply(None, "2")["speed"] == 2.0
+    assert controls.apply(None, "99")["speed"] == 4.0
+    controls.apply("reset", None)
+    paused, speed, reset = controls.snapshot()
+    assert reset is True
+    assert paused is False
+    assert controls.snapshot()[2] is False

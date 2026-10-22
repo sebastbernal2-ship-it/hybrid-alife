@@ -15,9 +15,10 @@ import json
 import sys
 import threading
 import time
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 
@@ -33,6 +34,37 @@ from hybrid_alife.vivarium import (  # noqa: E402
     season_name,
     vivarium_step,
 )
+
+
+@dataclass
+class Controls:
+    paused: bool = False
+    speed: float = 1.0
+    reset: bool = False
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def apply(self, action: str | None, speed: str | None) -> dict:
+        with self._lock:
+            if action == "toggle":
+                self.paused = not self.paused
+            elif action == "pause":
+                self.paused = True
+            elif action == "resume":
+                self.paused = False
+            elif action == "reset":
+                self.reset = True
+            if speed is not None:
+                try:
+                    self.speed = min(max(float(speed), 0.25), 4.0)
+                except ValueError:
+                    pass
+            return {"paused": self.paused, "speed": self.speed}
+
+    def snapshot(self) -> tuple[bool, float, bool]:
+        with self._lock:
+            reset = self.reset
+            self.reset = False
+            return self.paused, self.speed, reset
 
 
 class FrameBroadcaster:
@@ -101,7 +133,13 @@ def _stats(state, cfg) -> dict:
     }
 
 
-def sim_loop(config, args, broadcaster: FrameBroadcaster, stop: threading.Event) -> None:
+def sim_loop(
+    config,
+    args,
+    broadcaster: FrameBroadcaster,
+    stop: threading.Event,
+    controls: Controls,
+) -> None:
     state = initialize_vivarium(config)
     for _ in range(args.warmup):
         state = vivarium_step(state, config)
@@ -109,14 +147,25 @@ def sim_loop(config, args, broadcaster: FrameBroadcaster, stop: threading.Event)
     state.season_step = 0
     trails: dict[tuple[int, int], list[tuple[float, float]]] = {}
     step = 0
-    interval = 1.0 / max(args.fps, 1)
     while not stop.is_set():
+        paused, speed, reset = controls.snapshot()
+        if reset:
+            state = initialize_vivarium(config)
+            state.season = 0
+            state.season_step = 0
+            trails.clear()
+            step = 0
+            continue
+        if paused:
+            time.sleep(0.05)
+            continue
         started = time.monotonic()
         state = vivarium_step(state, config)
         step += 1
         state.sim.step = step
         frame = render_frame(state, config, size=args.size, trails=trails)
         broadcaster.publish(encode_jpeg(frame, quality=args.quality), _stats(state, config))
+        interval = 1.0 / max(args.fps * speed, 1e-6)
         elapsed = time.monotonic() - started
         if elapsed < interval:
             time.sleep(interval - elapsed)
@@ -124,6 +173,7 @@ def sim_loop(config, args, broadcaster: FrameBroadcaster, stop: threading.Event)
 
 class Handler(BaseHTTPRequestHandler):
     broadcaster: FrameBroadcaster
+    controls: Controls
 
     def log_message(self, format, *args) -> None:  # noqa: A002
         return
@@ -133,6 +183,18 @@ class Handler(BaseHTTPRequestHandler):
             body = live_page().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/control"):
+            query = parse_qs(urlparse(self.path).query)
+            action = query.get("action", [None])[0]
+            speed = query.get("speed", [None])[0]
+            state = self.controls.apply(action, speed)
+            body = json.dumps(state).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -190,15 +252,17 @@ def main() -> int:
 
     config = build_config(args)
     broadcaster = FrameBroadcaster()
+    controls = Controls()
     stop = threading.Event()
     thread = threading.Thread(
         target=sim_loop,
-        args=(config, args, broadcaster, stop),
+        args=(config, args, broadcaster, stop, controls),
         daemon=True,
     )
     thread.start()
 
     Handler.broadcaster = broadcaster
+    Handler.controls = controls
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     server.daemon_threads = True
     print(f"Vivarium live at http://127.0.0.1:{args.port}", flush=True)
