@@ -242,6 +242,7 @@ def render_frame(
     *,
     size: int = 800,
     trails: dict[tuple[int, int], list[tuple[float, float]]] | None = None,
+    selected: int | None = None,
 ):
     """Draw one frame. Returns a Pillow RGB image."""
     from PIL import Image, ImageDraw
@@ -404,6 +405,15 @@ def render_frame(
                 width=2,
             )
 
+    if selected is not None and 0 <= selected < len(positions) and alive[selected]:
+        sx, sy = positions[selected]
+        ring = max(12.0, size * 0.02)
+        draw.ellipse(
+            (sx * size - ring, sy * size - ring, sx * size + ring, sy * size + ring),
+            outline=(255, 255, 255),
+            width=3,
+        )
+
     font = _font(max(14, size // 32))
     small = _font(max(12, size // 44))
     population = int(alive.sum())
@@ -515,6 +525,7 @@ def live_page(title: str = "Vivarium") -> str:
     box-shadow: 0 0 10px #4cc9f0; }}
   .controls {{ display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
     justify-content: center; font-size: 14px; }}
+  #inspect {{ min-height: 20px; font-size: 14px; color: #8fe3ff; }}
   button {{ background: #16202b; color: #dfe8f1; border: 1px solid #2b3b4d;
     border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; }}
   button:hover {{ background: #1e2c3a; }}
@@ -523,7 +534,7 @@ def live_page(title: str = "Vivarium") -> str:
 </head>
 <body>
 <div class="wrap">
-  <img src="/stream.mjpg" alt="live vivarium">
+  <img id="stream" src="/stream.mjpg" alt="live vivarium">
   <div class="controls">
     <button id="toggle">Pause</button>
     <label>speed <input id="speed" type="range" min="0.25" max="4"
@@ -531,6 +542,7 @@ def live_page(title: str = "Vivarium") -> str:
     <span id="speedval">1x</span>
     <button id="reset">Reset</button>
   </div>
+  <div id="inspect">click a creature to inspect it</div>
   <div class="bar">
     <span class="dot"></span>
     <span>live</span>
@@ -551,6 +563,18 @@ speed.oninput = async () => {{
 }};
 document.getElementById('reset').onclick = async () => {{
   await fetch('/control?action=reset');
+}};
+document.getElementById('stream').onclick = async (event) => {{
+  const img = event.target;
+  const x = event.offsetX / img.clientWidth;
+  const y = event.offsetY / img.clientHeight;
+  const r = await fetch(`/inspect?x=${{x}}&y=${{y}}`);
+  const d = await r.json();
+  document.getElementById('inspect').textContent =
+    d.index === null
+      ? 'no creature found'
+      : `creature ${{d.index}} · lineage ${{d.lineage}} · energy ${{d.energy.toFixed(1)}} · ` +
+        `age ${{d.age}} · body ${{d.body_radius.toFixed(2)}}`;
 }};
 async function tick() {{
   try {{
