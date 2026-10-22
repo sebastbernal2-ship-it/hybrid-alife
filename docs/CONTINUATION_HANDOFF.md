@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `beb748c` (PR #34), with this handoff committed on top.
-- Working tree clean, tests pass (417 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `c733c1e` (PR #35), with this handoff committed on top.
+- Working tree clean, tests pass (419 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -50,10 +50,14 @@ Decisions:
   direction bias. Even the passing D1 seed 0 ends at `-0.294` against its +x law:
   it passes the relative gate but is not positively aligned. Results in
   `docs/results/vivarium_law_d1/`.
-- **Next design: flow head plus a constant eat gate.** Keep the four-parameter
-  movement head, let the organism eat automatically on food, and rerun the
-  comparison. That is the clean test of whether the low-dimensional D1 mechanism
-  transfers to the living world.
+- **Flow head plus eat gate was built and tested, and it is not viable as a
+  survival comparison.** The law conditions survive but both show the same fixed
+  bias; the law-absent condition collapses because the movement-only brain cannot
+  seek food. No valid absent baseline, so no completed comparison. See
+  `docs/results/vivarium_law_flow/`.
+- **Next options:** a hybrid movement head (flow-following plus a food gradient),
+  or accept the negative: no vivarium arm shows robust law-following, and the
+  controlled D1 5/5 remains a special setup.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.

@@ -373,6 +373,10 @@ def act_embodied(
         raw = jnp.zeros(
             (obs.shape[0], embodied_action_dim(cfg)), dtype=obs.dtype
         ).at[:, 0:2].set(raw_move)
+        if cfg.flow_head_eat_gate > 0.0:
+            gate = min(max(float(cfg.flow_head_eat_gate), 1e-4), 1.0 - 1e-4)
+            eat_logit = jnp.log(gate / (1.0 - gate))
+            raw = raw.at[:, 2].set(eat_logit).at[:, 3:8].set(-8.0)
         new_hidden = pop.hidden
     elif cfg.linear_policy:
         raw = linear_forward(pop.genomes, obs)

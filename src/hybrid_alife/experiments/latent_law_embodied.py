@@ -65,6 +65,7 @@ def embodied_law_config(
     immigrant_fraction: float = 0.0,
     flow_head: bool = False,
     raw_flow_features: bool = False,
+    flow_head_eat_gate: float = 0.0,
 ) -> ExperimentConfig:
     """Tiny embodied config with the imposed law hidden but still causal."""
     if generations < 1 or population < 2 or steps_per_generation < 1:
@@ -75,6 +76,8 @@ def embodied_law_config(
         raise ValueError("raw_flow_features needs proprioception")
     if flow_head and not (unit_flow_features or raw_flow_features):
         raise ValueError("flow_head needs unit_flow_features or raw_flow_features")
+    if flow_head_eat_gate > 0.0 and not flow_head:
+        raise ValueError("flow_head_eat_gate needs flow_head")
     return ExperimentConfig(
         seed=seed,
         run_name=f"embodied-law-{seed}",
@@ -118,6 +121,7 @@ def embodied_law_config(
             immigrant_fraction=immigrant_fraction,
             flow_head=flow_head,
             raw_flow_features=raw_flow_features,
+            flow_head_eat_gate=flow_head_eat_gate,
         ),
         avida=AvidaConfig(
             enabled=False,
