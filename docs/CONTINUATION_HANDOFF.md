@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `fc80f32` (PR #43), with this handoff committed on top.
-- Working tree clean, tests pass (430 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `9fc56ed` (PR #44), with this handoff committed on top.
+- Working tree clean, tests pass (431 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -73,9 +73,10 @@ Decisions:
   with escape 0.03 to 0.06. The current 0.35/0.03 is validated.
 - **Viewer controls are done** (PR #43). Pause/resume, speed 0.25x to 4x, and
   reset are live.
-- **Next product step (in progress): click-to-inspect.** Click an organism in the
-  live view to see its lineage, energy, age, and body, with a selected ring on the
-  creature.
+- **Click-to-inspect is done** (PR #44). The page shows slot, lineage, energy,
+  age, and body, with a lineage-tied selected ring.
+- **Next product step (in progress): camera follow.** Lock the view to the
+  inspected lineage and zoom in so it can be watched up close.
 - No work is in flight. The next step is a world/product direction or a new
   research question, both needing the captain's word.
 
