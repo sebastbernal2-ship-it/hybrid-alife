@@ -495,7 +495,7 @@ def encode_jpeg(frame, quality: int = 85) -> bytes:
 
 
 def live_page(title: str = "Vivarium") -> str:
-    """A minimal page that displays the MJPEG stream."""
+    """A minimal page with the MJPEG stream and run controls."""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -506,18 +506,31 @@ def live_page(title: str = "Vivarium") -> str:
   html, body {{ margin: 0; background: #0b0f14; color: #dfe8f1;
     font-family: system-ui, sans-serif; }}
   .wrap {{ display: flex; flex-direction: column; align-items: center;
-    justify-content: center; min-height: 100vh; gap: 12px; }}
-  img {{ width: min(92vw, 92vh); height: auto; image-rendering: auto;
-    border-radius: 6px; box-shadow: 0 0 40px #0008; }}
+    justify-content: center; min-height: 100vh; gap: 12px; padding: 16px; }}
+  img {{ width: min(90vw, 86vh); height: auto; border-radius: 6px;
+    box-shadow: 0 0 40px #0008; }}
   .bar {{ display: flex; gap: 16px; align-items: center; font-size: 14px;
-    color: #9fb2c6; }}
+    color: #9fb2c6; flex-wrap: wrap; justify-content: center; }}
   .dot {{ width: 9px; height: 9px; border-radius: 50%; background: #4cc9f0;
     box-shadow: 0 0 10px #4cc9f0; }}
+  .controls {{ display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    justify-content: center; font-size: 14px; }}
+  button {{ background: #16202b; color: #dfe8f1; border: 1px solid #2b3b4d;
+    border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; }}
+  button:hover {{ background: #1e2c3a; }}
+  input[type=range] {{ accent-color: #4cc9f0; }}
 </style>
 </head>
 <body>
 <div class="wrap">
   <img src="/stream.mjpg" alt="live vivarium">
+  <div class="controls">
+    <button id="toggle">Pause</button>
+    <label>speed <input id="speed" type="range" min="0.25" max="4"
+      step="0.25" value="1"></label>
+    <span id="speedval">1x</span>
+    <button id="reset">Reset</button>
+  </div>
   <div class="bar">
     <span class="dot"></span>
     <span>live</span>
@@ -525,6 +538,20 @@ def live_page(title: str = "Vivarium") -> str:
   </div>
 </div>
 <script>
+const toggle = document.getElementById('toggle');
+toggle.onclick = async () => {{
+  const r = await fetch('/control?action=toggle');
+  const s = await r.json();
+  toggle.textContent = s.paused ? 'Resume' : 'Pause';
+}};
+const speed = document.getElementById('speed');
+speed.oninput = async () => {{
+  document.getElementById('speedval').textContent = speed.value + 'x';
+  await fetch('/control?speed=' + speed.value);
+}};
+document.getElementById('reset').onclick = async () => {{
+  await fetch('/control?action=reset');
+}};
 async function tick() {{
   try {{
     const r = await fetch('/stats.json', {{cache: 'no-store'}});
