@@ -578,6 +578,31 @@ def apply_embodied_actions(
         pop.last_attack = attackers
         pop.last_attack_target = prey
 
+    if embodied_cfg.escape_gain > 0.0:
+        n = pop.alive.shape[0]
+        diff = new_pos[:, None, :] - new_pos[None, :, :]
+        if world_cfg.toroidal:
+            diff = diff - jnp.round(diff)
+        dist = jnp.linalg.norm(diff, axis=-1)
+        eye = jnp.eye(n, dtype=bool)
+        valid = pop.alive[:, None] & pop.alive[None, :] & ~eye
+        dist = jnp.where(valid, dist, jnp.inf)
+        nearest = jnp.argmin(dist, axis=1)
+        close = dist[jnp.arange(n), nearest] < embodied_cfg.escape_radius
+        away = diff[jnp.arange(n), nearest] / jnp.maximum(
+            dist[jnp.arange(n), nearest, None], 1e-8
+        )
+        new_pos = new_pos + (
+            embodied_cfg.escape_gain
+            * away
+            * close[:, None]
+            * alive_f[:, None]
+        )
+        if world_cfg.toroidal:
+            new_pos = jnp.mod(new_pos, 1.0)
+        else:
+            new_pos = jnp.clip(new_pos, 0.0, 0.999)
+
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the
     # other gates so behavior diversity has a tangible price.
