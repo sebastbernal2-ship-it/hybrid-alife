@@ -146,6 +146,9 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Flow head only: a constant eat gate, so a movement-only brain can survive in
+    # a world where it must eat. 0 keeps the legacy flow-head behavior.
+    flow_head_eat_gate: float = 0.0
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02

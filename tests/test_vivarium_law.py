@@ -67,6 +67,12 @@ def test_d1_arm_config_carries_the_mechanisms() -> None:
     assert config.sim.embodied.rank_replacement is True
     assert config.fitness_mode == "min_alignment"
 
+    args.arm = "d1_flow"
+    flow = build_config(0, args)
+    assert flow.sim.embodied.flow_head is True
+    assert flow.sim.embodied.flow_head_eat_gate == 0.9
+    assert flow.fitness_mode == "min_alignment"
+
     args.arm = "natural"
     natural = build_config(0, args)
     assert natural.sim.embodied.linear_policy is False

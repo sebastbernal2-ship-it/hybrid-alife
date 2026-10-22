@@ -83,3 +83,24 @@ def test_flow_head_pilot_carries_the_flag() -> None:
     assert result["status"] == "pilot_only"
     assert result["config"].embodied.flow_head is True
     assert set(result["state"].embodied.genomes) == {"w_flow", "b_flow"}
+
+
+def test_flow_head_eat_gate_sets_the_eat_action() -> None:
+    from dataclasses import replace
+
+    import matplotlib  # noqa: F401  (kept for parity with the other head tests)
+
+    config = _config()
+    config = replace(
+        config,
+        embodied=replace(config.embodied, flow_head_eat_gate=0.9),
+    )
+    state = initialize_sim(config)
+    obs = observe_embodied(
+        state.embodied, state.world, config.embodied, config.world, jax.random.PRNGKey(0)
+    )
+    actions, _ = act_embodied(state.embodied, obs, config.embodied, jax.random.PRNGKey(1))
+    import numpy as np
+
+    assert np.allclose(np.asarray(actions[:, 2]), 0.9, atol=1e-3)
+    assert np.all(np.asarray(actions[:, 3:8]) < 0.01)
