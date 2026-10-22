@@ -9,7 +9,12 @@ from hybrid_alife.experiments.latent_law_embodied import embodied_law_config
 from hybrid_alife.experiments.runner import initialize_sim
 
 
-def _config(*, max_energy: float = 0.0, predation_rate: float = 0.0):
+def _config(
+    *,
+    max_energy: float = 0.0,
+    predation_rate: float = 0.0,
+    escape_gain: float = 0.0,
+):
     base = embodied_law_config(
         seed=0,
         generations=1,
@@ -25,6 +30,8 @@ def _config(*, max_energy: float = 0.0, predation_rate: float = 0.0):
             max_energy=max_energy,
             predation_rate=predation_rate,
             predation_radius=0.05,
+            escape_gain=escape_gain,
+            escape_radius=0.1,
         ),
     )
 
@@ -61,3 +68,20 @@ def test_attacker_drains_a_nearby_target() -> None:
     assert float(pop.energy[1]) < 15.0
     assert bool(pop.last_attack[0])
     assert int(pop.last_attack_target[0]) == 1
+
+
+def test_escape_reflex_moves_neighbours_apart() -> None:
+    config = _config(escape_gain=0.05)
+    state = initialize_sim(config)
+    pop = state.embodied
+    pop.alive = jnp.ones((2,), dtype=bool)
+    pop.positions = jnp.array([[0.5, 0.5], [0.52, 0.5]], dtype=jnp.float32)
+    pop.energy = jnp.array([20.0, 20.0])
+    state.world.flow = jnp.zeros_like(state.world.flow)
+    state.world.resources = jnp.zeros_like(state.world.resources)
+    actions = jnp.zeros((2, embodied_action_dim(config.embodied)))
+    pop, _, _ = apply_embodied_actions(
+        pop, actions, state.world, config.embodied, config.world, jnp.array([0, 1])
+    )
+    assert float(pop.positions[0, 0]) < 0.5
+    assert float(pop.positions[1, 0]) > 0.52

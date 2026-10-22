@@ -78,6 +78,8 @@ def build_config(args) -> VivariumConfig:
             max_energy=80.0,
             predation_rate=0.35,
             predation_radius=0.04,
+            escape_gain=0.03,
+            escape_radius=0.06,
         ),
     )
     return VivariumConfig(

@@ -157,6 +157,9 @@ class EmbodiedConfig:
     max_energy: float = 0.0
     predation_rate: float = 0.0
     predation_radius: float = 0.04
+    # Prey escape reflex: move away from the nearest neighbour inside the radius.
+    escape_gain: float = 0.0
+    escape_radius: float = 0.06
     # Optional active-probe gate. Disabled by default to preserve legacy shapes.
     probe_enabled: bool = False
     probe_cost: float = 0.02
