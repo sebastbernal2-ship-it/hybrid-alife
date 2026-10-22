@@ -575,6 +575,8 @@ def apply_embodied_actions(
             jnp.where(attackers, transfer, 0.0)
         )
         energy_gained = energy_gained + transfer_in - transfer_out
+        pop.last_attack = attackers
+        pop.last_attack_target = prey
 
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the

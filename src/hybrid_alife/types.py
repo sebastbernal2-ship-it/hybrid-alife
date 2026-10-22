@@ -295,6 +295,9 @@ class EmbodiedPopulationState:
     # Previous-step actual movement and commanded thrust, or None when disabled.
     previous_velocity: Array | None = None
     previous_thrust: Array | None = None
+    # Predation events for the renderer: attacker mask and target index.
+    last_attack: Array | None = None
+    last_attack_target: Array | None = None
 
 
 @dataclass
