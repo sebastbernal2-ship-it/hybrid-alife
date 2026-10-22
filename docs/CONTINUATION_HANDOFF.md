@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `c733c1e` (PR #35), with this handoff committed on top.
-- Working tree clean, tests pass (419 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `d384c37` (PR #36), with this handoff committed on top.
+- Working tree clean, tests pass (420 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -55,9 +55,13 @@ Decisions:
   bias; the law-absent condition collapses because the movement-only brain cannot
   seek food. No valid absent baseline, so no completed comparison. See
   `docs/results/vivarium_law_flow/`.
-- **Next options:** a hybrid movement head (flow-following plus a food gradient),
-  or accept the negative: no vivarium arm shows robust law-following, and the
-  controlled D1 5/5 remains a special setup.
+- **No work is in flight.** The captain merged the design finding but has not yet
+  chosen between:
+  1. A hybrid movement head: flow-following plus a simple food gradient, so the
+     organism survives in both law and absent conditions.
+  2. Accept the negative: no vivarium arm shows robust law-following, and the
+     controlled D1 5/5 remains a special setup. Keep the living world as the
+     product and the D1 result as the controlled research core.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.
