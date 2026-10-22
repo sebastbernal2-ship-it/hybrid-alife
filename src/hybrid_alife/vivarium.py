@@ -43,6 +43,14 @@ class VivariumConfig:
     flow_magnitude: float = 0.2
     fertility_fraction: float = 0.35
     fertility_patch: int = 8
+    fitness_mode: str = "energy"
+    fitness_directions: tuple[tuple[float, float], ...] = (
+        (0.0, -1.0),
+        (0.0, 1.0),
+        (1.0, 0.0),
+        (-1.0, 0.0),
+    )
+    fitness_steps: int = 6
 
 
 @dataclass
@@ -163,7 +171,21 @@ def vivarium_step(state: VivariumState, cfg: VivariumConfig) -> VivariumState:
     state.lineage_counter = lineage_counter
 
     if cfg.generation_length > 0 and (state.season_step + 1) % cfg.generation_length == 0:
-        fitness = jnp.asarray(np.asarray(state.sim.embodied.energy))
+        if cfg.fitness_mode == "min_alignment":
+            from hybrid_alife.experiments.latent_law_embodied import (
+                minimum_direction_alignment,
+            )
+
+            fitness = jnp.asarray(
+                minimum_direction_alignment(
+                    state.sim,
+                    cfg.sim,
+                    cfg.fitness_directions,
+                    steps=cfg.fitness_steps,
+                )
+            )
+        else:
+            fitness = jnp.asarray(np.asarray(state.sim.embodied.energy))
         state.sim.rng, k_sel = jax.random.split(state.sim.rng)
         state.sim.embodied = select_and_mutate_embodied(
             state.sim.embodied,

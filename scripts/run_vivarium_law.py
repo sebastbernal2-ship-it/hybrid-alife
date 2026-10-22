@@ -52,6 +52,26 @@ def build_config(seed: int, args) -> VivariumConfig:
         flow_alignment_reward=0.0,
         displacement_reward=0.0,
     )
+    if args.arm == "d1":
+        sim = replace(
+            sim,
+            world=replace(sim.world, curvature_regime="straight"),
+            embodied=replace(
+                sim.embodied,
+                body_morphology=True,
+                linear_policy=True,
+                unit_flow_features=True,
+                rank_replacement=True,
+                immigrant_fraction=0.0,
+            ),
+        )
+        return VivariumConfig(
+            sim=sim,
+            season_length=args.season_length,
+            generation_length=200,
+            fitness_mode="min_alignment",
+            fitness_steps=6,
+        )
     sim = replace(
         sim,
         world=replace(sim.world, curvature_regime="straight"),
@@ -148,6 +168,7 @@ def main() -> int:
     parser.add_argument("--world", type=int, default=64)
     parser.add_argument("--season-length", type=int, default=150)
     parser.add_argument("--record-every", type=int, default=10)
+    parser.add_argument("--arm", choices=("natural", "d1"), default="natural")
     parser.add_argument("--out", type=Path, default=Path("docs/results/vivarium_law"))
     args = parser.parse_args()
 
@@ -182,6 +203,7 @@ def main() -> int:
         "population": args.population,
         "world": args.world,
         "record_every": args.record_every,
+        "arm": args.arm,
         "gate": {"margin": GATE_MARGIN, "absent_reference": REFERENCE},
         "seeds_passed": seeds_passed,
         "seeds_total": len(by_seed),
