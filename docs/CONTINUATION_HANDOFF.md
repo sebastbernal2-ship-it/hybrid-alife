@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `96027f6` (PR #33), with this handoff committed on top.
-- Working tree clean, tests pass (415 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `beb748c` (PR #34), with this handoff committed on top.
+- Working tree clean, tests pass (417 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -44,10 +44,16 @@ Decisions:
   reinforces that bias; the +x law does not turn the population. This matches the
   D1 history: the 5/5 claim needed the flow head, min-alignment fitness, and rank
   replacement, which the natural world does not use.
-- **Next milestone: add the D1 mechanisms as a vivarium condition.** Flow head,
-  min-alignment fitness, rank replacement, inside the same living world. Compare
-  against the natural world. If the mechanisms are what matter, law-following
-  should appear there and not in the natural world.
+- **Comparison is done: both arms 1/3, both a fixed bias.** The D1 arm used the
+  linear controller because the pure flow head cannot eat and starved. The linear
+  arm plus min-alignment fitness and rank replacement still settles into a fixed
+  direction bias. Even the passing D1 seed 0 ends at `-0.294` against its +x law:
+  it passes the relative gate but is not positively aligned. Results in
+  `docs/results/vivarium_law_d1/`.
+- **Next design: flow head plus a constant eat gate.** Keep the four-parameter
+  movement head, let the organism eat automatically on food, and rerun the
+  comparison. That is the clean test of whether the low-dimensional D1 mechanism
+  transfers to the living world.
 
 No work is in flight. The D1 claim remains: 5 of 5 seeds, bounded pilot, confirmed
 at two budgets, four-parameter movement head.
