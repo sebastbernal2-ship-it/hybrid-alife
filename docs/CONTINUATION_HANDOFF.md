@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `d231a09` (PR #42), with this handoff committed on top.
-- Working tree clean, tests pass (429 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `fc80f32` (PR #43), with this handoff committed on top.
+- Working tree clean, tests pass (430 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -71,9 +71,11 @@ Decisions:
 - **Prey escape is done** (PR #41). The strike lands and the prey bolts.
 - **Balance sweep is done** (PR #42). Stable active band: predation 0.35 to 0.50
   with escape 0.03 to 0.06. The current 0.35/0.03 is validated.
-- **Next product step (in progress): viewer UX.** Pause/resume, speed, and reset
-  controls in the live page, so the world can be inspected instead of only
-  watched.
+- **Viewer controls are done** (PR #43). Pause/resume, speed 0.25x to 4x, and
+  reset are live.
+- **Next product step (in progress): click-to-inspect.** Click an organism in the
+  live view to see its lineage, energy, age, and body, with a selected ring on the
+  creature.
 - No work is in flight. The next step is a world/product direction or a new
   research question, both needing the captain's word.
 
