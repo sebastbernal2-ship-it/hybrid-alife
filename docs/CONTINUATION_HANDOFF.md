@@ -7,8 +7,8 @@ result documents it points to.
 ## Where things stand
 
 - Repository: https://github.com/sebastbernal2-ship-it/hybrid-alife
-- `main` merged state: `2570cd7` (PR #40), with this handoff committed on top.
-- Working tree clean, tests pass (425 at the checkpoint), CI green on Python 3.11 and 3.12.
+- `main` merged state: `7b55d9f` (PR #41), with this handoff committed on top.
+- Working tree clean, tests pass (426 at the checkpoint), CI green on Python 3.11 and 3.12.
 - Research question and claim boundary: `docs/RESEARCH_ALIGNMENT.md`
 - Ranked directions and accumulated lessons: `docs/GRAVITY_ROADMAP.md`
 - Project memory and sharp edges: `AGENTS.md`
@@ -68,8 +68,10 @@ Decisions:
   an energy cap, and predation are in place. The long-run giant is fixed.
 - **Attack animation is done** (PR #40). Red strike lines and prey rings are
   visible in the live view and the clip.
-- **Next product step (in progress): prey escape behavior.** When a neighbour is
-  close, the prey moves away, so the strike becomes a chase.
+- **Prey escape is done** (PR #41). The strike lands and the prey bolts.
+- **Next product step (in progress): a population-balance sweep.** Sweep
+  predation rate and escape gain over seeds, measure the tail population, death
+  rate, energy, and body size, and recommend a stable living-world setting.
 - No work is in flight. The next step is a world/product direction or a new
   research question, both needing the captain's word.
 
