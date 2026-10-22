@@ -59,3 +59,5 @@ def test_attacker_drains_a_nearby_target() -> None:
     )
     assert float(pop.energy[0]) > 25.0
     assert float(pop.energy[1]) < 15.0
+    assert bool(pop.last_attack[0])
+    assert int(pop.last_attack_target[0]) == 1

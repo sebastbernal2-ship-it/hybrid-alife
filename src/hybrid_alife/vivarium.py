@@ -379,6 +379,31 @@ def render_frame(
             trails.setdefault(key, []).append((float(x), float(y)))
             trails[key] = trails[key][-12:]
 
+    last_attack = getattr(state.sim.embodied, "last_attack", None)
+    last_target = getattr(state.sim.embodied, "last_attack_target", None)
+    if last_attack is not None and last_target is not None:
+        attacks = np.asarray(last_attack).astype(bool)
+        targets = np.asarray(last_target)
+        for index in np.flatnonzero(attacks & alive):
+            target = int(targets[index])
+            if target == index or not alive[target]:
+                continue
+            ax, ay = positions[index]
+            bx, by = positions[target]
+            if abs(bx - ax) > 0.3 or abs(by - ay) > 0.3:
+                continue
+            draw.line(
+                (ax * size, ay * size, bx * size, by * size),
+                fill=(255, 74, 74),
+                width=3,
+            )
+            ring = max(8.0, size * 0.018)
+            draw.ellipse(
+                (bx * size - ring, by * size - ring, bx * size + ring, by * size + ring),
+                outline=(255, 74, 74),
+                width=2,
+            )
+
     font = _font(max(14, size // 32))
     small = _font(max(12, size // 44))
     population = int(alive.sum())
