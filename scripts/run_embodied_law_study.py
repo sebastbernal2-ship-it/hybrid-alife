@@ -25,6 +25,8 @@ from hybrid_alife.experiments.latent_law_embodied import (  # noqa: E402
     alignment_gate_passes,
     lbm_law_profile,
     per_direction_frozen_alignment,
+    rotating_geometry,
+    rotating_vectors,
     run_embodied_law_pilot,
     set_law_profile,
 )
@@ -150,14 +152,17 @@ def main() -> int:
     )
     parser.add_argument(
         "--law-profile",
-        choices=("uniform", "lbm"),
+        choices=("uniform", "lbm", "lbm-geometry"),
         default="uniform",
-        help="lbm: spatially varying law from the lattice-Boltzmann channel with an obstacle",
+        help="lbm: LBM channel law, vectors rotated; lbm-geometry: whole channel rotated",
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
-    if args.law_profile == "lbm":
-        set_law_profile(lbm_law_profile(args.size))
+    if args.law_profile != "uniform":
+        profile = lbm_law_profile(args.size)
+        set_law_profile(
+            rotating_vectors(profile) if args.law_profile == "lbm" else rotating_geometry(profile)
+        )
 
     conditions = [not args.no_proprioception]
     results = []

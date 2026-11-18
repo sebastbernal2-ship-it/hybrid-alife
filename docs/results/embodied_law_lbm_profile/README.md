@@ -1,7 +1,8 @@
 # Flow-head law study under an LBM-derived law profile
 
-Status: **bounded pilot. 15 seeds: LBM profile 11/15 against uniform baseline 14/15 on the
-same code. The gap is not statistically distinguishable (Fisher exact p = 0.33). Not a claim.**
+Status: **bounded pilot, 15 seeds per condition: uniform 14/15, LBM vectors-only 11/15, LBM
+rotated-geometry 10/15. No pairwise gap is statistically distinguishable (smallest Fisher
+exact p = 0.17, uniform against rotated-geometry). Not a claim.**
 
 ## Question
 
@@ -56,7 +57,32 @@ evolution did not improve on the random start (5, 9). Fisher exact on 14/1 again
 11/4 gives p = 0.33, so 15 seeds do not separate a real cost of structure from seed
 variance. Per-seed rows: `seeds0-14_uniform.json`, `seeds0-14_lbm.json`.
 
+## Rotated-geometry variant (15 seeds)
+
+`--law-profile lbm-geometry` rotates the whole channel about the domain centre (bilinear
+sampling, periodic along the channel, zero beyond the walls), so walls and obstacle move
+with the law. Cardinal directions are exact quarter turns (`tests/test_law_profile.py`).
+
+| Condition | Pass | Failing seeds (min_delta / min_reversed) |
+|---|---|---|
+| LBM rotated geometry | 10/15 | 1 (0.173 / 0.337), 7 (0.169 / 0.539), 9 (0.187 / 0.508), 10 (0.086 / 0.245), 13 (0.381 / 0.181) |
+
+Median min_delta is 0.316 (uniform 0.393, vectors-only 0.408). Fisher exact: against
+uniform p = 0.17, against vectors-only p = 1.0. Every rotated-geometry failure still has
+positive reversed-law alignment, so none is the anti-aligned outcome seen once under
+vectors-only (seed 1). Three are near-misses within 0.03 of the margin, and seed 13
+clears the margin but misses the reversed floor by 0.019. Per-seed rows:
+`seeds0-14_lbm_geometry.json`.
+
+Reading: the structure of the law costs pass rate in both variants (14/15 to 11/15 and
+10/15) but the direction is consistent and the size is not resolved at 15 seeds. The
+rotated geometry removes the fixed-geometry explanation for the vectors-only failures,
+since it fails at least as often. The failures are margin-type, not collapse-type.
+The gates were set on uniform-law behaviour and the structured laws have zero-flow cells
+that reduce scored agents, which may account for part of the lower margin.
+
 ## Next
 
-A variant where
-the geometry rotates with the law instead of only the vectors.
+Separating the gate's sensitivity to zero-flow cells from a real policy cost: score only
+cells with flow above a floor, or add a no-obstacle Poiseuille-only condition. Resolving a
+20-point gap needs roughly 40 seeds per arm.
