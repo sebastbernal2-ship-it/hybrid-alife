@@ -81,8 +81,33 @@ since it fails at least as often. The failures are margin-type, not collapse-typ
 The gates were set on uniform-law behaviour and the structured laws have zero-flow cells
 that reduce scored agents, which may account for part of the lower margin.
 
+## Confound checks (15 seeds each, rotated geometry)
+
+Two follow-ups targeted the zero-flow-cell explanation and the obstacle.
+
+| Condition | Pass | Median min_delta | Failing seeds (min_delta / min_reversed) |
+|---|---|---|---|
+| Plain channel, no obstacle (`--no-obstacle`) | 10/15 | 0.308 | 1 (0.099 / 0.267), 4 (0.015 / 0.421), 7 (0.124 / 0.414), 10 (-0.151 / -0.273), 14 (0.090 / 0.195) |
+| Obstacle, cells below 0.3 x magnitude unscored (`--flow-floor 0.3`) | 7/15 | 0.145 | 1, 3, 5 (0.096 / -0.001), 6, 7 (-0.219 / 0.275), 8, 9, 10 |
+
+- **The obstacle is not the cause.** A plain channel passes 10/15, the same as the obstacle
+  (10/15). The speed profile across the channel is enough to lower the pass rate.
+- **The zero-flow-cell explanation is not supported.** Excluding low-flow cells from
+  scoring (and from the min-alignment fitness, which shares the validity mask) made the
+  pass rate worse, 7/15, not better. Uniform against flow-floor: Fisher p = 0.014, the only
+  pairwise difference here below 0.05. Caveat: the floor also changes training fitness and
+  reduces the agents scored per direction, so it conflates two effects and is noisier. It
+  does not isolate the scoring effect on its own.
+- Plain channel against uniform is p = 0.17, so the cost of structure is still not
+  resolved at 15 seeds for that condition alone.
+
+Taken together: structured laws pass at 10-11 of 15 across three variants against 14 of 15
+uniform, consistently lower but individually unresolved. A candidate mechanism, untested
+here: the spatially varying speed makes the proprioceptive estimate `(velocity - thrust)`
+change as agents move between cells, so a four-parameter head tuned on constant flow
+faces a noisier signal. Testing it needs the estimate's variance per condition.
+
 ## Next
 
-Separating the gate's sensitivity to zero-flow cells from a real policy cost: score only
-cells with flow above a floor, or add a no-obstacle Poiseuille-only condition. Resolving a
-20-point gap needs roughly 40 seeds per arm.
+Measure the unit-flow estimate's error against the true local direction per condition,
+and run about 40 seeds per arm to resolve the plain-channel gap.
