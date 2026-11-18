@@ -1,7 +1,7 @@
 # Flow-head law study under an LBM-derived law profile
 
-Status: **bounded pilot, 3/5 seeds with the LBM profile against 4/5 for the uniform
-baseline re-run on the same code. Not a claim.**
+Status: **bounded pilot. 15 seeds: LBM profile 11/15 against uniform baseline 14/15 on the
+same code. The gap is not statistically distinguishable (Fisher exact p = 0.33). Not a claim.**
 
 ## Question
 
@@ -30,7 +30,7 @@ Everything else is the recorded flow-head protocol (5 seeds, 8 generations, 16 a
 
 The uniform column reproduces `embodied_law_flow_head` exactly (4/5, seed 1 at 0.193).
 
-## Reading
+## Reading (first five seeds)
 
 - Seed 4 misses the margin by 0.002 and its reversed-law alignment is the strongest
   of the set, so it is the same margin-sensitivity failure the baseline already shows.
@@ -43,7 +43,20 @@ The uniform column reproduces `embodied_law_flow_head` exactly (4/5, seed 1 at 0
   law, and that one seed fails in a way the uniform law did not produce.
 - Wall rows and obstacle cells carry zero flow, so fewer agents are scored there.
 
+## Extension to 15 seeds (seeds 5-14 added, same protocol)
+
+| Condition | Pass | Failing seeds (min_delta / min_reversed) |
+|---|---|---|
+| Uniform | 14/15 | 1 (0.193 / 0.411) |
+| LBM profile | 11/15 | 1 (-0.464 / -0.030), 4 (0.198 / 0.632), 5 (0.044 / 0.030), 9 (-0.006 / 0.403) |
+
+Medians of min_delta are indistinguishable (0.393 uniform, 0.408 LBM). The LBM
+failures are more varied: one anti-aligned seed (1), one near-miss (4), and two where
+evolution did not improve on the random start (5, 9). Fisher exact on 14/1 against
+11/4 gives p = 0.33, so 15 seeds do not separate a real cost of structure from seed
+variance. Per-seed rows: `seeds0-14_uniform.json`, `seeds0-14_lbm.json`.
+
 ## Next
 
-Ten or more seeds per condition to test whether the gap is real, and a variant where
+A variant where
 the geometry rotates with the law instead of only the vectors.
