@@ -1,10 +1,11 @@
 CXX ?= g++
 CXXFLAGS ?= -O3 -std=c++17 -fPIC -Wall -Wextra
 OUT := ../src/hybrid_alife/physics
+LIBS := $(patsubst %.cpp,$(OUT)/lib%.so,$(wildcard *.cpp))
 
-all: $(OUT)/liblbm.so
+all: $(LIBS)
 
-$(OUT)/liblbm.so: lbm.cpp
+$(OUT)/lib%.so: %.cpp
 	$(CXX) $(CXXFLAGS) -shared -o $@ $<
 
 clean:

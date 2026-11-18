@@ -1,1 +1,1 @@
-"""Native physics kernels (C++ via ctypes). Build with `make -C native`."""
+"""Native kernels (C++ via ctypes). Build with `make -C native`."""
