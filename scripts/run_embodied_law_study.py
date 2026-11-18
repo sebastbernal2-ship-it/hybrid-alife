@@ -23,8 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hybrid_alife.experiments.latent_law_embodied import (  # noqa: E402
     alignment_gate_passes,
+    lbm_law_profile,
     per_direction_frozen_alignment,
     run_embodied_law_pilot,
+    set_law_profile,
 )
 
 CARDINALS = ((0.0, -1.0), (0.0, 1.0), (1.0, 0.0), (-1.0, 0.0))
@@ -146,8 +148,16 @@ def main() -> int:
         default=None,
         help="absolute per-direction floor; replaces the initial-relative delta gate",
     )
+    parser.add_argument(
+        "--law-profile",
+        choices=("uniform", "lbm"),
+        default="uniform",
+        help="lbm: spatially varying law from the lattice-Boltzmann channel with an obstacle",
+    )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
+    if args.law_profile == "lbm":
+        set_law_profile(lbm_law_profile(args.size))
 
     conditions = [not args.no_proprioception]
     results = []
@@ -205,6 +215,7 @@ def main() -> int:
         "immigrant_fraction": args.immigrant_fraction,
         "flow_head": args.flow_head,
         "raw_flow_features": args.raw_flow_features,
+        "law_profile": args.law_profile,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,

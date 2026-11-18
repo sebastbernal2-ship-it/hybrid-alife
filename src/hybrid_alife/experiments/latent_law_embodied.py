@@ -181,11 +181,33 @@ def signed_alignment(
     return float(np.mean(values))
 
 
+# Optional [H, W, 2] law profile whose +x direction is rotated onto the imposed direction.
+# None keeps the uniform law. Set by experiments via `set_law_profile`.
+_LAW_PROFILE: np.ndarray | None = None
+
+
+def set_law_profile(profile: np.ndarray | None) -> None:
+    global _LAW_PROFILE
+    _LAW_PROFILE = None if profile is None else np.asarray(profile, dtype=np.float64)
+
+
+def lbm_law_profile(size: int) -> np.ndarray:
+    """Channel flow around an obstacle from the native LBM solver (peak speed 1)."""
+    from hybrid_alife.physics import lbm
+
+    return lbm.channel_flow(size, size, obstacle_radius=size / 6).astype(np.float64)
+
+
 def _impose_flow(state, direction: tuple[float, float], magnitude: float):
     unit = np.asarray(direction, dtype=np.float64)
     unit = unit / max(float(np.linalg.norm(unit)), 1e-12)
-    vector = jnp.asarray(unit * magnitude, dtype=jnp.float32)
-    state.world.flow = jnp.broadcast_to(vector, state.world.flow.shape)
+    if _LAW_PROFILE is None:
+        vector = jnp.asarray(unit * magnitude, dtype=jnp.float32)
+        state.world.flow = jnp.broadcast_to(vector, state.world.flow.shape)
+        return state
+    rot = np.array([[unit[0], -unit[1]], [unit[1], unit[0]]])  # +x -> unit
+    field = (_LAW_PROFILE @ rot.T) * magnitude
+    state.world.flow = jnp.asarray(field, dtype=jnp.float32)
     return state
 
 
