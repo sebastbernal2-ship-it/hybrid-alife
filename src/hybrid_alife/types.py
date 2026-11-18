@@ -146,6 +146,9 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
+    # returns to the world as metabolite waste, and shared-cell eating cannot overdraw.
+    thermo_efficiency: float = 0.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
