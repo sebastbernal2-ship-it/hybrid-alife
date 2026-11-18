@@ -146,6 +146,11 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
+    # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
+    # concentration diffusion/decay/advection.
+    chemical_signaling: bool = False
+    signal_deposit: float = 1.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0

@@ -549,6 +549,10 @@ def apply_embodied_actions(
     new_msg = pop.messages * 0.5 + emit_hard[:, None] * msg_vec * alive_f[:, None]
     if not embodied_cfg.use_comms:
         new_msg = jnp.zeros_like(new_msg)
+    elif embodied_cfg.chemical_signaling:
+        pulse = embodied_cfg.signal_deposit * emit_hard * alive_f
+        signal = jnp.stack([jnp.zeros_like(pulse), pulse], axis=-1)
+        new_conc = scatter_add_to_grid(new_conc, new_pos, signal, pop.alive, h, w)
 
     # Predation: an attacking organism drains the nearest neighbour inside the
     # predation radius. The transfer is a fraction of the prey's energy.
