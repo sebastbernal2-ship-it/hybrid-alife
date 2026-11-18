@@ -197,6 +197,21 @@ def _ensure_task_fields(pop: AvidaPopulationState) -> AvidaPopulationState:
 # ---------------------------------------------------------------------------
 
 
+def sample_env(
+    world: WorldState, positions: jax.Array | None, n: int
+) -> tuple[jax.Array, jax.Array]:
+    """Quantised (enrichment, concentration) inputs per organism for LOAD_ENV."""
+    if positions is not None and positions.shape[0] == n:
+        h, w = world.enrichment.shape[0], world.enrichment.shape[1]
+        grid = positions_to_grid(positions, h, w)
+        env_a = (world.enrichment[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
+        env_b = (world.concentration[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
+    else:
+        env_a = jnp.full((n,), int(jnp.mean(world.enrichment) * 1000.0), dtype=jnp.int32)
+        env_b = jnp.full((n,), int(jnp.mean(world.concentration) * 1000.0), dtype=jnp.int32)
+    return env_a, env_b
+
+
 def vm_cycle(
     pop: AvidaPopulationState,
     world: WorldState,
@@ -241,14 +256,7 @@ def vm_cycle(
     # We sample two distinct env values per organism (a from enrichment,
     # b from concentration). Both are quantized to int32 for the bitwise
     # logic tasks.
-    if positions is not None and positions.shape[0] == n:
-        h, w = world.enrichment.shape[0], world.enrichment.shape[1]
-        grid = positions_to_grid(positions, h, w)
-        env_a = (world.enrichment[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
-        env_b = (world.concentration[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
-    else:
-        env_a = jnp.full((n,), int(jnp.mean(world.enrichment) * 1000.0), dtype=jnp.int32)
-        env_b = jnp.full((n,), int(jnp.mean(world.concentration) * 1000.0), dtype=jnp.int32)
+    env_a, env_b = sample_env(world, positions, n)
 
     is_loadenv = op == Op.LOAD_ENV
     new_reg0 = jnp.where(is_loadenv, env_a, new_reg0)
@@ -508,11 +516,20 @@ def step_avida_population(
     pop._divide_op_mask = jnp.zeros_like(pop.alive)  # type: ignore[attr-defined]
 
     budget = _cycle_budget(pop.merit, cfg)
-    max_cycles = int(cfg.max_cycles_per_update)
-    for c in range(max_cycles):
-        key, k_cyc = jax.random.split(key)
-        cycle_mask = budget > c
-        pop = vm_cycle(pop, world, cfg, positions, k_cyc, cycle_mask)
+    if cfg.native:
+        from hybrid_alife.physics import avida_native
+
+        key, k_nat = jax.random.split(key)
+        env_a, env_b = sample_env(world, positions, pop.alive.shape[0])
+        seed = int(jax.random.randint(k_nat, (), 0, 2**31 - 1, dtype=jnp.int32))
+        pop._divide_op_mask = avida_native.run_update(  # type: ignore[attr-defined]
+            pop, cfg, budget, env_a, env_b, _task_reward_vector(cfg), seed
+        )
+    else:
+        for c in range(int(cfg.max_cycles_per_update)):
+            key, k_cyc = jax.random.split(key)
+            cycle_mask = budget > c
+            pop = vm_cycle(pop, world, cfg, positions, k_cyc, cycle_mask)
 
     key, k_div = jax.random.split(key)
     pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
