@@ -146,6 +146,10 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Stokes-drag mechanics: actions are thrust, drag grows with body radius, so swim speed
+    # is thrust / radius and movement cost is the dissipated power (radius * speed^2).
+    # Normalised so radius 1 at full thrust matches the legacy linear move cost.
+    stokes_mechanics: bool = False
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0

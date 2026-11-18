@@ -455,6 +455,16 @@ def apply_embodied_actions(
     h, w = world_cfg.height, world_cfg.width
     alive_f = pop.alive.astype(jnp.float32)
 
+    # Body size trades eating capacity against metabolic cost when enabled.
+    if embodied_cfg.body_morphology:
+        body_radius = jnp.clip(
+            pop.genomes.get("body_radius", jnp.ones_like(pop.energy)), 0.6, 1.8
+        )
+        body_factor = 0.5 + 0.5 * body_radius
+    else:
+        body_radius = jnp.ones_like(pop.energy)
+        body_factor = jnp.ones_like(pop.energy)
+
     move = actions[..., 0:2] * 0.05  # max 5% of world per step
     flow_grid = positions_to_grid(pop.positions, h, w)
     local_flow = world.flow[flow_grid[:, 0], flow_grid[:, 1]]
@@ -468,7 +478,10 @@ def apply_embodied_actions(
         if embodied_cfg.probe_enabled
         else None
     )
+    if embodied_cfg.stokes_mechanics:
+        move = move / body_radius[:, None]  # Stokes drag: swim speed = thrust / radius
     commanded_move = move
+    swim_speed = jnp.linalg.norm(move, axis=-1)
     move = move + embodied_cfg.flow_movement_scale * local_flow
     eat = actions[..., 2]
     attack = actions[..., 3]
@@ -485,16 +498,6 @@ def apply_embodied_actions(
         new_pos = jnp.mod(new_pos, 1.0)
     else:
         new_pos = jnp.clip(new_pos, 0.0, 0.999)
-
-    # Body size trades eating capacity against metabolic cost when enabled.
-    if embodied_cfg.body_morphology:
-        body_radius = jnp.clip(
-            pop.genomes.get("body_radius", jnp.ones_like(pop.energy)), 0.6, 1.8
-        )
-        body_factor = 0.5 + 0.5 * body_radius
-    else:
-        body_radius = jnp.ones_like(pop.energy)
-        body_factor = jnp.ones_like(pop.energy)
 
     # Eat: drain resources at cell
     eat_rate = 0.2 * eat * alive_f * body_radius
@@ -606,11 +609,16 @@ def apply_embodied_actions(
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the
     # other gates so behavior diversity has a tangible price.
-    move_cost = (
-        jnp.linalg.norm(move, axis=-1)
-        * embodied_cfg.cost_move_scale
-        * body_factor
-    )
+    if embodied_cfg.stokes_mechanics:
+        # Dissipated swimming power = drag * speed^2, relative to the legacy cost at
+        # radius 1 and the 0.05 maximum step (so legacy-scale configs stay comparable).
+        move_cost = embodied_cfg.cost_move_scale * body_radius * swim_speed**2 / 0.05
+    else:
+        move_cost = (
+            jnp.linalg.norm(move, axis=-1)
+            * embodied_cfg.cost_move_scale
+            * body_factor
+        )
     action_cost = (
         embodied_cfg.cost_eat * eat
         + embodied_cfg.cost_attack * attack
