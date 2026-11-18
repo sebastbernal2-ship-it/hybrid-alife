@@ -73,6 +73,9 @@ class WorldConfig:
     # crowded cells get an enrichment penalty (more biologically faithful to
     # crowding-induced margination decline).
     enrichment_uses_occupancy: bool = True
+    # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
+    # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
+    flow_solver: str = "proxy"
 
 
 @dataclass(frozen=True)
