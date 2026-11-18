@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,15 @@ def _load() -> ctypes.CDLL:
             ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_int, dp, dp, dp,
         ]
         lib.lbm_solve.restype = ctypes.c_int
+        lib.lbm_init.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_double, dp, dp, dp]
+        lib.lbm_init.restype = None
+        lib.lbm_advance.argtypes = [
+            ctypes.c_int, ctypes.c_int,
+            np.ctypeslib.ndpointer(np.uint8, flags="C_CONTIGUOUS"),
+            ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_void_p,
+            ctypes.c_int, dp, dp, dp, dp,
+        ]
+        lib.lbm_advance.restype = ctypes.c_int
         _lib = lib
     return _lib
 
@@ -65,3 +75,125 @@ def channel_flow(
     uv = np.stack([u, v], -1)
     peak = np.abs(uv).max()
     return (uv / peak if peak > 0 else uv).astype(np.float32)
+
+
+_CX = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1])
+_CY = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1])
+MAX_RELATIVE_SPEED = 0.1  # lattice units; larger agent-fluid slip risks LBM instability
+
+
+def channel_body_force(height: int, nu: float, peak_speed: float) -> float:
+    """Body acceleration whose steady Poiseuille flow peaks at `peak_speed` (lattice units)."""
+    return 8.0 * nu * peak_speed / (height - 2) ** 2
+
+
+@dataclass
+class LiveLBM:
+    """Stateful LBM fluid in the *world* frame.
+
+    World arrays are [H, W, ...] with vector component 0 along axis 0 (rows), matching how
+    `flow_movement_scale` moves agents. Internally the solver runs on the transposed grid
+    (LBM x = world axis 0), so the channel flows along axis 0 with walls on the first and
+    last column. State is plain numpy (`f`, `mask`, ...), so it pickles with checkpoints and
+    carries no native handle. Methods return new objects; the input is never mutated.
+    """
+
+    f: np.ndarray  # [W, H, 9] distributions in the LBM frame
+    mask: np.ndarray  # [W, H] uint8 solid mask in the LBM frame
+    nu: float
+    body_force: float
+    peak_speed: float
+    u: np.ndarray  # [W, H] last macroscopic fields, LBM frame
+    v: np.ndarray
+    rho: np.ndarray
+    pending_force: np.ndarray = field(default=None)  # [H, W, 2] world frame, per cell
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self.f.shape[1], self.f.shape[0]  # world (H, W)
+
+    @classmethod
+    def channel(
+        cls,
+        height: int,
+        width: int,
+        nu: float = 0.1,
+        peak_speed: float = 0.05,
+        obstacle_radius: float = 0.0,
+        warm_steps: int = 3000,
+    ) -> LiveLBM:
+        """Channel along world axis 0, warmed up to (near) steady flow."""
+        mask = channel_mask(width, height, obstacle_radius)  # LBM frame is [W, H]
+        n = mask.size
+        u, v, rho = np.zeros(mask.shape), np.zeros(mask.shape), np.ones(mask.shape)
+        f = np.zeros((*mask.shape, 9))
+        _load().lbm_init(mask.shape[0], mask.shape[1], 1.0, u, v, f)
+        out = cls(f, mask, nu, channel_body_force(mask.shape[0], nu, peak_speed), peak_speed,
+                  u, v, rho, np.zeros((height, width, 2)))
+        assert n == height * width
+        return out.advance(warm_steps)
+
+    def advance(self, steps: int, force: np.ndarray | None = None) -> LiveLBM:
+        """Return a copy advanced by `steps` LBM steps under the body force plus `force`.
+
+        `force` is a world-frame [H, W, 2] force density per cell, applied every step.
+        Defaults to `pending_force`.
+        """
+        force = self.pending_force if force is None else force
+        force_l = np.ascontiguousarray(np.asarray(force, np.float64).transpose(1, 0, 2))
+        f = np.ascontiguousarray(self.f.copy())
+        u, v, rho = (np.zeros(self.mask.shape) for _ in range(3))
+        rc = _load().lbm_advance(
+            self.mask.shape[0], self.mask.shape[1], self.mask, self.nu, self.body_force, 0.0,
+            force_l.ctypes.data, steps, f, u, v, rho,
+        )
+        if rc < 0:
+            raise ValueError("invalid LBM arguments (need h,w>=3, nu>0, steps>=0)")
+        return LiveLBM(f, self.mask, self.nu, self.body_force, self.peak_speed, u, v, rho,
+                       self.pending_force)
+
+    def with_pending_force(self, force: np.ndarray) -> LiveLBM:
+        return LiveLBM(self.f, self.mask, self.nu, self.body_force, self.peak_speed, self.u,
+                       self.v, self.rho, np.asarray(force, np.float64))
+
+    def velocity(self) -> np.ndarray:
+        """[H, W, 2] fluid velocity in lattice units (world frame)."""
+        return np.stack([self.u.T, self.v.T], axis=-1)
+
+    def flow(self) -> np.ndarray:
+        """[H, W, 2] float32 flow in world-flow units (steady channel peak is about 1)."""
+        return (self.velocity() / self.peak_speed).astype(np.float32)
+
+    def momentum(self) -> np.ndarray:
+        """Raw fluid momentum sum(f * c) over fluid cells, as (axis 0, axis 1)."""
+        fluid = (self.mask == 0)[..., None]
+        px = np.sum(self.f * _CX * fluid)
+        py = np.sum(self.f * _CY * fluid)
+        return np.array([px, py])
+
+
+def agent_reaction_forces(
+    positions: np.ndarray,
+    swim_velocities: np.ndarray,
+    radii: np.ndarray,
+    alive: np.ndarray,
+    solid_world: np.ndarray,
+    coeff: float,
+) -> np.ndarray:
+    """Per-cell force density the agents exert on the fluid (world frame, [H, W, 2]).
+
+    `swim_velocities` are agent velocities relative to the local fluid, in lattice units
+    (cells per LBM step), so passive advection carries no slip. Each agent feels Stokes
+    drag -coeff * radius * v_swim; by Newton's third law it pushes the fluid with
+    +coeff * radius * v_swim at its cell. Slip is clipped to MAX_RELATIVE_SPEED for
+    stability. Dead agents and agents on solid cells deposit nothing.
+    """
+    h, w = solid_world.shape
+    ry = np.clip(np.floor(positions[:, 0] * h).astype(int), 0, h - 1)
+    cx = np.clip(np.floor(positions[:, 1] * w).astype(int), 0, w - 1)
+    slip = np.clip(swim_velocities, -MAX_RELATIVE_SPEED, MAX_RELATIVE_SPEED)
+    force = coeff * radii[:, None] * slip
+    force = force * (np.asarray(alive, bool) & (solid_world[ry, cx] == 0))[:, None]
+    out = np.zeros((h, w, 2))
+    np.add.at(out, (ry, cx), force)
+    return out

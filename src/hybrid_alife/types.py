@@ -76,6 +76,13 @@ class WorldConfig:
     # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
+    # "lbm_live" (flow_solver): a stateful LBM fluid advanced `lbm_substeps` steps per world
+    # step, flow = lattice velocity / lbm_peak_speed. lbm_agent_drag > 0 makes agents push
+    # the fluid with Stokes drag (two-way coupling); 0 leaves the fluid unaffected.
+    lbm_viscosity: float = 0.1
+    lbm_peak_speed: float = 0.05
+    lbm_substeps: int = 10
+    lbm_agent_drag: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -344,3 +351,5 @@ class SimState:
     # to zero by the runner at the end of each generation.
     embodied_births_this_gen: int = 0
     embodied_deaths_this_gen: int = 0
+    # Live LBM fluid state (physics.lbm.LiveLBM) when flow_solver == "lbm_live".
+    lbm: Any = None

@@ -53,7 +53,7 @@ def initialize_world(cfg: WorldConfig, key: PRNGKey) -> WorldState:
 
         radius = h / 6 if cfg.curvature_regime == "obstacle" else 0.0
         flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=radius))
-    elif cfg.flow_solver != "proxy":
+    elif cfg.flow_solver not in ("proxy", "lbm_live"):  # lbm_live: set by the runner
         raise ValueError(f"unknown flow_solver={cfg.flow_solver!r}")
     noise = cfg.flow_noise_std * jax.random.normal(k3, flow.shape, dtype=jnp.float32)
     flow = flow + noise
@@ -324,12 +324,31 @@ def advect_field(
 # ---------------------------------------------------------------------------
 
 
+def new_live_lbm(cfg: WorldConfig):
+    """Warmed-up live LBM channel for a world config (obstacle if curvature_regime says so)."""
+    from hybrid_alife.physics.lbm import LiveLBM
+
+    radius = min(cfg.height, cfg.width) / 6 if cfg.curvature_regime == "obstacle" else 0.0
+    return LiveLBM.channel(
+        cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
+        obstacle_radius=radius,
+    )
+
+
 def step_world(state: SimState, cfg: WorldConfig) -> SimState:
     """Advance passive world fields (flow drift, advection, decay, regen)."""
     world = state.world
     state.rng, k_drift = jax.random.split(state.rng)
 
-    if cfg.drifting:
+    if cfg.flow_solver == "lbm_live":
+        if state.lbm is None:
+            state.lbm = new_live_lbm(cfg)
+        state.lbm = state.lbm.advance(cfg.lbm_substeps)
+        flow = jnp.asarray(state.lbm.flow())
+        shear = _compute_shear(flow)
+        shear_grad = _compute_shear_gradient(shear)
+        lift = _compute_lift_proxy(flow, shear, world.curvature, cfg)
+    elif cfg.drifting:
         flow = _drift_flow(world.flow, world.time, cfg, k_drift)
         shear = _compute_shear(flow)
         shear_grad = _compute_shear_gradient(shear)

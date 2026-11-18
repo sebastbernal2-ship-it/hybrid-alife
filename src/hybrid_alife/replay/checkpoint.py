@@ -55,6 +55,7 @@ def save_checkpoint(path: str | Path, state: SimState, config: dict[str, Any]) -
         "embodied": _state_dict(state.embodied) if state.embodied is not None else None,
         "avida": _state_dict(state.avida) if state.avida is not None else None,
         "metrics": dict(state.metrics),
+        "lbm": state.lbm,  # numpy-only LiveLBM dataclass; None for other flow solvers
         "embodied_births_this_gen": int(state.embodied_births_this_gen),
         "embodied_deaths_this_gen": int(state.embodied_deaths_this_gen),
     }
@@ -114,6 +115,7 @@ def restore_sim_state(payload: dict[str, Any]) -> SimState:
         embodied=embodied,
         avida=avida,
         metrics=dict(payload.get("metrics", {})),
+        lbm=payload.get("lbm"),
         embodied_births_this_gen=int(payload.get("embodied_births_this_gen", 0)),
         embodied_deaths_this_gen=int(payload.get("embodied_deaths_this_gen", 0)),
     )

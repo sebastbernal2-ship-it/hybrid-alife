@@ -45,7 +45,12 @@ from hybrid_alife.types import (
     SimState,
     WorldConfig,
 )
-from hybrid_alife.world.env import compute_occupancy, initialize_world, step_world
+from hybrid_alife.world.env import (
+    compute_occupancy,
+    initialize_world,
+    new_live_lbm,
+    step_world,
+)
 
 console = Console()
 
@@ -100,6 +105,10 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
         else None
     )
     avida = initialize_avida_population(cfg.avida, k_avida) if cfg.avida.enabled else None
+    lbm = None
+    if cfg.world.flow_solver == "lbm_live":
+        lbm = new_live_lbm(cfg.world)
+        world.flow = jnp.asarray(lbm.flow())
     return SimState(
         generation=0,
         step=0,
@@ -108,7 +117,37 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
         embodied=embodied,
         avida=avida,
         metrics={},
+        lbm=lbm,
     )
+
+
+def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_positions) -> None:
+    """Queue the agents' Stokes-drag reaction on the live fluid for the next world step."""
+    from hybrid_alife.physics.lbm import agent_reaction_forces
+
+    world_cfg, emb = cfg.world, state.embodied
+    h, w = world_cfg.height, world_cfg.width
+    old = np.asarray(old_positions, dtype=np.float64)
+    delta = np.asarray(emb.positions, dtype=np.float64) - old
+    if world_cfg.toroidal:
+        delta -= np.round(delta)
+    # Remove passive advection (flow_movement_scale * local flow) so only the agent's own
+    # swimming slips relative to the fluid.
+    ry = np.clip(np.floor(old[:, 0] * h).astype(int), 0, h - 1)
+    cx = np.clip(np.floor(old[:, 1] * w).astype(int), 0, w - 1)
+    local_flow = np.asarray(state.world.flow)[ry, cx]
+    swim = delta - cfg.embodied.flow_movement_scale * local_flow
+    cells_per_lbm_step = swim * np.array([h, w]) / world_cfg.lbm_substeps
+    radii = (
+        np.clip(np.asarray(emb.genomes["body_radius"]), 0.6, 1.8)
+        if cfg.embodied.body_morphology and "body_radius" in emb.genomes
+        else np.ones(old.shape[0])
+    )
+    force = agent_reaction_forces(
+        np.asarray(emb.positions, dtype=np.float64), cells_per_lbm_step, radii,
+        np.asarray(emb.alive), state.lbm.mask.T, world_cfg.lbm_agent_drag,
+    )
+    state.lbm = state.lbm.with_pending_force(force)
 
 
 def step_sim(
@@ -133,10 +172,13 @@ def step_sim(
         if observation_capture is not None:
             observation_capture(obs)
         actions, embodied = act_embodied(state.embodied, obs, cfg.embodied, k_ctrl)
+        old_positions = embodied.positions
         embodied, new_world, repro_gate = apply_embodied_actions(
             embodied, actions, state.world, cfg.embodied, cfg.world, k_act
         )
         state.world = new_world
+        if cfg.world.flow_solver == "lbm_live" and cfg.world.lbm_agent_drag > 0.0:
+            _couple_agents_to_fluid(state, cfg, old_positions)
         if allow_reproduction:
             # Reproduction mutates child genomes, so frozen-policy evaluation
             # deliberately skips this branch.
