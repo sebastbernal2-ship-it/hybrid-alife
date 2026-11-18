@@ -36,7 +36,8 @@ void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int3
                       int32_t* copied, int32_t* copied_length, float* merit, int32_t* tasks,
                       int32_t* in_a, int32_t* in_b, const uint8_t* alive, const int32_t* budget,
                       const int32_t* env_a, const int32_t* env_b, const float* rewards,
-                      double point_mutation_prob, uint64_t seed, uint8_t* div_mask) {
+                      double point_mutation_prob, uint64_t seed, uint8_t* div_mask,
+                      float* energy, float energy_cost, float energy_eff, double* totals) {
   Rng rng{seed};
   for (int o = 0; o < n; ++o) {
     div_mask[o] = 0;
@@ -48,7 +49,10 @@ void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int3
     int32_t ipo = ip[o], rh = read_head[o], wh = write_head[o], cl = copied_length[o];
     int32_t ta = tasks[o], ia = in_a[o], ib = in_b[o];
     float mer = merit[o];
+    float en = energy ? energy[o] : 0.0f;
+    double tot_in = 0.0, tot_heat = 0.0;
     for (int c = 0; c < budget[o]; ++c) {
+      if (energy && !(en > 0.0f)) break;  // out of energy: stops executing
       const int32_t op = g[fmod_pos(ipo, len)];
       const int32_t r0 = r[0], r1 = r[1];
       int32_t n0 = r0, n1 = r1;
@@ -88,11 +92,20 @@ void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int3
       }
       if (op == NAND) gain += 0.01f;
       mer += gain;
+      if (energy) {
+        const float intake = energy_eff * gain;
+        const float avail = en + intake;
+        const float paid = energy_cost < avail ? energy_cost : avail;
+        en = avail - paid;
+        tot_in += intake;
+        tot_heat += paid;
+      }
       r[0] = n0; r[1] = n1;
       if (op == H_DIVIDE) div_mask[o] = 1;
     }
     ip[o] = ipo; read_head[o] = rh; write_head[o] = wh; copied_length[o] = cl;
     tasks[o] = ta; in_a[o] = ia; in_b[o] = ib; merit[o] = mer;
+    if (energy) { energy[o] = en; totals[0] += tot_in; totals[1] += tot_heat; }
   }
 }
 
@@ -108,7 +121,7 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
                   int32_t* lengths, int32_t* registers, int32_t* memory, int32_t* ip,
                   int32_t* rh, int32_t* wh, int32_t* copied, int32_t* cl, float* merit,
                   int32_t* age, uint8_t* alive, int32_t* tasks, int32_t* lineage_id,
-                  int32_t* parent_id, int32_t* depth) {
+                  int32_t* parent_id, int32_t* depth, float* energy) {
   Rng rng{seed};
   std::vector<int> parents, dead;
   for (int i = 0; i < n; ++i) {
@@ -164,6 +177,11 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
     lineage_id[ch] = next_lineage_start + k;
     parent_id[ch] = lineage_id[p];
     depth[ch] = depth[p] + 1;
+    if (energy && !(ch == 0 && m < n)) {  // a slot-0 child that gets undone is not paid for
+      const float half = 0.5f * energy[p];
+      energy[p] = energy[p] - half;
+      energy[ch] = energy[ch] + half;
+    }
   }
   if (m < n) {  // duplicate-index-0 scatter writes from unmatched rows
     for (int j = 0; j < max_len; ++j) { genomes[j] = g0[j]; copied[j] = c0[j]; }

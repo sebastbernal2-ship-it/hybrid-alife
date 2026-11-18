@@ -192,6 +192,19 @@ def _ensure_task_fields(pop: AvidaPopulationState) -> AvidaPopulationState:
     return pop
 
 
+def energy_enabled(cfg: AvidaConfig) -> bool:
+    return cfg.instruction_energy_cost > 0.0
+
+
+def _ensure_energy_fields(pop: AvidaPopulationState, cfg: AvidaConfig) -> AvidaPopulationState:
+    """Create the energy ledger fields on first use when the energy economy is enabled."""
+    if energy_enabled(cfg) and pop.energy is None:
+        pop.energy = jnp.where(pop.alive, jnp.float32(cfg.energy_initial), 0.0).astype(jnp.float32)
+        pop.energy_in = jnp.zeros((), dtype=jnp.float32)
+        pop.heat = jnp.zeros((), dtype=jnp.float32)
+    return pop
+
+
 # ---------------------------------------------------------------------------
 # Per-cycle execution
 # ---------------------------------------------------------------------------
@@ -233,6 +246,10 @@ def vm_cycle(
 
     if cycle_mask is None:
         cycle_mask = jnp.ones((n,), dtype=bool)
+    energy_on = energy_enabled(cfg)
+    if energy_on:
+        pop = _ensure_energy_fields(pop, cfg)
+        cycle_mask = cycle_mask & (pop.energy > 0.0)
     active = pop.alive & cycle_mask
 
     idx = jnp.mod(pop.ip, jnp.maximum(pop.genome_lengths, 1))
@@ -336,6 +353,16 @@ def vm_cycle(
     pop.write_head = jnp.where(active, new_write, pop.write_head)
     pop.ip = jnp.where(active, new_ip, pop.ip)
     pop.merit = pop.merit + merit_gain * active_f
+    if energy_on:
+        # Intake is a fraction of the merit gained this cycle; the instruction cost is paid
+        # from energy on hand plus intake, so energy never goes negative and every unit paid
+        # is counted as heat.
+        intake = jnp.float32(cfg.energy_efficiency) * (merit_gain * active_f)
+        avail = pop.energy + intake
+        paid = jnp.minimum(jnp.float32(cfg.instruction_energy_cost), avail) * active_f
+        pop.energy = avail - paid
+        pop.energy_in = pop.energy_in + jnp.sum(intake)
+        pop.heat = pop.heat + jnp.sum(paid)
     pop.tasks_completed = jnp.where(active, new_tasks, pop.tasks_completed)
     pop.last_input_a = jnp.where(active, new_input_a, pop.last_input_a)
     pop.last_input_b = jnp.where(active, new_input_b, pop.last_input_b)
@@ -462,6 +489,13 @@ def apply_h_divide(
         jnp.where(use, pop.lineage_depth[parents] + 1, pop.lineage_depth[children])
     )
 
+    if pop.energy is not None:
+        # A parent hands half its energy to a child that actually ends up alive (the
+        # duplicate-index scatter above can drop a slot-0 child, which must not be paid for).
+        born = use & new_alive[children]
+        transfer = jnp.where(born, 0.5 * pop.energy[parents], 0.0)
+        pop.energy = pop.energy.at[parents].add(-transfer).at[children].add(transfer)
+
     pop.genomes = new_genomes
     pop.genome_lengths = new_lengths
     pop.registers = new_registers
@@ -513,6 +547,7 @@ def step_avida_population(
     ``cycle_mask`` gates retire organisms once they hit their budget.
     """
     pop = _ensure_task_fields(pop)
+    pop = _ensure_energy_fields(pop, cfg)
     pop._divide_op_mask = jnp.zeros_like(pop.alive)  # type: ignore[attr-defined]
 
     budget = _cycle_budget(pop.merit, cfg)
@@ -539,6 +574,8 @@ def step_avida_population(
         avida_native.divide(pop, cfg, next_lineage_start, seed_div, pop._divide_op_mask)
     else:
         pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
+    if energy_enabled(cfg):
+        pop.alive = pop.alive & (pop.energy > 0.0)  # out of energy: die at update end
     pop.age = pop.age + pop.alive.astype(jnp.int32)
 
     # Cross-branch coupling: digital organisms consume metabolites at their

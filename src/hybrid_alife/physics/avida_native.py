@@ -25,6 +25,7 @@ def _load() -> ctypes.CDLL:
             ctypes.c_int, ctypes.c_int, ctypes.c_int,
             i32, i32, i32, i32, i32, i32, i32, i32, f32, i32, i32, i32,
             u8, i32, i32, i32, f32, ctypes.c_double, ctypes.c_uint64, u8,
+            ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_void_p,
         ]
         lib.avida_run_update.restype = None
         dd = ctypes.c_double
@@ -32,6 +33,7 @@ def _load() -> ctypes.CDLL:
             ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
             dd, dd, dd, ctypes.c_uint64, ctypes.c_int32, u8,
             i32, i32, i32, i32, i32, i32, i32, i32, i32, f32, i32, u8, i32, i32, i32, i32,
+            ctypes.c_void_p,
         ]
         lib.avida_divide.restype = None
         lib.avida_couple.argtypes = [
@@ -59,12 +61,21 @@ def run_update(pop, cfg, budget, env_a, env_b, rewards, seed: int):
     merit = arr(pop.merit, np.float32)
     n, max_len = genomes.shape
     div = np.zeros(n, np.uint8)
+    energy_on = pop.energy is not None and cfg.instruction_energy_cost > 0.0
+    energy = arr(pop.energy, np.float32) if energy_on else None
+    totals = np.zeros(2, np.float64)
     _load().avida_run_update(
         n, max_len, regs.shape[1], genomes, arr(pop.genome_lengths, np.int32), regs, ip, rh, wh,
         copied, cl, merit, tasks, ia, ib, arr(pop.alive, np.uint8), arr(budget, np.int32),
         arr(env_a, np.int32), arr(env_b, np.int32), arr(rewards, np.float32),
         float(cfg.point_mutation_prob), seed & 0xFFFFFFFFFFFFFFFF, div,
+        energy.ctypes.data if energy_on else None, float(cfg.instruction_energy_cost),
+        float(cfg.energy_efficiency), totals.ctypes.data,
     )
+    if energy_on:
+        pop.energy = jnp.asarray(energy)
+        pop.energy_in = pop.energy_in + jnp.float32(totals[0])
+        pop.heat = pop.heat + jnp.float32(totals[1])
     pop.copied, pop.registers = jnp.asarray(copied), jnp.asarray(regs)
     pop.ip, pop.read_head, pop.write_head = map(jnp.asarray, (ip, rh, wh))
     pop.copied_length, pop.tasks_completed = jnp.asarray(cl), jnp.asarray(tasks)
@@ -88,14 +99,17 @@ def divide(pop, cfg, next_lineage_start: int, seed: int, div_mask) -> None:
     lid, pid, depth = (arr(getattr(pop, k), np.int32)
                        for k in ("lineage_id", "parent_id", "lineage_depth"))
     merit, alive = arr(pop.merit, np.float32), arr(pop.alive, np.uint8)
+    energy = arr(pop.energy, np.float32) if pop.energy is not None else None
     n, max_len = genomes.shape
     _load().avida_divide(
         n, max_len, regs.shape[1], mem.shape[1], int(cfg.min_genome_length),
         max(1, cfg.genome_length // 8), float(cfg.insertion_prob), float(cfg.deletion_prob),
         float(cfg.duplication_prob), seed & 0xFFFFFFFFFFFFFFFF, int(next_lineage_start),
         arr(div_mask, np.uint8), genomes, lengths, regs, mem, ip, rh, wh, copied, cl, merit,
-        age, alive, tasks, lid, pid, depth,
+        age, alive, tasks, lid, pid, depth, energy.ctypes.data if energy is not None else None,
     )
+    if energy is not None:
+        pop.energy = jnp.asarray(energy)
     pop.genomes, pop.copied, pop.genome_lengths = map(jnp.asarray, (genomes, copied, lengths))
     pop.registers, pop.memory = jnp.asarray(regs), jnp.asarray(mem)
     pop.ip, pop.read_head, pop.write_head = map(jnp.asarray, (ip, rh, wh))

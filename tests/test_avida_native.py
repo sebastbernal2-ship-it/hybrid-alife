@@ -134,3 +134,95 @@ def test_native_mutated_division_keeps_invariants():
         parent_slot = int(np.nonzero(ids_before == pid)[0][0])
         assert depth[child] == depth_before[parent_slot] + 1
         assert float(pop.merit[child]) >= 1.0 and int(pop.age[child]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Energy / heat accounting
+# ---------------------------------------------------------------------------
+
+
+def _energy_setup(seed=0, dead_frac=0.4, kill0=True, **cfg_over):
+    over = {"instruction_energy_cost": 0.1, "energy_initial": 20.0, "energy_efficiency": 0.5,
+            **cfg_over}
+    cfg, world, pop, positions = _coupled_setup(seed, dead_frac, kill0)
+    return dataclasses.replace(cfg, **over), world, pop, positions
+
+
+def _energy_total(pop):
+    return float(np.asarray(pop.energy, dtype=np.float64).sum())
+
+
+def _ledger_gap(pop, e0_total):
+    return (_energy_total(pop) - e0_total) - (float(pop.energy_in) - float(pop.heat))
+
+
+def test_energy_is_off_by_default_and_costless_energy_changes_nothing():
+    cfg, world, pop, positions = _coupled_setup(0, 0.4, True)
+    ref, ref_world = _run_steps(cfg, world, pop, positions, native=False)
+    assert ref.energy is None and ref.heat is None and ref.energy_in is None
+    # Energy enabled but never binding: identical dynamics on every other field.
+    rich = dataclasses.replace(cfg, instruction_energy_cost=1e-9, energy_initial=1e6)
+    on, on_world = _run_steps(rich, world, pop, positions, native=False)
+    for f in POP_FIELDS:
+        np.testing.assert_array_equal(getattr(ref, f), getattr(on, f), err_msg=f)
+    np.testing.assert_array_equal(ref_world.metabolites, on_world.metabolites)
+    np.testing.assert_array_equal(ref_world.concentration, on_world.concentration)
+
+
+def test_energy_ledger_matches_independent_counts_without_division():
+    cfg, world, pop, positions = _energy_setup(1, 0.3, False, energy_initial=50.0)
+    cfg = dataclasses.replace(cfg, metabolite_uptake=0.0, metabolite_deposit=0.0)
+    genomes = jnp.where(pop.genomes == avida_vm.Op.H_DIVIDE, avida_vm.Op.NOP, pop.genomes)
+    pop = dataclasses.replace(pop, genomes=genomes)
+    budget = np.asarray(avida_vm._cycle_budget(pop.merit, cfg))
+    alive = np.asarray(pop.alive)
+    merit0 = float(np.asarray(pop.merit, dtype=np.float64)[alive].sum())
+    for native in (False, True):
+        out, _ = _run_steps(cfg, world, pop, positions, native=native, steps=1)
+        cycles = float(budget[alive].sum())  # every organism has ample energy
+        np.testing.assert_allclose(
+            float(out.heat), cfg.instruction_energy_cost * cycles, rtol=1e-4)
+        gained = float(np.asarray(out.merit, dtype=np.float64)[alive].sum()) - merit0
+        np.testing.assert_allclose(
+            float(out.energy_in), cfg.energy_efficiency * gained, rtol=1e-4)
+        e0 = float(alive.sum()) * cfg.energy_initial
+        assert abs(_ledger_gap(out, e0)) < 1e-3 * max(1.0, float(out.energy_in))
+
+
+def test_energy_ledger_balances_with_births_and_starvation():
+    for native in (False, True):
+        cfg, world, pop, positions = _energy_setup(2, 0.5, True, energy_initial=1.5)
+        e0 = float(np.asarray(pop.alive).sum()) * cfg.energy_initial
+        out, _ = _run_steps(cfg, world, pop, positions, native=native, steps=4)
+        energy, alive = np.asarray(out.energy), np.asarray(out.alive)
+        assert energy.min() >= 0.0  # payments are clamped to energy on hand
+        assert np.all(energy[alive] > 0.0)  # alive implies energy left
+        assert np.all(energy[~alive] == 0.0)  # death leaves nothing behind
+        assert alive.sum() < 64 and float(out.heat) > 0.0  # starvation and dissipation happened
+        assert abs(_ledger_gap(out, e0)) < 1e-3 * max(1.0, float(out.energy_in) + e0)
+
+
+def test_parent_energy_is_split_with_the_child():
+    cfg, world, pop, positions = _energy_setup(3, 0.5, False, energy_initial=50.0,
+                                               instruction_energy_cost=1e-6)
+    cfg = dataclasses.replace(cfg, metabolite_uptake=0.0, metabolite_deposit=0.0)
+    out, _ = _run_steps(cfg, world, pop, positions, native=False, steps=1)
+    born = np.asarray(out.alive) & ~np.asarray(pop.alive)
+    assert born.sum() > 0
+    energy = np.asarray(out.energy)
+    # A child holds the half its parent gave up, so it sits near half of the starting energy.
+    assert np.all(np.abs(energy[born] - 25.0) < 5.0)
+
+
+def test_native_and_jax_agree_on_energy_without_mutation():
+    scenarios = ((0, 0.4, True, {}), (1, 0.8, True, {"energy_initial": 1.0}),
+                 (2, 0.0, False, {"energy_initial": 2.0, "instruction_energy_cost": 0.3}))
+    for seed, dead_frac, kill0, over in scenarios:
+        cfg, world, pop, positions = _energy_setup(seed, dead_frac, kill0, **over)
+        ref, _ = _run_steps(cfg, world, pop, positions, native=False, steps=3)
+        nat, _ = _run_steps(cfg, world, pop, positions, native=True, steps=3)
+        for f in (*POP_FIELDS, "energy"):
+            np.testing.assert_array_equal(
+                getattr(ref, f), getattr(nat, f), err_msg=f"{f} seed={seed}")
+        np.testing.assert_allclose(float(ref.heat), float(nat.heat), rtol=1e-4)
+        np.testing.assert_allclose(float(ref.energy_in), float(nat.energy_in), rtol=1e-4)
