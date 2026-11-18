@@ -3,6 +3,7 @@
 // within an update, so the cycle loop is organism-major). Copy mutations use
 // a splitmix64 stream, so they match the JAX path in distribution, not bits.
 #include <cstdint>
+#include <vector>
 
 namespace {
 enum Op { NOP, INC, DEC, ADD, NAND, SHIFT_L, SHIFT_R, LOAD_ENV, EMIT, H_ALLOC,
@@ -92,6 +93,136 @@ void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int3
     }
     ip[o] = ipo; read_head[o] = rh; write_head[o] = wh; copied_length[o] = cl;
     tasks[o] = ta; in_a[o] = ia; in_b[o] = ib; merit[o] = mer;
+  }
+}
+
+
+// Offspring placement at the update boundary; mirrors avida_vm.apply_h_divide.
+// Parents (executed H_DIVIDE with copied_length >= min_copy) are matched in index
+// order to dead slots in index order. JAX scatters with duplicate index 0 for the
+// unmatched rows, so when matches < n the slot-0 child writes and slot-0 parent
+// buffer reset are undone; that behaviour is reproduced here on purpose.
+void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_copy,
+                  double ins_p, double del_p, double dup_p, uint64_t seed,
+                  int32_t next_lineage_start, const uint8_t* div_mask, int32_t* genomes,
+                  int32_t* lengths, int32_t* registers, int32_t* memory, int32_t* ip,
+                  int32_t* rh, int32_t* wh, int32_t* copied, int32_t* cl, float* merit,
+                  int32_t* age, uint8_t* alive, int32_t* tasks, int32_t* lineage_id,
+                  int32_t* parent_id, int32_t* depth) {
+  Rng rng{seed};
+  std::vector<int> parents, dead;
+  for (int i = 0; i < n; ++i) {
+    if (div_mask[i] && cl[i] >= min_copy) parents.push_back(i);
+    if (!alive[i]) dead.push_back(i);
+  }
+  const int m = (int)(parents.size() < dead.size() ? parents.size() : dead.size());
+  if (m == 0) return;
+
+  // Snapshot of slot 0 (restored below if unmatched rows would overwrite it).
+  std::vector<int32_t> g0(genomes, genomes + max_len), r0(registers, registers + nreg),
+      m0(memory, memory + mem), c0(copied, copied + max_len);
+  const int32_t len0 = lengths[0], ip0 = ip[0], rh0 = rh[0], wh0 = wh[0], cl0 = cl[0],
+                age0 = age[0], tasks0 = tasks[0], lid0 = lineage_id[0], pid0 = parent_id[0],
+                dep0 = depth[0];
+  const float merit0 = merit[0];
+  const uint8_t alive0 = alive[0];
+
+  std::vector<int32_t> tmp(max_len);
+  for (int k = 0; k < m; ++k) {
+    const int p = parents[k], ch = dead[k];
+    const int32_t pl = cl[p];
+    const int32_t* pc = copied + (int64_t)p * max_len;
+    for (int j = 0; j < max_len; ++j) tmp[j] = pc[j];
+    const bool ins = ins_p > 0 && rng.uniform() < ins_p;
+    const bool del = del_p > 0 && rng.uniform() < del_p;
+    const bool dup = dup_p > 0 && rng.uniform() < dup_p;
+    int32_t dup_len = pl / 4;
+    dup_len = dup_len < 1 ? 1 : (dup_len > max_len ? max_len : dup_len);
+    if (dup) {
+      const int32_t denom = pl > 1 ? pl : 1;
+      const int32_t start = (int32_t)(rng.next() % (uint64_t)max_len) % denom;
+      for (int j = pl; j < pl + dup_len && j < max_len; ++j) {
+        int32_t off = j - pl;
+        off = off > dup_len - 1 ? dup_len - 1 : off;
+        tmp[j] = pc[(start + off) % denom];
+      }
+    }
+    int32_t child_len = pl + (ins ? 1 : 0) - (del ? 1 : 0) + (dup ? dup_len : 0);
+    child_len = child_len < min_len ? min_len : child_len;
+    child_len = child_len > max_len ? max_len : child_len;
+
+    for (int j = 0; j < max_len; ++j) {
+      genomes[(int64_t)ch * max_len + j] = tmp[j];
+      copied[(int64_t)ch * max_len + j] = 0;
+    }
+    lengths[ch] = child_len;
+    for (int j = 0; j < nreg; ++j) registers[(int64_t)ch * nreg + j] = 0;
+    for (int j = 0; j < mem; ++j) memory[(int64_t)ch * mem + j] = 0;
+    ip[ch] = rh[ch] = wh[ch] = cl[ch] = age[ch] = tasks[ch] = 0;
+    merit[ch] = 1.0f;
+    alive[ch] = 1;
+    lineage_id[ch] = next_lineage_start + k;
+    parent_id[ch] = lineage_id[p];
+    depth[ch] = depth[p] + 1;
+  }
+  if (m < n) {  // duplicate-index-0 scatter writes from unmatched rows
+    for (int j = 0; j < max_len; ++j) { genomes[j] = g0[j]; copied[j] = c0[j]; }
+    for (int j = 0; j < nreg; ++j) registers[j] = r0[j];
+    for (int j = 0; j < mem; ++j) memory[j] = m0[j];
+    lengths[0] = len0; ip[0] = ip0; rh[0] = rh0; wh[0] = wh0; cl[0] = cl0; age[0] = age0;
+    tasks[0] = tasks0; lineage_id[0] = lid0; parent_id[0] = pid0; depth[0] = dep0;
+    merit[0] = merit0; alive[0] = alive0;
+  }
+
+  std::vector<int32_t> pc0(copied, copied + max_len);
+  const int32_t pcl0 = cl[0];
+  for (int k = 0; k < m; ++k) {
+    const int p = parents[k];
+    for (int j = 0; j < max_len; ++j) copied[(int64_t)p * max_len + j] = 0;
+    cl[p] = 0;
+  }
+  if (m < n) {
+    for (int j = 0; j < max_len; ++j) copied[j] = pc0[j];
+    cl[0] = pcl0;
+  }
+}
+
+// Metabolite uptake / concentration deposit; mirrors the coupling block of
+// step_avida_population. gr/gc are precomputed grid cells (float32 JAX indexing).
+void avida_couple(int n, int h, int w, int M, int C, const int32_t* gr, const int32_t* gc,
+                  const uint8_t* alive, float uptake, float deposit, float* metab,
+                  float* conc, float* merit) {
+  (void)h;
+  if (uptake > 0.0f) {
+    std::vector<float> take((size_t)n * M);
+    for (int i = 0; i < n; ++i) {
+      const float a = alive[i] ? 1.0f : 0.0f;
+      const float* av = metab + ((int64_t)gr[i] * w + gc[i]) * M;
+      for (int c = 0; c < M; ++c) take[(size_t)i * M + c] = av[c] * uptake * a;
+    }
+    for (int i = 0; i < n; ++i) {
+      float* cell = metab + ((int64_t)gr[i] * w + gc[i]) * M;
+      for (int c = 0; c < M; ++c) cell[c] = cell[c] + (-take[(size_t)i * M + c]);
+    }
+    const int64_t total = (int64_t)h * w * M;
+    for (int64_t j = 0; j < total; ++j) {
+      float x = metab[j];
+      x = x < 0.0f ? 0.0f : x;
+      metab[j] = x > 1.0f ? 1.0f : x;
+    }
+    for (int i = 0; i < n; ++i) {
+      float s = take[(size_t)i * M];
+      for (int c = 1; c < M; ++c) s = s + take[(size_t)i * M + c];
+      merit[i] = merit[i] + s * 5.0f;
+    }
+  }
+  if (deposit > 0.0f) {
+    for (int i = 0; i < n; ++i) {
+      const float a = alive[i] ? 1.0f : 0.0f;
+      const float d = (deposit * a) * a;
+      float* cell = conc + ((int64_t)gr[i] * w + gc[i]) * C;
+      for (int c = 0; c < C; ++c) cell[c] = cell[c] + d;
+    }
   }
 }
 

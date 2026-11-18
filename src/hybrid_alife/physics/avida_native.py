@@ -27,6 +27,18 @@ def _load() -> ctypes.CDLL:
             u8, i32, i32, i32, f32, ctypes.c_double, ctypes.c_uint64, u8,
         ]
         lib.avida_run_update.restype = None
+        dd = ctypes.c_double
+        lib.avida_divide.argtypes = [
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            dd, dd, dd, ctypes.c_uint64, ctypes.c_int32, u8,
+            i32, i32, i32, i32, i32, i32, i32, i32, i32, f32, i32, u8, i32, i32, i32, i32,
+        ]
+        lib.avida_divide.restype = None
+        lib.avida_couple.argtypes = [
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            i32, i32, u8, ctypes.c_float, ctypes.c_float, f32, f32, f32,
+        ]
+        lib.avida_couple.restype = None
         _lib = lib
     return _lib
 
@@ -58,3 +70,56 @@ def run_update(pop, cfg, budget, env_a, env_b, rewards, seed: int):
     pop.copied_length, pop.tasks_completed = jnp.asarray(cl), jnp.asarray(tasks)
     pop.last_input_a, pop.last_input_b, pop.merit = map(jnp.asarray, (ia, ib, merit))
     return jnp.asarray(div.astype(bool))
+
+
+def divide(pop, cfg, next_lineage_start: int, seed: int, div_mask) -> None:
+    """Native apply_h_divide. Mutates `pop` in place."""
+    import jax.numpy as jnp
+
+    def arr(x, dtype):
+        return np.array(x, dtype=dtype, order="C")
+
+    genomes, copied = arr(pop.genomes, np.int32), arr(pop.copied, np.int32)
+    lengths, regs, mem = (arr(pop.genome_lengths, np.int32), arr(pop.registers, np.int32),
+                          arr(pop.memory, np.int32))
+    ip, rh, wh, cl, age, tasks = (
+        arr(getattr(pop, k), np.int32)
+        for k in ("ip", "read_head", "write_head", "copied_length", "age", "tasks_completed"))
+    lid, pid, depth = (arr(getattr(pop, k), np.int32)
+                       for k in ("lineage_id", "parent_id", "lineage_depth"))
+    merit, alive = arr(pop.merit, np.float32), arr(pop.alive, np.uint8)
+    n, max_len = genomes.shape
+    _load().avida_divide(
+        n, max_len, regs.shape[1], mem.shape[1], int(cfg.min_genome_length),
+        max(1, cfg.genome_length // 8), float(cfg.insertion_prob), float(cfg.deletion_prob),
+        float(cfg.duplication_prob), seed & 0xFFFFFFFFFFFFFFFF, int(next_lineage_start),
+        arr(div_mask, np.uint8), genomes, lengths, regs, mem, ip, rh, wh, copied, cl, merit,
+        age, alive, tasks, lid, pid, depth,
+    )
+    pop.genomes, pop.copied, pop.genome_lengths = map(jnp.asarray, (genomes, copied, lengths))
+    pop.registers, pop.memory = jnp.asarray(regs), jnp.asarray(mem)
+    pop.ip, pop.read_head, pop.write_head = map(jnp.asarray, (ip, rh, wh))
+    pop.copied_length, pop.age, pop.tasks_completed = map(jnp.asarray, (cl, age, tasks))
+    pop.lineage_id, pop.parent_id, pop.lineage_depth = map(jnp.asarray, (lid, pid, depth))
+    pop.merit, pop.alive = jnp.asarray(merit), jnp.asarray(alive.astype(bool))
+
+
+def couple(pop, world, cfg, positions) -> None:
+    """Native metabolite uptake / concentration deposit. Mutates `pop` and `world`."""
+    import jax.numpy as jnp
+
+    from hybrid_alife.world.env import positions_to_grid
+
+    h, w = world.metabolites.shape[0], world.metabolites.shape[1]
+    grid = np.array(positions_to_grid(positions, h, w), dtype=np.int32)
+    gr, gc = np.ascontiguousarray(grid[:, 0]), np.ascontiguousarray(grid[:, 1])
+    metab = np.array(world.metabolites, dtype=np.float32, order="C")
+    conc = np.array(world.concentration, dtype=np.float32, order="C")
+    merit = np.array(pop.merit, dtype=np.float32, order="C")
+    _load().avida_couple(
+        pop.alive.shape[0], h, w, metab.shape[-1], conc.shape[-1], gr, gc,
+        np.array(pop.alive, dtype=np.uint8), float(cfg.metabolite_uptake),
+        float(cfg.metabolite_deposit), metab, conc, merit,
+    )
+    world.metabolites, world.concentration = jnp.asarray(metab), jnp.asarray(conc)
+    pop.merit = jnp.asarray(merit)

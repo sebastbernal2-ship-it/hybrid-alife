@@ -532,13 +532,24 @@ def step_avida_population(
             pop = vm_cycle(pop, world, cfg, positions, k_cyc, cycle_mask)
 
     key, k_div = jax.random.split(key)
-    pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
+    if cfg.native:
+        from hybrid_alife.physics import avida_native
+
+        seed_div = int(jax.random.randint(k_div, (), 0, 2**31 - 1, dtype=jnp.int32))
+        avida_native.divide(pop, cfg, next_lineage_start, seed_div, pop._divide_op_mask)
+    else:
+        pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
     pop.age = pop.age + pop.alive.astype(jnp.int32)
 
     # Cross-branch coupling: digital organisms consume metabolites at their
     # mapped position and deposit a fraction back as concentration. This
     # creates an actual resource-loop between the two branches.
-    if positions is not None and positions.shape[0] == pop.alive.shape[0]:
+    coupled = positions is not None and positions.shape[0] == pop.alive.shape[0]
+    if coupled and cfg.native:
+        from hybrid_alife.physics import avida_native
+
+        avida_native.couple(pop, world, cfg, positions)
+    elif coupled:
         h, w = world.metabolites.shape[0], world.metabolites.shape[1]
         if cfg.metabolite_uptake > 0.0:
             grid = positions_to_grid(positions, h, w)

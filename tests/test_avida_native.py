@@ -64,3 +64,73 @@ def test_native_step_runs_with_mutation_and_divides():
     assert nxt == 1000 + 64
     assert int(pop2.copied_length.max()) >= 0 and pop2.genomes.shape == (64, 32)
     assert bool(jnp.all((pop2.genomes >= 0) & (pop2.genomes < avida_vm.INSTRUCTION_COUNT)))
+
+
+POP_FIELDS = ("genomes", "genome_lengths", "registers", "memory", "ip", "read_head", "write_head",
+              "copied", "copied_length", "merit", "age", "alive", "lineage_id", "parent_id",
+              "lineage_depth", "tasks_completed", "last_input_a", "last_input_b")
+
+
+def _coupled_setup(seed, dead_frac, kill_slot0, **cfg_over):
+    cfg, world, pop, positions = _setup(0.0)
+    cfg = dataclasses.replace(cfg, metabolite_uptake=0.3, metabolite_deposit=0.05, **cfg_over)
+    key = jax.random.PRNGKey(seed)
+    world.metabolites = jax.random.uniform(key, world.metabolites.shape)
+    # Few distinct cells so many organisms share a cell (exercises duplicate scatter-adds).
+    positions = jnp.floor(positions * 4.0) / 12.0 + 0.01
+    alive = jax.random.bernoulli(jax.random.fold_in(key, 1), 1.0 - dead_frac, (64,))
+    alive = alive.at[0].set(not kill_slot0)
+    pop = dataclasses.replace(pop, alive=alive)
+    return cfg, world, pop, positions
+
+
+def _run_steps(cfg, world, pop, positions, native, steps=3, seed=9):
+    cfg = dataclasses.replace(cfg, native=native)
+    world = dataclasses.replace(world)
+    pop = _clone(pop)
+    nxt = 1000
+    for i in range(steps):
+        pop, nxt = avida_vm.step_avida_population(
+            pop, world, cfg, nxt, jax.random.PRNGKey(seed + i), positions)
+    return pop, world
+
+
+def test_full_native_step_is_bit_exact_without_mutation():
+    divided = 0
+    for seed, dead_frac, kill0 in ((0, 0.5, True), (1, 0.5, False), (2, 0.9, True),
+                                   (3, 0.2, True), (4, 0.0, False)):
+        cfg, world, pop, positions = _coupled_setup(seed, dead_frac, kill0)
+        ref_pop, ref_world = _run_steps(cfg, world, pop, positions, native=False)
+        nat_pop, nat_world = _run_steps(cfg, world, pop, positions, native=True)
+        for f in POP_FIELDS:
+            np.testing.assert_array_equal(
+                getattr(ref_pop, f), getattr(nat_pop, f), err_msg=f"{f} seed={seed}")
+        np.testing.assert_array_equal(ref_world.metabolites, nat_world.metabolites)
+        np.testing.assert_array_equal(ref_world.concentration, nat_world.concentration)
+        divided += int((ref_pop.lineage_depth > 0).sum())
+    assert divided > 0  # births actually happened in the compared runs
+
+
+def test_native_mutated_division_keeps_invariants():
+    cfg, world, pop, positions = _coupled_setup(5, 0.6, False)
+    cfg = dataclasses.replace(cfg, point_mutation_prob=0.02, insertion_prob=0.3,
+                              deletion_prob=0.3, duplication_prob=0.4, native=True)
+    world = dataclasses.replace(world)
+    pop = _clone(pop)
+    depth_before = np.asarray(pop.lineage_depth)
+    ids_before = np.asarray(pop.lineage_id)
+    alive_before = np.asarray(pop.alive)
+    pop, _ = avida_vm.step_avida_population(
+        pop, world, cfg, 1000, jax.random.PRNGKey(3), positions)
+    g, lens = np.asarray(pop.genomes), np.asarray(pop.genome_lengths)
+    assert g.min() >= 0 and g.max() < avida_vm.INSTRUCTION_COUNT
+    assert lens.min() >= cfg.min_genome_length and lens.max() <= cfg.max_genome_length
+    born = np.asarray(pop.alive) & ~alive_before
+    assert born.sum() > 0
+    parents = np.asarray(pop.parent_id)[born]
+    depth = np.asarray(pop.lineage_depth)
+    assert np.all(np.asarray(pop.lineage_id)[born] >= 1000)
+    for child, pid in zip(np.nonzero(born)[0], parents, strict=True):
+        parent_slot = int(np.nonzero(ids_before == pid)[0][0])
+        assert depth[child] == depth_before[parent_slot] + 1
+        assert float(pop.merit[child]) >= 1.0 and int(pop.age[child]) == 1
