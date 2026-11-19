@@ -76,7 +76,7 @@ min_delta (more power than a pass/fail count) is the better test:
 
 Monopole against dipole at the same strength: at 2.0, paired mean +0.135 for the dipole,
 p = 0.003; at 0.5, -0.005, p = 0.89. Reversed-law alignment (min_reversed) does not move
-in any condition (mean change within 0.03, all p > 0.6).
+in any condition (mean change within 0.04, all p > 0.6).
 
 ## Reading
 
