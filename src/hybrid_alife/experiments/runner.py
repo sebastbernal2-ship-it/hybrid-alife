@@ -121,8 +121,14 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
     )
 
 
-def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_positions) -> None:
-    """Queue the agents' Stokes-drag reaction on the live fluid for the next world step."""
+def agent_force_field(
+    state: SimState, cfg: ExperimentConfig, old_positions, alive=None
+) -> np.ndarray:
+    """Per-cell force density the agents exert on the live fluid, [H, W, 2] (world frame).
+
+    ``alive`` optionally overrides the alive mask (e.g. to isolate one agent); forces are
+    additive over agents, so the per-agent fields sum to the full field.
+    """
     from hybrid_alife.physics.lbm import agent_dipole_forces, agent_reaction_forces
 
     world_cfg, emb = cfg.world, state.embodied
@@ -145,17 +151,19 @@ def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_position
     )
     args = (
         np.asarray(emb.positions, dtype=np.float64), cells_per_lbm_step, radii,
-        np.asarray(emb.alive), state.lbm.mask.T, world_cfg.lbm_agent_drag,
+        np.asarray(emb.alive if alive is None else alive), state.lbm.mask.T,
+        world_cfg.lbm_agent_drag,
     )
     if world_cfg.lbm_agent_coupling == "dipole":
-        force = agent_dipole_forces(
-            *args, world_cfg.lbm_dipole_length, world_cfg.toroidal
-        )
-    elif world_cfg.lbm_agent_coupling == "monopole":
-        force = agent_reaction_forces(*args)
-    else:
-        raise ValueError(f"unknown lbm_agent_coupling={world_cfg.lbm_agent_coupling!r}")
-    state.lbm = state.lbm.with_pending_force(force)
+        return agent_dipole_forces(*args, world_cfg.lbm_dipole_length, world_cfg.toroidal)
+    if world_cfg.lbm_agent_coupling == "monopole":
+        return agent_reaction_forces(*args)
+    raise ValueError(f"unknown lbm_agent_coupling={world_cfg.lbm_agent_coupling!r}")
+
+
+def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_positions) -> None:
+    """Queue the agents' Stokes-drag reaction on the live fluid for the next world step."""
+    state.lbm = state.lbm.with_pending_force(agent_force_field(state, cfg, old_positions))
 
 
 def step_sim(
