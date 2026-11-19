@@ -154,3 +154,46 @@ def test_legacy_flow_solvers_carry_no_live_state():
         state = step_world(state, legacy.world)
         np.testing.assert_array_equal(np.asarray(state.world.flow), before)  # static as before
     _ = jnp
+
+
+def test_live_lbm_rejects_bad_force_shapes_and_supersonic_flow():
+    import pytest
+
+    fluid = LiveLBM.channel(12, 12, warm_steps=10)
+    with pytest.raises(ValueError, match="shape"):
+        fluid.advance(1, force=np.zeros((12, 11, 2)))
+    with pytest.raises(ValueError, match="shape"):
+        fluid.with_pending_force(np.zeros((3, 3, 2)))
+    huge = np.zeros((12, 12, 2))
+    huge[6, 6] = 5.0
+    with pytest.raises(ValueError, match="low-Mach"):
+        fluid.advance(5, force=huge)
+    # a missing pending force means no extra forcing, not a crash
+    bare = LiveLBM.channel(12, 12, warm_steps=1)
+    bare.pending_force = None
+    assert bare.advance(1).u.shape == bare.u.shape
+
+
+def test_world_config_validates_live_lbm_parameters():
+    import pytest
+
+    from hybrid_alife.types import WorldConfig
+
+    kw = dict(width=12, height=12, toroidal=False, resource_channels=1, hazard_channels=1,
+              max_agents=1, max_digital_organisms=1, flow_noise_std=0.0,
+              concentration_decay=0.9, concentration_diffusion=0.05, flow_solver="lbm_live")
+    WorldConfig(**kw)  # defaults are valid
+    for bad, match in (
+        ({"lbm_viscosity": 0.0}, "lbm_viscosity"),
+        ({"lbm_peak_speed": 0.5}, "lbm_peak_speed"),
+        ({"lbm_peak_speed": 0.0}, "lbm_peak_speed"),
+        ({"lbm_substeps": 0}, "lbm_substeps"),
+        ({"lbm_agent_drag": -1.0}, "lbm_agent_drag"),
+        ({"lbm_agent_coupling": "quadrupole"}, "lbm_agent_coupling"),
+        ({"drifting": True}, "ignores drifting"),
+        ({"flow_noise_std": 0.03}, "ignores drifting"),
+    ):
+        with pytest.raises(ValueError, match=match):
+            WorldConfig(**{**kw, **bad})
+    with pytest.raises(ValueError, match="flow_solver"):
+        WorldConfig(**{**kw, "flow_solver": "lbn"})
