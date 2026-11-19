@@ -153,6 +153,13 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
+    # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
+    # concentration diffusion/decay/advection.
+    # The signal is an intensity (emit gate x signal_deposit), not message content; the emitter
+    # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
+    chemical_signaling: bool = False
+    signal_deposit: float = 1.0
     # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
     # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
     # closure covers eating only: reward terms, predation transfers, max_energy clipping and

@@ -109,10 +109,26 @@ def embodied_action_dim(cfg: EmbodiedConfig) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _validate_chemical_signaling(cfg: EmbodiedConfig) -> None:
+    """Reject configs where the chemical signal would be silently useless or invalid."""
+    if not cfg.chemical_signaling:
+        return
+    if cfg.signal_deposit < 0.0:
+        raise ValueError("signal_deposit must be >= 0")
+    if not cfg.use_comms:
+        raise ValueError("chemical_signaling needs use_comms=True (no emission otherwise)")
+    if cfg.blind or "concentration" in _hidden_field_groups(cfg):
+        raise ValueError(
+            "chemical_signaling needs the concentration field to be observable "
+            "(not blind, 'concentration' not in hidden_field_groups)"
+        )
+
+
 def initialize_embodied_population(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> EmbodiedPopulationState:
     """Initialize positions, energies, recurrent state, messages, and genome params."""
+    _validate_chemical_signaling(cfg)
     k_pos, k_genome = jax.random.split(key)
     n = cfg.population_size
     positions = jax.random.uniform(k_pos, (n, 2), minval=0.0, maxval=1.0)
@@ -564,6 +580,10 @@ def apply_embodied_actions(
     new_msg = pop.messages * 0.5 + emit_hard[:, None] * msg_vec * alive_f[:, None]
     if not embodied_cfg.use_comms:
         new_msg = jnp.zeros_like(new_msg)
+    elif embodied_cfg.chemical_signaling:
+        pulse = embodied_cfg.signal_deposit * emit_hard * alive_f
+        signal = jnp.stack([jnp.zeros_like(pulse), pulse], axis=-1)
+        new_conc = scatter_add_to_grid(new_conc, new_pos, signal, pop.alive, h, w)
 
     # Predation: an attacking organism drains the nearest neighbour inside the
     # predation radius. The transfer is a fraction of the prey's energy.
