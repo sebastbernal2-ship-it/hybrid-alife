@@ -262,8 +262,28 @@ class AvidaConfig:
     # Branch coupling: digital organisms read/produce world metabolites.
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
-    # Run the per-update cycle loop in the native C++ kernel (make -C native).
+    # Run the whole update (cycles, division, metabolite coupling) in the native C++
+    # kernel (make -C native). Not supported under jax.jit.
     native: bool = False
+    # Opt-in energy economy, enabled when instruction_energy_cost > 0. Every executed
+    # instruction costs this much energy, merit gained by an instruction is converted to
+    # energy at energy_efficiency, an organism with no energy stops executing and dies at
+    # the end of the update, and a dividing parent hands half its energy to its child.
+    # Energy that is paid out is dissipated as heat (AvidaPopulationState.heat).
+    instruction_energy_cost: float = 0.0
+    energy_initial: float = 10.0
+    energy_efficiency: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.instruction_energy_cost < 0.0:
+            raise ValueError("instruction_energy_cost must be >= 0 (0 disables the economy)")
+        if self.instruction_energy_cost > 0.0:
+            if self.energy_initial <= 0.0:
+                raise ValueError("energy_initial must be > 0 when the energy economy is enabled")
+            if self.energy_efficiency < 0.0:
+                raise ValueError("energy_efficiency must be >= 0")
+        if self.native and self.registers < 2:
+            raise ValueError("AvidaConfig.native needs registers >= 2")
 
 
 @dataclass(frozen=True)
@@ -383,6 +403,12 @@ class AvidaPopulationState:
     # Last env IO input pair (per organism) used to detect logic-task outputs.
     last_input_a: Array | None = None
     last_input_b: Array | None = None
+    # Energy economy (None unless AvidaConfig.instruction_energy_cost > 0). `energy` is per
+    # organism; `energy_in` and `heat` are scalar running totals, never reset, so that
+    # sum(energy) - sum(energy at start) == energy_in - heat holds across births and deaths.
+    energy: Array | None = None
+    energy_in: Array | None = None
+    heat: Array | None = None
 
 
 @dataclass
