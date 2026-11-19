@@ -59,6 +59,7 @@ def study_seed(
     raw_flow_features: bool,
     eval_steps: int,
     min_evolved: float | None,
+    world_overrides: dict | None = None,
 ) -> dict:
     pilot = run_embodied_law_pilot(
         seed=seed,
@@ -78,6 +79,7 @@ def study_seed(
         immigrant_fraction=immigrant_fraction,
         flow_head=flow_head,
         raw_flow_features=raw_flow_features,
+        world_overrides=world_overrides,
     )
     state, config = pilot["state"], pilot["config"]
     evolved = per_direction_frozen_alignment(state, config, DIAGONALS, steps=eval_steps)
@@ -157,6 +159,16 @@ def main() -> int:
         default="uniform",
         help="lbm: LBM channel law, vectors rotated; lbm-geometry: whole channel rotated",
     )
+    parser.add_argument(
+        "--law-carrier",
+        choices=("legacy", "live"),
+        default="legacy",
+        help="live: the law is the mean flow of a live periodic LBM box (agents may couple to it)",
+    )
+    parser.add_argument("--lbm-drag", type=float, default=0.0, help="agent-fluid coupling coeff")
+    parser.add_argument("--lbm-coupling", choices=("monopole", "dipole"), default="monopole")
+    parser.add_argument("--lbm-relax-steps", type=float, default=20.0)
+    parser.add_argument("--lbm-peak-speed", type=float, default=0.25)
     parser.add_argument("--no-obstacle", action="store_true", help="lbm laws: plain channel")
     parser.add_argument(
         "--flow-floor",
@@ -173,6 +185,13 @@ def main() -> int:
             rotating_vectors(profile) if args.law_profile == "lbm" else rotating_geometry(profile)
         )
 
+    world_overrides = None
+    if args.law_carrier == "live":
+        world_overrides = {
+            "flow_solver": "lbm_live", "lbm_box": "periodic",
+            "lbm_peak_speed": args.lbm_peak_speed, "lbm_law_relax_steps": args.lbm_relax_steps,
+            "lbm_agent_drag": args.lbm_drag, "lbm_agent_coupling": args.lbm_coupling,
+        }
     conditions = [not args.no_proprioception]
     results = []
     for proprioception in conditions:
@@ -196,6 +215,7 @@ def main() -> int:
                 raw_flow_features=args.raw_flow_features,
                 eval_steps=args.eval_steps,
                 min_evolved=args.min_evolved,
+                world_overrides=world_overrides,
             )
             row["proprioception"] = proprioception
             row["mutate_survivors"] = args.mutate_survivors
@@ -229,6 +249,11 @@ def main() -> int:
         "immigrant_fraction": args.immigrant_fraction,
         "flow_head": args.flow_head,
         "raw_flow_features": args.raw_flow_features,
+        "law_carrier": args.law_carrier,
+        "lbm_drag": args.lbm_drag,
+        "lbm_coupling": args.lbm_coupling,
+        "lbm_relax_steps": args.lbm_relax_steps,
+        "lbm_peak_speed": args.lbm_peak_speed,
         "law_profile": args.law_profile,
         "no_obstacle": args.no_obstacle,
         "flow_floor": args.flow_floor,

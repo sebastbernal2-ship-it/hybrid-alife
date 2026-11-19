@@ -87,6 +87,10 @@ class WorldConfig:
     # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
     # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
     lbm_agent_coupling: str = "monopole"
+    # "periodic": wall-free box carrying a uniform law (see LiveLBM.uniform); "channel" default.
+    lbm_box: str = "channel"
+    # Periodic box only: relaxation time (LBM steps) of the mean flow toward the imposed law.
+    lbm_law_relax_steps: float = 0.0
     lbm_dipole_length: float = 2.0
 
 

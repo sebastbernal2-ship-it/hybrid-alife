@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -107,6 +107,11 @@ class LiveLBM:
     v: np.ndarray
     rho: np.ndarray
     pending_force: np.ndarray = field(default=None)  # [H, W, 2] world frame, per cell
+    # Law carrier (periodic box): target mean velocity (lattice units, world frame) held by a
+    # uniform acceleration (target - mean) / relax_steps, a stand-in for the wall friction or
+    # pump that sets a channel's flow. None keeps the legacy free-running fluid.
+    target: np.ndarray = field(default=None)
+    relax_steps: float = 0.0
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -133,6 +138,39 @@ class LiveLBM:
         assert n == height * width
         return out.advance(warm_steps)
 
+    @classmethod
+    def uniform(
+        cls,
+        height: int,
+        width: int,
+        nu: float = 0.1,
+        peak_speed: float = 0.05,
+        velocity: tuple[float, float] = (0.0, 0.0),
+        relax_steps: float = 0.0,
+    ) -> LiveLBM:
+        """Fully periodic wall-free box at uniform `velocity` (lattice units, world frame).
+
+        A uniform flow is an exact steady state of the periodic Navier-Stokes equations, so no
+        relaxation is needed: the distributions start at their equilibrium and stay there
+        until something (agents) perturbs them.
+        """
+        mask = np.zeros((width, height), np.uint8)  # LBM frame is [W, H]
+        u = np.full(mask.shape, float(velocity[0]))
+        v = np.full(mask.shape, float(velocity[1]))
+        f = np.zeros((*mask.shape, 9))
+        _load().lbm_init(mask.shape[0], mask.shape[1], 1.0, u, v, f)
+        return cls(f, mask, nu, 0.0, peak_speed, u, v, np.ones(mask.shape),
+                   np.zeros((height, width, 2)), np.asarray(velocity, np.float64), relax_steps)
+
+    def with_uniform_flow(self, velocity: tuple[float, float]) -> LiveLBM:
+        """Fresh uniform fluid at `velocity` with this fluid's box, viscosity and relaxation."""
+        h, w = self.shape
+        return LiveLBM.uniform(h, w, self.nu, self.peak_speed, velocity, self.relax_steps)
+
+    def mean_velocity(self) -> np.ndarray:
+        fluid = self.mask == 0
+        return np.array([self.u[fluid].mean(), self.v[fluid].mean()])
+
     def advance(self, steps: int, force: np.ndarray | None = None) -> LiveLBM:
         """Return a copy advanced by `steps` LBM steps under the body force plus `force`.
 
@@ -143,18 +181,20 @@ class LiveLBM:
         force_l = np.ascontiguousarray(np.asarray(force, np.float64).transpose(1, 0, 2))
         f = np.ascontiguousarray(self.f.copy())
         u, v, rho = (np.zeros(self.mask.shape) for _ in range(3))
+        bx, by = self.body_force, 0.0
+        if self.target is not None and self.relax_steps > 0.0:
+            gx, gy = (self.target - self.mean_velocity()) / self.relax_steps
+            bx, by = bx + gx, by + gy
         rc = _load().lbm_advance(
-            self.mask.shape[0], self.mask.shape[1], self.mask, self.nu, self.body_force, 0.0,
+            self.mask.shape[0], self.mask.shape[1], self.mask, self.nu, bx, by,
             force_l.ctypes.data, steps, f, u, v, rho,
         )
         if rc < 0:
             raise ValueError("invalid LBM arguments (need h,w>=3, nu>0, steps>=0)")
-        return LiveLBM(f, self.mask, self.nu, self.body_force, self.peak_speed, u, v, rho,
-                       self.pending_force)
+        return replace(self, f=f, u=u, v=v, rho=rho)
 
     def with_pending_force(self, force: np.ndarray) -> LiveLBM:
-        return LiveLBM(self.f, self.mask, self.nu, self.body_force, self.peak_speed, self.u,
-                       self.v, self.rho, np.asarray(force, np.float64))
+        return replace(self, pending_force=np.asarray(force, np.float64))
 
     def velocity(self) -> np.ndarray:
         """[H, W, 2] fluid velocity in lattice units (world frame)."""

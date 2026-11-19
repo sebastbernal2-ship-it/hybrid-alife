@@ -256,6 +256,15 @@ def rotating_geometry(profile: np.ndarray):
 def _impose_flow(state, direction: tuple[float, float], magnitude: float):
     unit = np.asarray(direction, dtype=np.float64)
     unit = unit / max(float(np.linalg.norm(unit)), 1e-12)
+    if state.lbm is not None and state.lbm.mask.max() == 0:
+        # Live-fluid law carrier: the law is the periodic box's mean velocity. Re-imposing an
+        # unchanged law is a no-op, so the fluid keeps evolving under agent coupling; only a
+        # new direction (or the reversed control) restarts the fluid at the new uniform flow.
+        target = unit * magnitude * state.lbm.peak_speed
+        if state.lbm.target is None or not np.allclose(state.lbm.target, target, atol=1e-12):
+            state.lbm = state.lbm.with_uniform_flow((float(target[0]), float(target[1])))
+            state.world.flow = jnp.asarray(state.lbm.flow())
+        return state
     if _LAW_FIELD is None:
         vector = jnp.asarray(unit * magnitude, dtype=jnp.float32)
         state.world.flow = jnp.broadcast_to(vector, state.world.flow.shape)
@@ -297,6 +306,7 @@ def run_embodied_law_pilot(
     immigrant_fraction: float = 0.0,
     flow_head: bool = False,
     raw_flow_features: bool = False,
+    world_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evolve for a few generations, alternating the imposed law direction.
 
@@ -319,6 +329,8 @@ def run_embodied_law_pilot(
         flow_head=flow_head,
         raw_flow_features=raw_flow_features,
     )
+    if world_overrides:
+        config = replace(config, world=replace(config.world, **world_overrides))
     state = initialize_sim(config)
     initial_genomes = {
         name: jnp.asarray(value) for name, value in state.embodied.genomes.items()
