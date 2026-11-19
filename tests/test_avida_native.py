@@ -95,6 +95,16 @@ def _run_steps(cfg, world, pop, positions, native, steps=3, seed=9):
     return pop, world
 
 
+def _same(a, b, err_msg=""):
+    """Exact for integer/bool state; float32 fields differ by ~1 ulp across CPUs (summation
+    order and FMA use in XLA vs the C++ build), so they get a tight relative tolerance."""
+    a, b = np.asarray(a), np.asarray(b)
+    if np.issubdtype(a.dtype, np.floating):
+        np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-6, err_msg=err_msg)
+    else:
+        np.testing.assert_array_equal(a, b, err_msg=err_msg)
+
+
 def test_full_native_step_is_bit_exact_without_mutation():
     divided = 0
     for seed, dead_frac, kill0 in ((0, 0.5, True), (1, 0.5, False), (2, 0.9, True),
@@ -103,10 +113,9 @@ def test_full_native_step_is_bit_exact_without_mutation():
         ref_pop, ref_world = _run_steps(cfg, world, pop, positions, native=False)
         nat_pop, nat_world = _run_steps(cfg, world, pop, positions, native=True)
         for f in POP_FIELDS:
-            np.testing.assert_array_equal(
-                getattr(ref_pop, f), getattr(nat_pop, f), err_msg=f"{f} seed={seed}")
-        np.testing.assert_array_equal(ref_world.metabolites, nat_world.metabolites)
-        np.testing.assert_array_equal(ref_world.concentration, nat_world.concentration)
+            _same(getattr(ref_pop, f), getattr(nat_pop, f), err_msg=f"{f} seed={seed}")
+        _same(ref_world.metabolites, nat_world.metabolites)
+        _same(ref_world.concentration, nat_world.concentration)
         divided += int((ref_pop.lineage_depth > 0).sum())
     assert divided > 0  # births actually happened in the compared runs
 
@@ -222,8 +231,7 @@ def test_native_and_jax_agree_on_energy_without_mutation():
         ref, _ = _run_steps(cfg, world, pop, positions, native=False, steps=3)
         nat, _ = _run_steps(cfg, world, pop, positions, native=True, steps=3)
         for f in (*POP_FIELDS, "energy"):
-            np.testing.assert_array_equal(
-                getattr(ref, f), getattr(nat, f), err_msg=f"{f} seed={seed}")
+            _same(getattr(ref, f), getattr(nat, f), err_msg=f"{f} seed={seed}")
         np.testing.assert_allclose(float(ref.heat), float(nat.heat), rtol=1e-4)
         np.testing.assert_allclose(float(ref.energy_in), float(nat.energy_in), rtol=1e-4)
 def test_native_under_jit_fails_with_a_clear_error():
