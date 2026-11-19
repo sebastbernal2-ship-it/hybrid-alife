@@ -181,6 +181,17 @@ agents cannot influence, or against a no-coupling copy of the same trajectory.
 
 ## Files
 
+Every figure in the tables above (mean alignments, the min_delta changes with Wilcoxon p,
+Holm adjustments, the cross-replay own-versus-foreign-wake differences, the wake-size and
+superposition-residual statistics, the cosines with thrust) was recomputed from
+`eval_per_seed/` and `replay_per_seed/` by an independent script
+(`scripts/audit_lbm_results.py` on `exp/lbm-live-sweep-rescored`) and reproduces. Bootstrap
+intervals agree to within resampling noise (for example the share removed for B-trained
+genomes comes out 0.84 [0.57, 1.25] against the 1.28 printed above). The rescoring of the
+drag sweep against targets the agents cannot influence is `../drag_sweep_rescored/` on
+`exp/lbm-live-sweep-rescored`.
+
+
 `analysis.txt` (full script output), `analysis.json`, `eval_per_seed/` and `replay_per_seed/`
 (every seed). Scripts: `scripts/measure_monopole_mechanism.py` (train / eval / replay
 phases), `scripts/analyze_monopole_mechanism.py`. Tests: `tests/test_mechanism_rescore.py`.
