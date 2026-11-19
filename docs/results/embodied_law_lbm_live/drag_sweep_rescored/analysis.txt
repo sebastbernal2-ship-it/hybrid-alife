@@ -1,0 +1,57 @@
+reproduction ok: True  max diffs: 0.0: 0.0e+00, 0.5: 0.0e+00, 0.75: 0.0e+00, 1.0: 0.0e+00, 1.25: 0.0e+00, 1.5: 0.0e+00, 2.0: 0.0e+00
+
+== per-seed slope of min_delta against drag (7 drags incl. 0)
+  official  mean -0.0683 [-0.1025, -0.0329] negative 13/15  one-sided p = 0.0017  two-sided p = 0.0034
+  law       mean -0.0598 [-0.0968, -0.0200] negative 12/15  one-sided p = 0.0051  two-sided p = 0.0103
+  noself    mean -0.0271 [-0.0685, +0.0131] negative 8/15  one-sided p = 0.1651  two-sided p = 0.3303
+  selfonly  mean -0.0925 [-0.1256, -0.0552] negative 14/15  one-sided p = 0.0006  two-sided p = 0.0012
+  transfer  mean -0.0104 [-0.0457, +0.0254] negative 8/15  one-sided p = 0.2807  two-sided p = 0.5614
+
+== post-hoc: share of the official slope removed by the noself target: 0.60 [0.31, 1.39]
+== post-hoc: slope of initial-population official alignment against drag: +0.0923 [+0.0861, +0.0994], positive 15/15, one-sided p = 0.0000
+
+== per drag: median min_delta, mean change vs drag 0 [95% CI], worse/better, p, Holm
+  -- official
+    drag   0.5: median 0.328 change -0.034 [-0.091, +0.024] 10/5 p=0.4887 Holm=0.4887
+    drag  0.75: median 0.336 change -0.060 [-0.116, -0.004] 11/4 p=0.0554 Holm=0.1661
+    drag   1.0: median 0.295 change -0.124 [-0.204, -0.039] 11/4 p=0.0103 Holm=0.0615
+    drag  1.25: median 0.307 change -0.080 [-0.145, -0.016] 12/3 p=0.0637 Holm=0.1661
+    drag   1.5: median 0.266 change -0.114 [-0.192, -0.035] 13/2 p=0.0103 Holm=0.0615
+    drag   2.0: median 0.255 change -0.134 [-0.211, -0.057] 13/2 p=0.0125 Holm=0.0615
+  -- law
+    drag   0.5: median 0.353 change -0.017 [-0.079, +0.042] 9/6 p=0.7615 Holm=0.7615
+    drag  0.75: median 0.355 change -0.038 [-0.095, +0.024] 10/5 p=0.2078 Holm=0.5629
+    drag   1.0: median 0.310 change -0.113 [-0.201, -0.025] 11/4 p=0.0413 Holm=0.1650
+    drag  1.25: median 0.326 change -0.044 [-0.121, +0.032] 11/4 p=0.1876 Holm=0.5629
+    drag   1.5: median 0.290 change -0.098 [-0.189, -0.013] 13/2 p=0.0151 Holm=0.0905
+    drag   2.0: median 0.275 change -0.115 [-0.198, -0.033] 11/4 p=0.0215 Holm=0.1077
+  -- noself
+    drag   0.5: median 0.346 change -0.011 [-0.069, +0.046] 9/6 p=0.7615 Holm=1.0000
+    drag  0.75: median 0.348 change -0.025 [-0.083, +0.033] 10/5 p=0.4212 Holm=1.0000
+    drag   1.0: median 0.319 change -0.083 [-0.163, +0.006] 11/4 p=0.1205 Holm=0.7233
+    drag  1.25: median 0.382 change -0.015 [-0.082, +0.053] 7/8 p=0.8040 Holm=1.0000
+    drag   1.5: median 0.304 change -0.051 [-0.139, +0.036] 11/4 p=0.1354 Holm=0.7233
+    drag   2.0: median 0.340 change -0.054 [-0.143, +0.027] 7/8 p=0.5245 Holm=1.0000
+  -- selfonly
+    drag   0.5: median 0.336 change -0.038 [-0.099, +0.024] 10/5 p=0.5245 Holm=0.5245
+    drag  0.75: median 0.337 change -0.069 [-0.128, -0.009] 12/3 p=0.0413 Holm=0.0825
+    drag   1.0: median 0.298 change -0.144 [-0.230, -0.064] 11/4 p=0.0043 Holm=0.0214
+    drag  1.25: median 0.263 change -0.100 [-0.170, -0.030] 12/3 p=0.0151 Holm=0.0452
+    drag   1.5: median 0.228 change -0.143 [-0.227, -0.060] 13/2 p=0.0043 Holm=0.0214
+    drag   2.0: median 0.187 change -0.183 [-0.257, -0.107] 13/2 p=0.0012 Holm=0.0070
+  -- transfer
+    drag   0.5: median 0.388 change +0.003 [-0.056, +0.062] 9/6 p=1.0000 Holm=1.0000
+    drag  0.75: median 0.388 change -0.008 [-0.063, +0.048] 9/6 p=0.5995 Holm=1.0000
+    drag   1.0: median 0.376 change -0.077 [-0.164, +0.010] 10/5 p=0.1354 Holm=0.8123
+    drag  1.25: median 0.353 change -0.002 [-0.070, +0.067] 7/8 p=0.9780 Holm=1.0000
+    drag   1.5: median 0.367 change -0.020 [-0.085, +0.047] 9/6 p=0.4212 Holm=1.0000
+    drag   2.0: median 0.372 change -0.018 [-0.100, +0.066] 9/6 p=0.6387 Holm=1.0000
+
+== mean alignment by drag (own fluid; official / law / noself)
+  drag   0.0: init 0.056 / 0.056 / 0.056   trained 0.612 / 0.612 / 0.612
+  drag   0.5: init 0.105 / 0.058 / 0.056   trained 0.624 / 0.595 / 0.603
+  drag  0.75: init 0.129 / 0.059 / 0.055   trained 0.626 / 0.586 / 0.595
+  drag   1.0: init 0.152 / 0.061 / 0.053   trained 0.606 / 0.545 / 0.564
+  drag  1.25: init 0.177 / 0.063 / 0.053   trained 0.649 / 0.582 / 0.599
+  drag   1.5: init 0.199 / 0.066 / 0.050   trained 0.631 / 0.549 / 0.568
+  drag   2.0: init 0.239 / 0.073 / 0.049   trained 0.646 / 0.542 / 0.568

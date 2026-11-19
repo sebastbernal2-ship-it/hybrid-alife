@@ -141,6 +141,30 @@ def analyse(rows, seeds, results: Path) -> dict:
         }
         out["slopes"][label]["per_seed"] = slopes.tolist()
 
+    # Post-hoc, not pre-specified: how much of the official slope the own wake accounts for,
+    # and whether the initial population's alignment rises with drag (baseline inflation).
+    sl = {k: np.array(v["per_seed"]) for k, v in out["slopes"].items()}
+    share = [
+        1 - sl["noself"][i].mean() / sl["official"][i].mean()
+        for i in (rng.integers(0, len(seeds), len(seeds)) for _ in range(N_BOOT))
+    ]
+    out["posthoc_share_of_official_slope_removed_by_noself"] = {
+        "point": float(1 - sl["noself"].mean() / sl["official"].mean()),
+        "ci": [float(np.percentile(share, 2.5)), float(np.percentile(share, 97.5))],
+    }
+    inflation = np.array(
+        [
+            per_seed_slope(DRAGS, [alignment(rows, "own", d, "init", "official", s) for d in DRAGS])
+            for s in seeds
+        ]
+    )
+    lo, hi = boot_ci(inflation, rng)
+    out["posthoc_initial_alignment_slope"] = {
+        "mean": float(inflation.mean()),
+        "ci": [lo, hi],
+        "positive": int((inflation > 0).sum()),
+        "p_one_sided_positive": float(stats.wilcoxon(inflation, alternative="greater").pvalue),
+    }
     out["alignment"] = {}
     for drag in DRAGS:
         entry = {}
@@ -165,6 +189,17 @@ def render(res: dict) -> str:
             f"negative {s['negative']}/15  one-sided p = {s['p_one_sided_negative']:.4f}"
             f"  two-sided p = {s['p_two_sided']:.4f}"
         )
+    sh = res["posthoc_share_of_official_slope_removed_by_noself"]
+    ia = res["posthoc_initial_alignment_slope"]
+    lines.append(
+        "\n== post-hoc: share of the official slope removed by the noself target: "
+        f"{sh['point']:.2f} [{sh['ci'][0]:.2f}, {sh['ci'][1]:.2f}]"
+    )
+    lines.append(
+        "== post-hoc: slope of initial-population official alignment against drag: "
+        f"{ia['mean']:+.4f} [{ia['ci'][0]:+.4f}, {ia['ci'][1]:+.4f}], positive "
+        f"{ia['positive']}/15, one-sided p = {ia['p_one_sided_positive']:.4f}"
+    )
     lines.append(
         "\n== per drag: median min_delta, mean change vs drag 0 [95% CI], worse/better, p, Holm"
     )
