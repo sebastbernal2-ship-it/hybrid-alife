@@ -52,6 +52,8 @@ python scripts/generate_report.py outputs/runs/smoke200
 python scripts/run_sim.py --config configs/ablation_blind.yaml
 ```
 
+Opt-in physics and native (C++) extensions are documented in [`docs/extensions/README.md`](docs/extensions/README.md).
+
 ## Repo layout
 
 ```text
