@@ -1,8 +1,18 @@
 # Flow-head law study with a live, agent-coupled fluid
 
 Status: **bounded pilot, 15 seeds per condition. Strong monopole coupling (drag 2.0) lowers
-the margin by 0.13 on 13 of 15 seeds (paired Wilcoxon p = 0.012) and fails 5 seeds; a dipole
-at the same strength has no effect. Weaker coupling (drag 0.5) is unresolved. Not a claim.**
+the measured margin by 0.13 on 13 of 15 seeds (paired Wilcoxon p = 0.012) and fails 5 seeds; a
+dipole at the same strength has no effect. Weaker coupling (drag 0.5) is unresolved. Follow-up
+studies (below) found that this is mostly a measurement effect, not worse learning: the
+monopole's own wake inflates the baseline the margin is measured against. Not a claim.**
+
+Follow-ups, each on its own branch of `hybrid-alife` (folders under this one):
+`exp/lbm-live-estimate` (`estimate_error/`: a noisier flow estimate does not explain the loss),
+`exp/lbm-live-sweep` (`drag_sweep/`: the loss grows gradually with drag; dipole flat),
+`exp/lbm-live-mechanism` (`mechanism/`: self-contamination of the baseline, the main
+mechanism), `exp/lbm-live-sweep-rescored` (`drag_sweep_rescored/`: whether the sweep trend is
+the same baseline inflation). Read this file's "lowers the margin" statements through that
+result.
 
 ## Question
 
@@ -63,7 +73,7 @@ identical min_delta (maximum difference 0.0). The live-fluid carrier is not a co
 differences below can be attributed to the coupling.
 
 Pass-count comparisons (Fisher exact, uncorrected): E against A or B p = 0.169; C against E
-p = 0.042; every other pair p >= 0.17 (most 1.0). Pass counts alone resolve nothing against
+p = 0.042; every other pair p >= 0.169 (most 1.0). Pass counts alone resolve nothing against
 the baseline. Because B is identical to A, the seeds are paired, and a paired Wilcoxon on
 min_delta (more power than a pass/fail count) is the better test:
 
@@ -81,20 +91,23 @@ in any condition (mean change within 0.04, all p > 0.6).
 ## Reading
 
 - **Resolved:** strong monopole coupling (E) lowers the margin, consistently across seeds
-  (13 of 15 worse, mean -0.13, p = 0.012; 4 comparisons against A, so p = 0.048 after
-  Bonferroni), and the dipole at the same strength (F) does not (p = 0.003 for E against F).
+  (13 of 15 worse, mean -0.13, p = 0.0125; 4 comparisons against A, so p = 0.050 after
+  Bonferroni, i.e. exactly borderline), and the dipole at the same strength (F) does not (p = 0.003 for E against F).
   The reversed-law floor is unaffected, so E's failures are margin failures (seed 4 fails
   hard, -0.047), not a switch to a fixed action.
 - **Not resolved:** moderate coupling (C, D). Both lower median min_delta by about 0.06 but
   p = 0.36 to 0.49, and C passes 15/15. Do not read the C = 15/15 as improvement.
-- **Plausible mechanism, untested:** the monopole's net momentum injection and its
-  persistent wakes change the local flow that the proprioceptive estimate
-  `(velocity - thrust)` reads, so a head tuned on a constant flow sees a noisier signal; the
-  dipole's far field decays faster and conserves momentum. Not measured here (no estimate
-  error was logged).
+- **Mechanism, tested afterwards.** The hypothesis written here at first, that the monopole's
+  wakes make the proprioceptive flow estimate noisier, was not supported (`estimate_error/`:
+  estimate error is a few degrees, and the dipole at the same drag has more of it and no
+  loss). The mechanism study (`mechanism/`) found that each monopole agent's own wake points
+  along its own thrust, which inflates the alignment of the random initial population far more
+  than that of the evolved one, so the evolved-minus-initial margin shrinks. Scoring without
+  the own wake removes the loss for genomes trained without coupling (-0.093 to -0.015).
+  So read E as "drag 2.0 inflates the baseline", not "evolved organisms learn worse".
 - Multiplicity: 4 coupled conditions against A plus pairwise comparisons were examined.
   Only E against A and E against F are below 0.05, and E against A is borderline after
-  correction.
+  correction (0.0498).
 
 ## Caveats
 
@@ -106,15 +119,17 @@ in any condition (mean change within 0.04, all p > 0.6).
   specific to it. A wall-bounded channel carrier was not tested here.
 - The dipole length is quantised to even cell separations (1219009), so dipole strength is
   not smoothly tunable.
-- Drag values 0.5 and 2.0 only; no 0.05 or intermediate sweep. 15 seeds per arm.
+- Drag values 0.5 and 2.0 only in this file (an intermediate sweep is `drag_sweep/` on
+  `exp/lbm-live-sweep`). 15 seeds per arm.
 - Training and evaluation both run in the live fluid; no train-uncoupled, test-coupled
   transfer condition.
 
 ## Next
 
-Log the proprioceptive flow-estimate error per condition to test the mechanism; sweep drag
-between 0.5 and 2.0 to locate the onset for the monopole; repeat in a wall-bounded channel
-carrier; and add train-uncoupled, evaluate-coupled transfer.
+Done since this was written: the estimate-error measurement, the drag sweep, and the mechanism
+study (branches above). Still open: repeat in a wall-bounded channel carrier, add
+train-uncoupled, evaluate-coupled transfer beyond the cross-evaluation in `estimate_error/`,
+and score both populations against a target the agents cannot influence.
 
 Reproduce (from the worktree, `PYTHONPATH=src JAX_PLATFORMS=cpu`):
 `python scripts/run_embodied_law_study.py --seeds 0 1 2 3 4 --generations 8 --population 16
