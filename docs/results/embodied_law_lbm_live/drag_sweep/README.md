@@ -3,7 +3,11 @@
 Status: **exploratory pilot, 15 seeds per condition. The monopole penalty is a resolved
 dose-response trend (13 of 15 seeds have a negative slope against drag, p = 0.0017), but no
 single drag value is resolved after multiplicity correction, and the data cannot locate a
-sharp onset. The dipole shows no effect at any drag. Not a claim.**
+sharp onset. The dipole shows no effect at any drag. A later mechanism study
+(`exp/lbm-live-mechanism`) found that the monopole drag-2.0 loss is mostly inflation of the
+baseline by each agent's own wake, so this trend is probably the same effect rather than a
+cost to learning; whether it is was tested on `exp/lbm-live-sweep-rescored`
+(`drag_sweep_rescored/`). Not a claim.**
 
 Parent study: `../README.md` (drag 0.5 unresolved, drag 2.0 resolved worse for the monopole,
 dipole unaffected). Same protocol, carrier and seeds (0-14); this adds monopole drag
@@ -58,11 +62,14 @@ failures are margin failures, not a switch to a fixed action.
 
 ### Onset
 
-The data do not support a sharp onset. The change is -0.034 at 0.5 and its interval spans
+The data do not support a sharp onset (a hinge fit gives no improvement over a line). The change is -0.034 at 0.5 and its interval spans
 zero, which is what a line through the origin predicts (-0.068 x 0.5 = -0.034). A linear
 fit to the seven mean changes has a smaller squared error (0.00267) than a hinge
 (threshold) fit (0.00320), and the best hinge sits at the lower edge of the grid searched
-(0.25), i.e. it degenerates to the linear model. The response is consistent with
+(0.25), i.e. it degenerates to the linear model. This comparison counts the zero-drag point
+(zero change by construction) among the seven; with only the six coupled drags the line and
+the best hinge fit equally well (SSE 0.00247 each, hinge onset about 0.35-0.45), so the
+evidence against a threshold rests on that anchor and is weak. The response is consistent with
 **gradual and roughly proportional to drag, from the smallest value tested**. The
 practical statement: effects are unresolved at 0.5 or below, hinted at 0.75, and
 distinguishable from zero without correction from 1.0 up. The apparent non-monotonic steps
@@ -94,10 +101,16 @@ within noise: no dipole drag differs from B (p = 0.36 to 0.98).
   smoothly tunable and its strength at a given drag is not directly comparable to the
   monopole's.
 - Training and evaluation both run coupled; no train-uncoupled, test-coupled condition.
-- The mechanism (noisier proprioceptive flow estimate under monopole wakes) is still
-  untested; no estimate error was logged here.
+- The mechanism is not tested here. The noisier-flow-estimate idea was later not supported
+  (`exp/lbm-live-estimate`), and self-contamination of the baseline was found to be the main
+  driver at drag 2.0 (`exp/lbm-live-mechanism`).
 
 ## Files
+
+Every table and p-value above was recomputed from the per-seed JSONs by an independent script
+(`scripts/audit_lbm_results.py` on `exp/lbm-live-sweep-rescored`) and reproduces; the bootstrap
+intervals reproduce at the printed precision with a fixed resampling seed.
+
 
 Per-condition per-seed JSONs `seeds0-14_<mode>_<drag>.json`, the reproducibility JSON, the
 chart, `analysis.py` (prints every statistic above; needs numpy and scipy) and
