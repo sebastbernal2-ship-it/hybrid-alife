@@ -155,7 +155,7 @@ Not supported or unresolved (the first item was resolved afterwards by the mecha
 All numbers in this README were recomputed from `per_seed.json` by an independent script
 (`scripts/audit_lbm_results.py` on `exp/lbm-live-sweep-rescored`): the condition table, the
 Wilcoxon and Spearman figures, the mediation point estimates and the cross-evaluation table
-reproduce exactly (bootstrap intervals agree to within resampling noise).
+reproduce exactly. The mediation bootstrap intervals were not recomputed.
 
 
 `analysis.md` (full script output), `analysis.json`, `per_seed.json` (every seed, all six
