@@ -360,7 +360,9 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
 
             if state.avida is not None and cfg.evolution.reseed_on_extinction:
                 state.rng, k_av_re = jax.random.split(state.rng)
-                state.avida = reseed_avida(state.avida, fraction=0.1, key=k_av_re)
+                state.avida = reseed_avida(
+                    state.avida, fraction=0.1, key=k_av_re, energy=cfg.avida.energy_initial
+                )
 
             # Per-generation QD summary (logged even when map_elites disabled
             # so downstream tooling always sees the keys).

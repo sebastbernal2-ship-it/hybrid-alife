@@ -93,6 +93,29 @@ class WorldConfig:
     lbm_law_relax_steps: float = 0.0
     lbm_dipole_length: float = 2.0
 
+    def __post_init__(self) -> None:
+        if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
+            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
+        if self.lbm_agent_coupling not in ("monopole", "dipole"):
+            raise ValueError(
+                f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
+            )
+        if self.flow_solver != "lbm_live":
+            return
+        if self.lbm_viscosity <= 0.0:
+            raise ValueError("lbm_viscosity must be > 0 (relaxation time tau = 3 nu + 0.5)")
+        if not 0.0 < self.lbm_peak_speed <= 0.3:
+            raise ValueError("lbm_peak_speed must be in (0, 0.3] lattice units (low Mach)")
+        if self.lbm_substeps < 1:
+            raise ValueError("lbm_substeps must be >= 1")
+        if self.lbm_agent_drag < 0.0 or self.lbm_dipole_length <= 0.0:
+            raise ValueError("lbm_agent_drag must be >= 0 and lbm_dipole_length > 0")
+        if min(self.height, self.width) < 3:
+            raise ValueError("lbm_live needs a world of at least 3x3 cells")
+        # These would be silently ignored: the live fluid replaces the flow each step.
+        if self.drifting or self.flow_noise_std != 0.0:
+            raise ValueError("lbm_live ignores drifting and flow_noise_std; set them to off/0")
+
 
 @dataclass(frozen=True)
 class EmbodiedConfig:
@@ -165,6 +188,22 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Stokes-drag mechanics: actions are thrust, drag grows with body radius, so swim speed
+    # is thrust / radius and movement cost is the dissipated power (radius * speed^2).
+    # Normalised so radius 1 at full thrust matches the legacy linear move cost.
+    stokes_mechanics: bool = False
+    # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
+    # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
+    # concentration diffusion/decay/advection.
+    # The signal is an intensity (emit gate x signal_deposit), not message content; the emitter
+    # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
+    chemical_signaling: bool = False
+    signal_deposit: float = 1.0
+    # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
+    # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
+    # closure covers eating only: reward terms, predation transfers, max_energy clipping and
+    # Avida metabolite uptake are outside the matter-plus-energy ledger.
+    thermo_efficiency: float = 0.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
@@ -191,6 +230,11 @@ class EmbodiedConfig:
     # Reproduce-gate threshold (sigmoid output must exceed this to trigger a
     # birth). Lower it for "births-friendly" tiny CPU configs.
     repro_gate_threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
+        if not 0.0 <= self.thermo_efficiency <= 1.0:
+            raise ValueError("thermo_efficiency must be in [0, 1] (0 disables the closure)")
 
 
 @dataclass(frozen=True)
@@ -226,6 +270,28 @@ class AvidaConfig:
     # Branch coupling: digital organisms read/produce world metabolites.
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
+    # Run the whole update (cycles, division, metabolite coupling) in the native C++
+    # kernel (make -C native). Not supported under jax.jit.
+    native: bool = False
+    # Opt-in energy economy, enabled when instruction_energy_cost > 0. Every executed
+    # instruction costs this much energy, merit gained by an instruction is converted to
+    # energy at energy_efficiency, an organism with no energy stops executing and dies at
+    # the end of the update, and a dividing parent hands half its energy to its child.
+    # Energy that is paid out is dissipated as heat (AvidaPopulationState.heat).
+    instruction_energy_cost: float = 0.0
+    energy_initial: float = 10.0
+    energy_efficiency: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.instruction_energy_cost < 0.0:
+            raise ValueError("instruction_energy_cost must be >= 0 (0 disables the economy)")
+        if self.instruction_energy_cost > 0.0:
+            if self.energy_initial <= 0.0:
+                raise ValueError("energy_initial must be > 0 when the energy economy is enabled")
+            if self.energy_efficiency < 0.0:
+                raise ValueError("energy_efficiency must be >= 0")
+        if self.native and self.registers < 2:
+            raise ValueError("AvidaConfig.native needs registers >= 2")
 
 
 @dataclass(frozen=True)
@@ -345,6 +411,12 @@ class AvidaPopulationState:
     # Last env IO input pair (per organism) used to detect logic-task outputs.
     last_input_a: Array | None = None
     last_input_b: Array | None = None
+    # Energy economy (None unless AvidaConfig.instruction_energy_cost > 0). `energy` is per
+    # organism; `energy_in` and `heat` are scalar running totals, never reset, so that
+    # sum(energy) - sum(energy at start) == energy_in - heat holds across births and deaths.
+    energy: Array | None = None
+    energy_in: Array | None = None
+    heat: Array | None = None
 
 
 @dataclass

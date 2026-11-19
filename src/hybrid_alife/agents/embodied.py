@@ -109,10 +109,26 @@ def embodied_action_dim(cfg: EmbodiedConfig) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _validate_chemical_signaling(cfg: EmbodiedConfig) -> None:
+    """Reject configs where the chemical signal would be silently useless or invalid."""
+    if not cfg.chemical_signaling:
+        return
+    if cfg.signal_deposit < 0.0:
+        raise ValueError("signal_deposit must be >= 0")
+    if not cfg.use_comms:
+        raise ValueError("chemical_signaling needs use_comms=True (no emission otherwise)")
+    if cfg.blind or "concentration" in _hidden_field_groups(cfg):
+        raise ValueError(
+            "chemical_signaling needs the concentration field to be observable "
+            "(not blind, 'concentration' not in hidden_field_groups)"
+        )
+
+
 def initialize_embodied_population(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> EmbodiedPopulationState:
     """Initialize positions, energies, recurrent state, messages, and genome params."""
+    _validate_chemical_signaling(cfg)
     k_pos, k_genome = jax.random.split(key)
     n = cfg.population_size
     positions = jax.random.uniform(k_pos, (n, 2), minval=0.0, maxval=1.0)
@@ -455,6 +471,16 @@ def apply_embodied_actions(
     h, w = world_cfg.height, world_cfg.width
     alive_f = pop.alive.astype(jnp.float32)
 
+    # Body size trades eating capacity against metabolic cost when enabled.
+    if embodied_cfg.body_morphology:
+        body_radius = jnp.clip(
+            pop.genomes.get("body_radius", jnp.ones_like(pop.energy)), 0.6, 1.8
+        )
+        body_factor = 0.5 + 0.5 * body_radius
+    else:
+        body_radius = jnp.ones_like(pop.energy)
+        body_factor = jnp.ones_like(pop.energy)
+
     move = actions[..., 0:2] * 0.05  # max 5% of world per step
     flow_grid = positions_to_grid(pop.positions, h, w)
     local_flow = world.flow[flow_grid[:, 0], flow_grid[:, 1]]
@@ -468,7 +494,10 @@ def apply_embodied_actions(
         if embodied_cfg.probe_enabled
         else None
     )
+    if embodied_cfg.stokes_mechanics:
+        move = move / body_radius[:, None]  # Stokes drag: swim speed = thrust / radius
     commanded_move = move
+    swim_speed = jnp.linalg.norm(move, axis=-1)
     move = move + embodied_cfg.flow_movement_scale * local_flow
     eat = actions[..., 2]
     attack = actions[..., 3]
@@ -486,24 +515,24 @@ def apply_embodied_actions(
     else:
         new_pos = jnp.clip(new_pos, 0.0, 0.999)
 
-    # Body size trades eating capacity against metabolic cost when enabled.
-    if embodied_cfg.body_morphology:
-        body_radius = jnp.clip(
-            pop.genomes.get("body_radius", jnp.ones_like(pop.energy)), 0.6, 1.8
-        )
-        body_factor = 0.5 + 0.5 * body_radius
-    else:
-        body_radius = jnp.ones_like(pop.energy)
-        body_factor = jnp.ones_like(pop.energy)
-
     # Eat: drain resources at cell
     eat_rate = 0.2 * eat * alive_f * body_radius
     grid = positions_to_grid(new_pos, h, w)
     cell_resources = world.resources[grid[:, 0], grid[:, 1]]  # [N, C]
     take_per_channel = cell_resources * eat_rate[:, None]
+    thermo = embodied_cfg.thermo_efficiency
+    if thermo > 0.0:
+        # Conservative eating: agents sharing a cell split what is there instead of
+        # each drawing the full amount, so removed mass equals consumed mass. A negative
+        # eat gate would otherwise add matter, so it is clamped to zero here.
+        take_per_channel = jnp.maximum(take_per_channel, 0.0)
+        demand = jnp.zeros_like(world.resources).at[grid[:, 0], grid[:, 1]].add(take_per_channel)
+        scale = jnp.minimum(1.0, world.resources / jnp.maximum(demand, 1e-12))
+        take_per_channel = take_per_channel * scale[grid[:, 0], grid[:, 1]]
     new_resources = world.resources.at[grid[:, 0], grid[:, 1]].add(-take_per_channel)
     new_resources = jnp.clip(new_resources, 0.0, 1.0)
-    energy_gained = jnp.sum(take_per_channel, axis=-1) * 5.0  # scaling
+    eaten_mass = jnp.sum(take_per_channel, axis=-1)
+    energy_gained = eaten_mass * 5.0 * (thermo if thermo > 0.0 else 1.0)  # scaling
     flow_alignment = jnp.maximum(
         jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
     )
@@ -530,9 +559,14 @@ def apply_embodied_actions(
     # Metabolite deposit proportional to energy expenditure. The deposit
     # scale gates the strength of the embodied -> digital coupling.
     metab_scalar = embodied_cfg.metabolite_deposit_scale * (0.01 + 0.05 * eat) * alive_f
+    if thermo > 0.0:
+        # Matter closure: the unassimilated fraction of eaten mass becomes waste.
+        metab_scalar = (1.0 - thermo) * eaten_mass
     metab = jnp.broadcast_to(
         metab_scalar[:, None], (metab_scalar.shape[0], world_cfg.metabolite_channels)
     )
+    if thermo > 0.0:  # one channel only, so mass is not duplicated across channels
+        metab = metab * (jnp.arange(world_cfg.metabolite_channels) == 0)[None, :]
     new_metab = scatter_add_to_grid(world.metabolites, new_pos, metab, pop.alive, h, w)
 
     # Hazard accumulation from attacks (attack deposits hazard locally)
@@ -549,6 +583,10 @@ def apply_embodied_actions(
     new_msg = pop.messages * 0.5 + emit_hard[:, None] * msg_vec * alive_f[:, None]
     if not embodied_cfg.use_comms:
         new_msg = jnp.zeros_like(new_msg)
+    elif embodied_cfg.chemical_signaling:
+        pulse = embodied_cfg.signal_deposit * emit_hard * alive_f
+        signal = jnp.stack([jnp.zeros_like(pulse), pulse], axis=-1)
+        new_conc = scatter_add_to_grid(new_conc, new_pos, signal, pop.alive, h, w)
 
     # Predation: an attacking organism drains the nearest neighbour inside the
     # predation radius. The transfer is a fraction of the prey's energy.
@@ -606,11 +644,16 @@ def apply_embodied_actions(
     # Energy update — explicit per-action cost model. Defaults reproduce the
     # historical scaling for movement/repro and add small overheads for the
     # other gates so behavior diversity has a tangible price.
-    move_cost = (
-        jnp.linalg.norm(move, axis=-1)
-        * embodied_cfg.cost_move_scale
-        * body_factor
-    )
+    if embodied_cfg.stokes_mechanics:
+        # Dissipated swimming power = drag * speed^2, relative to the legacy cost at
+        # radius 1 and the 0.05 maximum step (so legacy-scale configs stay comparable).
+        move_cost = embodied_cfg.cost_move_scale * body_radius * swim_speed**2 / 0.05
+    else:
+        move_cost = (
+            jnp.linalg.norm(move, axis=-1)
+            * embodied_cfg.cost_move_scale
+            * body_factor
+        )
     action_cost = (
         embodied_cfg.cost_eat * eat
         + embodied_cfg.cost_attack * attack
