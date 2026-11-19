@@ -73,6 +73,13 @@ class WorldConfig:
     # crowded cells get an enrichment penalty (more biologically faithful to
     # crowding-induced margination decline).
     enrichment_uses_occupancy: bool = True
+    # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
+    # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
+    flow_solver: str = "proxy"
+
+    def __post_init__(self) -> None:
+        if self.flow_solver not in ("proxy", "lbm"):
+            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy or lbm)")
 
 
 @dataclass(frozen=True)
@@ -153,6 +160,11 @@ class EmbodiedConfig:
     # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
     chemical_signaling: bool = False
     signal_deposit: float = 1.0
+    # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
+    # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
+    # closure covers eating only: reward terms, predation transfers, max_energy clipping and
+    # Avida metabolite uptake are outside the matter-plus-energy ledger.
+    thermo_efficiency: float = 0.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
@@ -179,6 +191,11 @@ class EmbodiedConfig:
     # Reproduce-gate threshold (sigmoid output must exceed this to trigger a
     # birth). Lower it for "births-friendly" tiny CPU configs.
     repro_gate_threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
+        if not 0.0 <= self.thermo_efficiency <= 1.0:
+            raise ValueError("thermo_efficiency must be in [0, 1] (0 disables the closure)")
 
 
 @dataclass(frozen=True)
@@ -214,6 +231,8 @@ class AvidaConfig:
     # Branch coupling: digital organisms read/produce world metabolites.
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
+    # Run the per-update cycle loop in the native C++ kernel (make -C native).
+    native: bool = False
 
 
 @dataclass(frozen=True)
