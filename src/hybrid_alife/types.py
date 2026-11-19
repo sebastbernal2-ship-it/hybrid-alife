@@ -76,10 +76,41 @@ class WorldConfig:
     # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
+    # "lbm_live" (flow_solver): a stateful LBM fluid advanced `lbm_substeps` steps per world
+    # step, flow = lattice velocity / lbm_peak_speed. lbm_agent_drag > 0 makes agents push
+    # the fluid with Stokes drag (two-way coupling); 0 leaves the fluid unaffected.
+    lbm_viscosity: float = 0.1
+    lbm_peak_speed: float = 0.05
+    lbm_substeps: int = 10
+    lbm_agent_drag: float = 0.0
+    # "monopole": net force on the fluid (thrust treated as external). "dipole": a force-free
+    # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
+    # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
+    lbm_agent_coupling: str = "monopole"
+    lbm_dipole_length: float = 2.0
 
     def __post_init__(self) -> None:
-        if self.flow_solver not in ("proxy", "lbm"):
-            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy or lbm)")
+        if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
+            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
+        if self.lbm_agent_coupling not in ("monopole", "dipole"):
+            raise ValueError(
+                f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
+            )
+        if self.flow_solver != "lbm_live":
+            return
+        if self.lbm_viscosity <= 0.0:
+            raise ValueError("lbm_viscosity must be > 0 (relaxation time tau = 3 nu + 0.5)")
+        if not 0.0 < self.lbm_peak_speed <= 0.3:
+            raise ValueError("lbm_peak_speed must be in (0, 0.3] lattice units (low Mach)")
+        if self.lbm_substeps < 1:
+            raise ValueError("lbm_substeps must be >= 1")
+        if self.lbm_agent_drag < 0.0 or self.lbm_dipole_length <= 0.0:
+            raise ValueError("lbm_agent_drag must be >= 0 and lbm_dipole_length > 0")
+        if min(self.height, self.width) < 3:
+            raise ValueError("lbm_live needs a world of at least 3x3 cells")
+        # These would be silently ignored: the live fluid replaces the flow each step.
+        if self.drifting or self.flow_noise_std != 0.0:
+            raise ValueError("lbm_live ignores drifting and flow_noise_std; set them to off/0")
 
 
 @dataclass(frozen=True)
@@ -367,3 +398,5 @@ class SimState:
     # to zero by the runner at the end of each generation.
     embodied_births_this_gen: int = 0
     embodied_deaths_this_gen: int = 0
+    # Live LBM fluid state (physics.lbm.LiveLBM) when flow_solver == "lbm_live".
+    lbm: Any = None
