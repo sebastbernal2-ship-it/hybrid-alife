@@ -153,6 +153,11 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
+    # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
+    # closure covers eating only: reward terms, predation transfers, max_energy clipping and
+    # Avida metabolite uptake are outside the matter-plus-energy ledger.
+    thermo_efficiency: float = 0.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
@@ -179,6 +184,11 @@ class EmbodiedConfig:
     # Reproduce-gate threshold (sigmoid output must exceed this to trigger a
     # birth). Lower it for "births-friendly" tiny CPU configs.
     repro_gate_threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
+        if not 0.0 <= self.thermo_efficiency <= 1.0:
+            raise ValueError("thermo_efficiency must be in [0, 1] (0 disables the closure)")
 
 
 @dataclass(frozen=True)
