@@ -76,7 +76,8 @@ def test_cost_excludes_advection_and_flow_estimate_stays_exact():
     # Swim speed is thrust / radius, so the cost is dissipated swimming power only.
     swim = 0.5 * 0.05 / np.array(RADII)
     expected = 0.5 * np.array(RADII) * swim**2 / 0.05
-    np.testing.assert_allclose(20.0 - np.asarray(pop.energy), expected, atol=5e-6)  # float32 near 20
+    spent = 20.0 - np.asarray(pop.energy)
+    np.testing.assert_allclose(spent, expected, atol=5e-6)  # float32 resolution near 20
     # velocity - thrust is exactly the advecting flow, which the flow head relies on.
     np.testing.assert_allclose(
         np.asarray(pop.previous_velocity - pop.previous_thrust),
