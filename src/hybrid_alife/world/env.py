@@ -53,8 +53,6 @@ def initialize_world(cfg: WorldConfig, key: PRNGKey) -> WorldState:
 
         radius = h / 6 if cfg.curvature_regime == "obstacle" else 0.0
         flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=radius))
-    elif cfg.flow_solver != "proxy":
-        raise ValueError(f"unknown flow_solver={cfg.flow_solver!r}")
     noise = cfg.flow_noise_std * jax.random.normal(k3, flow.shape, dtype=jnp.float32)
     flow = flow + noise
     shear = _compute_shear(flow)

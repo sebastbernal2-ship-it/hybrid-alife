@@ -77,6 +77,10 @@ class WorldConfig:
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
 
+    def __post_init__(self) -> None:
+        if self.flow_solver not in ("proxy", "lbm"):
+            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy or lbm)")
+
 
 @dataclass(frozen=True)
 class EmbodiedConfig:
