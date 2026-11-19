@@ -1,8 +1,11 @@
 # Flow-head law study under an LBM-derived law profile
 
 Status: **bounded pilot, 15 seeds per condition: uniform 14/15, LBM vectors-only 11/15, LBM
-rotated-geometry 10/15. No pairwise gap is statistically distinguishable (smallest Fisher
-exact p = 0.17, uniform against rotated-geometry). Not a claim.**
+rotated-geometry 10/15. Pass counts do not separate the conditions (smallest Fisher exact
+p = 0.17, uniform against rotated-geometry), but a paired test on the continuous min_delta
+does for the rotated geometry: it is lower than uniform by 0.115 on average, on 14 of 15
+seeds (Wilcoxon p = 0.0003, see "Paired test on min_delta"). Vectors-only is not resolved
+(p = 0.21). Not a claim.**
 
 ## Question
 
@@ -75,11 +78,28 @@ clears the margin but misses the reversed floor by 0.019. Per-seed rows:
 `seeds0-14_lbm_geometry.json`.
 
 Reading: the structure of the law costs pass rate in both variants (14/15 to 11/15 and
-10/15) but the direction is consistent and the size is not resolved at 15 seeds. The
+10/15). The pass-count difference is not resolved at 15 seeds, but the paired min_delta test
+below resolves a cost for the rotated geometry and not for vectors-only. The
 rotated geometry removes the fixed-geometry explanation for the vectors-only failures,
 since it fails at least as often. The failures are margin-type, not collapse-type.
 The gates were set on uniform-law behaviour and the structured laws have zero-flow cells
 that reduce scored agents, which may account for part of the lower margin.
+
+## Paired test on min_delta
+
+Added after an audit that recomputed every number here from the per-seed JSONs. Pass counts
+throw away most of the information in `min_delta`, and the seeds are paired (a seed fixes the
+initial population), so a paired Wilcoxon on `min_delta` against the uniform law is the
+more powerful test. Uncorrected, two tests:
+
+| Condition vs uniform | Mean change in min_delta | Seeds worse / better | Wilcoxon p |
+|---|---|---|---|
+| LBM vectors-only | -0.109 | 10 / 5 | 0.208 |
+| LBM rotated geometry | -0.115 | 14 / 1 | 0.0003 |
+
+So the earlier "individually unresolved" is true of pass counts only. The rotated-geometry
+drop in `min_delta` is resolved (Holm over the two tests: 0.0006); vectors-only is not.
+Reproduce with `scripts/audit_lbm_results.py` (on `exp/lbm-live-sweep-rescored`).
 
 ## Next
 
