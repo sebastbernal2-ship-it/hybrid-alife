@@ -4,7 +4,9 @@ Status: **bounded diagnostic, 15 seeds per condition. The hypothesis that monopo
 lowers the margin by making the policy's flow estimate noisier is not supported. The estimate
 error is small in every condition and does not rank the conditions the way the margin does.
 A cross-evaluation shows the monopole-2.0 loss is mostly an evaluation-time effect of that
-fluid, not damage done during training. The mechanism is still unidentified. Not a claim.**
+fluid, not damage done during training. The mechanism was unidentified here; the follow-up on
+`exp/lbm-live-mechanism` (`../mechanism/`) found it: each monopole agent's own wake inflates
+the baseline the margin is measured against. Not a claim.**
 
 Parent study: `../README.md` (monopole drag 2.0 lowers min_delta by 0.134, 13 of 15 seeds
 worse, Wilcoxon p = 0.012; dipole 2.0 has no effect).
@@ -125,7 +127,8 @@ Supported:
   has more of it and no loss, and within E the error does not track the margin.
 - The monopole-2.0 loss is mainly an evaluation-time effect of that fluid (B -> E).
 
-Not supported or unresolved:
+Not supported or unresolved (the first item was resolved afterwards by the mechanism study on
+`exp/lbm-live-mechanism`: self-contamination of the baseline by the agent's own wake):
 - Which feature of the monopole fluid lowers the measured alignment. The monopole fluid is
   the one with the largest flow perturbation (magnitude deviation 0.69, direction 13 degrees
   off the law). The score is the alignment of the agent's move against the actual local flow,
@@ -148,6 +151,12 @@ Not supported or unresolved:
   run.
 
 ## Files
+
+All numbers in this README were recomputed from `per_seed.json` by an independent script
+(`scripts/audit_lbm_results.py` on `exp/lbm-live-sweep-rescored`): the condition table, the
+Wilcoxon and Spearman figures, the mediation point estimates and the cross-evaluation table
+reproduce exactly. The mediation bootstrap intervals were not recomputed.
+
 
 `analysis.md` (full script output), `analysis.json`, `per_seed.json` (every seed, all six
 same-fluid conditions and the cross-evaluation cells).
