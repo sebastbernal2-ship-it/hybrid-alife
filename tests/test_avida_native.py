@@ -264,3 +264,39 @@ def test_native_opcode_count_matches_python_vm():
     from hybrid_alife.physics import avida_native
 
     assert avida_native._load().avida_n_ops() == avida_vm.INSTRUCTION_COUNT
+
+
+def test_avida_config_validates_energy_and_native_registers():
+    import pytest
+
+    base = dict(
+        enabled=True, population_size=4, genome_length=8, max_genome_length=16, registers=3,
+        memory_size=4, cycles_per_update=2, point_mutation_prob=0.0, insertion_prob=0.0,
+        deletion_prob=0.0)
+    with pytest.raises(ValueError, match="instruction_energy_cost"):
+        AvidaConfig(**base, instruction_energy_cost=-1.0)
+    with pytest.raises(ValueError, match="energy_initial"):
+        AvidaConfig(**base, instruction_energy_cost=0.1, energy_initial=0.0)
+    with pytest.raises(ValueError, match="registers"):
+        AvidaConfig(**{**base, "registers": 1}, native=True)
+    AvidaConfig(**base, instruction_energy_cost=0.1)  # valid config still constructs
+
+
+def test_native_divide_and_couple_reject_bad_grids_and_tracers():
+    import pytest
+
+    from hybrid_alife.physics import avida_native
+
+    cfg, world, pop, positions = _setup(0.0)
+    with pytest.raises(ValueError, match="one row per organism"):
+        avida_native.couple(pop, world, dataclasses.replace(cfg, metabolite_uptake=0.1),
+                            positions[:10])
+
+    @jax.jit
+    def traced(g):
+        p = dataclasses.replace(pop, genomes=g)
+        avida_native.divide(p, cfg, 0, 1, jnp.zeros(64, bool))
+        return p.genomes
+
+    with pytest.raises(RuntimeError, match="cannot run under jax.jit"):
+        traced(pop.genomes)

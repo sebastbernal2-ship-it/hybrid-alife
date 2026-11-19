@@ -384,7 +384,13 @@ def apply_h_divide(
     key: PRNGKey,
 ) -> AvidaPopulationState:
     """For each organism that just executed H_DIVIDE with enough copied
-    content, spawn its offspring into a free slot."""
+    content, spawn its offspring into a free slot.
+
+    Known quirk, kept on purpose: rows without a match all scatter to index 0, so when there
+    are fewer matches than organisms the slot-0 child write and the slot-0 parent buffer reset
+    are undone. ``native/avida.cpp`` (``avida_divide``) reproduces this so the two paths stay
+    bit-exact; fixing it would change legacy behaviour and must be done in both.
+    """
     pop = _ensure_task_fields(pop)
     n = pop.alive.shape[0]
     div_mask = getattr(pop, "_divide_op_mask", jnp.zeros((n,), dtype=bool))

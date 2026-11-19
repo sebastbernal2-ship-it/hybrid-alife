@@ -178,9 +178,9 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
     ip[ch] = rh[ch] = wh[ch] = cl[ch] = age[ch] = tasks[ch] = 0;
     merit[ch] = 1.0f;
     alive[ch] = 1;
-    lineage_id[ch] = next_lineage_start + k;
+    lineage_id[ch] = wrap_add(next_lineage_start, k);  // int32 wrap, like JAX
     parent_id[ch] = lineage_id[p];
-    depth[ch] = depth[p] + 1;
+    depth[ch] = wrap_add(depth[p], 1);
     if (energy && !(ch == 0 && m < n)) {  // a slot-0 child that gets undone is not paid for
       const float half = 0.5f * energy[p];
       energy[p] = energy[p] - half;

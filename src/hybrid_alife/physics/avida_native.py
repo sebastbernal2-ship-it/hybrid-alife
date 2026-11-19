@@ -138,9 +138,16 @@ def divide(pop, cfg, next_lineage_start: int, seed: int, div_mask) -> None:
     def arr(x, dtype):
         return np.array(x, dtype=dtype, order="C")
 
+    require_concrete(pop.genomes, pop.merit, div_mask)
     genomes, copied = arr(pop.genomes, np.int32), arr(pop.copied, np.int32)
     lengths, regs, mem = (arr(pop.genome_lengths, np.int32), arr(pop.registers, np.int32),
                           arr(pop.memory, np.int32))
+    check_state(genomes, lengths, regs)
+    if mem.ndim != 2 or mem.shape[0] != genomes.shape[0]:
+        raise ValueError("memory must be [N, memory_size] matching the population")
+    cl_arr = np.asarray(pop.copied_length)
+    if cl_arr.size and (int(cl_arr.min()) < 0 or int(cl_arr.max()) > genomes.shape[1]):
+        raise ValueError("copied_length must lie in [0, max_genome_length]")
     ip, rh, wh, cl, age, tasks = (
         arr(getattr(pop, k), np.int32)
         for k in ("ip", "read_head", "write_head", "copied_length", "age", "tasks_completed"))
@@ -172,11 +179,18 @@ def couple(pop, world, cfg, positions) -> None:
 
     from hybrid_alife.world.env import positions_to_grid
 
+    require_concrete(world.metabolites, world.concentration, pop.merit, positions)
     h, w = world.metabolites.shape[0], world.metabolites.shape[1]
     grid = np.array(positions_to_grid(positions, h, w), dtype=np.int32)
     gr, gc = np.ascontiguousarray(grid[:, 0]), np.ascontiguousarray(grid[:, 1])
     metab = np.array(world.metabolites, dtype=np.float32, order="C")
     conc = np.array(world.concentration, dtype=np.float32, order="C")
+    if metab.ndim != 3 or conc.ndim != 3 or conc.shape[:2] != (h, w):
+        raise ValueError("metabolites and concentration must be [H, W, C] on the same grid")
+    if gr.shape[0] != pop.alive.shape[0]:
+        raise ValueError("positions must have one row per organism")
+    if gr.size and not (0 <= gr.min() and gr.max() < h and 0 <= gc.min() and gc.max() < w):
+        raise ValueError("organism grid cells fall outside the world")
     merit = np.array(pop.merit, dtype=np.float32, order="C")
     _load().avida_couple(
         pop.alive.shape[0], h, w, metab.shape[-1], conc.shape[-1], gr, gc,

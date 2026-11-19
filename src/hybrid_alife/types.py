@@ -219,6 +219,17 @@ class AvidaConfig:
     energy_initial: float = 10.0
     energy_efficiency: float = 0.5
 
+    def __post_init__(self) -> None:
+        if self.instruction_energy_cost < 0.0:
+            raise ValueError("instruction_energy_cost must be >= 0 (0 disables the economy)")
+        if self.instruction_energy_cost > 0.0:
+            if self.energy_initial <= 0.0:
+                raise ValueError("energy_initial must be > 0 when the energy economy is enabled")
+            if self.energy_efficiency < 0.0:
+                raise ValueError("energy_efficiency must be >= 0")
+        if self.native and self.registers < 2:
+            raise ValueError("AvidaConfig.native needs registers >= 2")
+
 
 @dataclass(frozen=True)
 class EvolutionConfig:
