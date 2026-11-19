@@ -172,7 +172,7 @@ def signed_alignment(
         raise ValueError("moves and flows must share a [n, 2] shape")
     move_norm = np.linalg.norm(moves, axis=-1)
     flow_norm = np.linalg.norm(flows, axis=-1)
-    valid = alive & (move_norm > 1e-8) & (flow_norm > 1e-8)
+    valid = alive & (move_norm > 1e-8) & (flow_norm > _FLOW_FLOOR)
     if not np.any(valid):
         return 0.0
     values = np.sum(moves[valid] * flows[valid], axis=-1) / (
@@ -181,11 +181,86 @@ def signed_alignment(
     return float(np.mean(values))
 
 
+# Optional law-field builder: unit direction -> [H, W, 2] flow. None keeps the uniform law.
+# Set by experiments via `set_law_profile`.
+_LAW_FIELD = None
+
+
+def set_law_profile(builder) -> None:
+    global _LAW_FIELD
+    _LAW_FIELD = builder
+
+
+# Cells with flow speed at or below this are not scored (alignment and fitness).
+_FLOW_FLOOR = 1e-8
+
+
+def set_flow_floor(floor: float) -> None:
+    global _FLOW_FLOOR
+    _FLOW_FLOOR = max(float(floor), 1e-8)
+
+
+def lbm_law_profile(size: int, obstacle: bool = True) -> np.ndarray:
+    """Channel flow around an obstacle from the native LBM solver (peak speed 1).
+
+    Returned in flow-vector convention: channel along axis 0 (component 0), walls at the
+    first and last column.
+    """
+    from hybrid_alife.physics import lbm
+
+    radius = size / 6 if obstacle else 0.0
+    field = lbm.channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
+    return field.transpose(1, 0, 2)
+
+
+def _rotation(unit: np.ndarray) -> np.ndarray:
+    return np.array([[unit[0], -unit[1]], [unit[1], unit[0]]])  # maps (1, 0) onto unit
+
+
+def rotating_vectors(profile: np.ndarray):
+    """Law builder that rotates the vectors only; geometry stays where it is."""
+    return lambda unit: profile @ _rotation(unit).T
+
+
+def rotating_geometry(profile: np.ndarray):
+    """Law builder that rotates the whole channel about the domain centre.
+
+    The profile is sampled at rotated coordinates with bilinear interpolation, periodic
+    along the channel axis and zero beyond the walls, so walls and obstacle move with the
+    law. Cardinal directions are exact.
+    """
+    size = profile.shape[0]
+    centre = (size - 1) / 2.0
+    rr, cc = np.meshgrid(np.arange(size) - centre, np.arange(size) - centre, indexing="ij")
+
+    def build(unit: np.ndarray) -> np.ndarray:
+        rot = _rotation(unit)
+        qr = rot[0, 0] * rr + rot[1, 0] * cc + centre  # q = R^T z
+        qc = rot[0, 1] * rr + rot[1, 1] * cc + centre
+        r0 = np.floor(qr + 1e-9).astype(int)
+        c0 = np.floor(qc + 1e-9).astype(int)
+        fr, fc = qr - r0, qc - c0
+        out = np.zeros((size, size, 2))
+        for dr, wr in ((0, 1 - fr), (1, fr)):
+            for dc, wc in ((0, 1 - fc), (1, fc)):
+                ri = (r0 + dr) % size
+                ci = c0 + dc
+                inside = (ci >= 0) & (ci < size)
+                vec = profile[ri, np.clip(ci, 0, size - 1)] * (wr * wc * inside)[..., None]
+                out += vec
+        return out @ rot.T
+
+    return build
+
+
 def _impose_flow(state, direction: tuple[float, float], magnitude: float):
     unit = np.asarray(direction, dtype=np.float64)
     unit = unit / max(float(np.linalg.norm(unit)), 1e-12)
-    vector = jnp.asarray(unit * magnitude, dtype=jnp.float32)
-    state.world.flow = jnp.broadcast_to(vector, state.world.flow.shape)
+    if _LAW_FIELD is None:
+        vector = jnp.asarray(unit * magnitude, dtype=jnp.float32)
+        state.world.flow = jnp.broadcast_to(vector, state.world.flow.shape)
+        return state
+    state.world.flow = jnp.asarray(_LAW_FIELD(unit) * magnitude, dtype=jnp.float32)
     return state
 
 
@@ -369,7 +444,7 @@ def _per_agent_alignment(state) -> np.ndarray:
     alive = np.asarray(state.embodied.alive, dtype=bool)
     move_norm = np.linalg.norm(moves, axis=-1)
     flow_norm = np.linalg.norm(flows, axis=-1)
-    valid = alive & (move_norm > 1e-8) & (flow_norm > 1e-8)
+    valid = alive & (move_norm > 1e-8) & (flow_norm > _FLOW_FLOOR)
     values = np.sum(moves * flows, axis=-1) / np.maximum(
         move_norm * flow_norm, 1e-12
     )

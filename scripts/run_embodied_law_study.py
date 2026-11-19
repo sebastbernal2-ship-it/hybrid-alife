@@ -23,8 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from hybrid_alife.experiments.latent_law_embodied import (  # noqa: E402
     alignment_gate_passes,
+    lbm_law_profile,
     per_direction_frozen_alignment,
+    rotating_geometry,
+    rotating_vectors,
     run_embodied_law_pilot,
+    set_flow_floor,
+    set_law_profile,
 )
 
 CARDINALS = ((0.0, -1.0), (0.0, 1.0), (1.0, 0.0), (-1.0, 0.0))
@@ -146,8 +151,27 @@ def main() -> int:
         default=None,
         help="absolute per-direction floor; replaces the initial-relative delta gate",
     )
+    parser.add_argument(
+        "--law-profile",
+        choices=("uniform", "lbm", "lbm-geometry"),
+        default="uniform",
+        help="lbm: LBM channel law, vectors rotated; lbm-geometry: whole channel rotated",
+    )
+    parser.add_argument("--no-obstacle", action="store_true", help="lbm laws: plain channel")
+    parser.add_argument(
+        "--flow-floor",
+        type=float,
+        default=0.0,
+        help="do not score cells whose flow speed is below this fraction of the imposed magnitude",
+    )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
+    set_flow_floor(args.flow_floor * 0.2)  # 0.2 is the imposed law magnitude
+    if args.law_profile != "uniform":
+        profile = lbm_law_profile(args.size, obstacle=not args.no_obstacle)
+        set_law_profile(
+            rotating_vectors(profile) if args.law_profile == "lbm" else rotating_geometry(profile)
+        )
 
     conditions = [not args.no_proprioception]
     results = []
@@ -205,6 +229,9 @@ def main() -> int:
         "immigrant_fraction": args.immigrant_fraction,
         "flow_head": args.flow_head,
         "raw_flow_features": args.raw_flow_features,
+        "law_profile": args.law_profile,
+        "no_obstacle": args.no_obstacle,
+        "flow_floor": args.flow_floor,
         "generations": args.generations,
         "population": args.population,
         "steps_per_generation": args.steps_per_generation,
