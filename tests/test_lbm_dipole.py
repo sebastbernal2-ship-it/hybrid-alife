@@ -95,15 +95,17 @@ def _ring_speed(velocity: np.ndarray, radius: float) -> float:
     return float(np.linalg.norm(velocity[rows, cols], axis=-1).mean())
 
 
-def _pulse(kind: str, steps: int, ell: float = 4.0, n: int = N, wait: int = 0) -> LiveLBM:
+def _pulse(
+    kind: str, steps: int, ell: float = 4.0, n: int = N, wait: int = 0, coeff: float = 5.0
+) -> LiveLBM:
     pos = np.array([[0.5, 0.5]])
     swim = np.array([[0.06, 0.0]])  # swimming along +axis 0
     solid = np.zeros((n, n), np.uint8)
     one = (pos, swim, np.ones(1), np.ones(1, bool), solid)
     force = (
-        agent_dipole_forces(*one, 5.0, ell, True)
+        agent_dipole_forces(*one, coeff, ell, True)
         if kind == "dipole"
-        else agent_reaction_forces(*one, 5.0)
+        else agent_reaction_forces(*one, coeff)
     )
     fluid = _box(n, n).advance(steps, force=force)
     return fluid.advance(wait, force=np.zeros_like(force)) if wait else fluid
@@ -129,7 +131,7 @@ def test_dipole_conserves_momentum_and_far_field_decays_faster():
 
 
 def test_pusher_dipole_flow_pattern_outflow_on_axis_inflow_from_sides():
-    v = _pulse("dipole", 15).velocity()
+    v = _pulse("dipole", 15, coeff=2.0).velocity()  # kept below the low-Mach limit
     c, d = N // 2, 6
     assert v[c + d, c, 0] > 0 and v[c - d, c, 0] < 0  # ahead: pushed forward; behind: backward
     assert v[c, c + d, 1] < 0 and v[c, c - d, 1] > 0  # sides: flowing in toward the axis

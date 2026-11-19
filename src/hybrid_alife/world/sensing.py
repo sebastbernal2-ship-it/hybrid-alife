@@ -173,6 +173,8 @@ def sample_sixth_sense(
         lft = sample_field_at(world.lift, positions, h, w)
         conc = sample_field_at(world.concentration, positions, h, w)
     crowd = crowding_context(positions, alive, messages, world.flow, h, w)
+    if embodied_cfg.chemical_signaling:
+        crowd = crowd.at[:, 2].set(0.0)  # no instantaneous broadcast; use the signal field
     hidden = frozenset(embodied_cfg.hidden_field_groups)
     if "all" in hidden:
         hidden = frozenset(("curvature", "flow", "enrichment", "concentration"))
