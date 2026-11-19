@@ -103,7 +103,7 @@ law is the more powerful test. Four tests, Holm-corrected:
 
 So the earlier "individually unresolved" is true of pass counts only. A lower min_delta than
 uniform is resolved for rotated geometry, plain channel and flow-floor, and not for
-vectors-only. Rotated geometry against plain channel: -0.015 (p = 1.0), so the obstacle adds
+vectors-only. Plain channel against rotated geometry: -0.015 (p = 1.0), so the obstacle adds
 nothing resolvable. The flow-floor condition against rotated geometry is -0.103 on 11 of 15
 seeds (p = 0.030, uncorrected; Holm over three such comparisons 0.09). Caveat: `min_delta`
 is evolved minus the random initial population scored under the same law, so a structured
