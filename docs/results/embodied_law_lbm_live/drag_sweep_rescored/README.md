@@ -121,7 +121,7 @@ Supported:
 Not supported or unresolved:
 - **"The whole trend is baseline inflation."** The pre-registered law-target slope persists
   (-0.060, p = 0.005) and the interval for the noself slope (-0.069 to +0.013) still allows a
-  slope of about two-thirds of the official one. The 60% figure has an interval reaching 1.39.
+  slope as large as the official one (its lower bound is -0.069). The 60% figure has an interval reaching 1.39.
   With 15 seeds the data neither establish nor exclude a residual cost.
 - **What the persisting law-target slope means.** The evolved population's alignment with the
   law falls with drag (0.612 to 0.542) because the evolved policies track the real local flow,
