@@ -83,6 +83,11 @@ class WorldConfig:
     lbm_peak_speed: float = 0.05
     lbm_substeps: int = 10
     lbm_agent_drag: float = 0.0
+    # "monopole": net force on the fluid (thrust treated as external). "dipole": a force-free
+    # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
+    # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
+    lbm_agent_coupling: str = "monopole"
+    lbm_dipole_length: float = 2.0
 
 
 @dataclass(frozen=True)

@@ -197,3 +197,58 @@ def agent_reaction_forces(
     out = np.zeros((h, w, 2))
     np.add.at(out, (ry, cx), force)
     return out
+
+
+def agent_dipole_forces(
+    positions: np.ndarray,
+    swim_velocities: np.ndarray,
+    radii: np.ndarray,
+    alive: np.ndarray,
+    solid_world: np.ndarray,
+    coeff: float,
+    length: float,
+    toroidal: bool,
+) -> np.ndarray:
+    """Force-free (pusher) dipole version of `agent_reaction_forces`, [H, W, 2].
+
+    Each swimming agent deposits +F e at the cell n ahead of its own cell and -F e at the
+    cell n behind it, with e the unit swim direction, n = round(length * e / 2) per axis,
+    and F = coeff * radius * |clipped swim velocity|. The net force per agent is exactly
+    zero, and the cell separation 2n is always even along every axis. That is deliberate:
+    a pair separated by an odd number of nodes projects onto the lattice's grid-scale
+    (Nyquist) checkerboard mode, which D2Q9 BGK does not damp, and leaves persistent
+    spurious flow across the whole domain (measured: about 300x more spectral energy at
+    k near Nyquist than an even gap). So the effective dipole length is quantized to
+    2 * round(length * e / 2) cells.
+
+    Agents are skipped entirely (never half-deposited, which would break the zero net
+    force) when either point lands on a solid cell or outside a non-toroidal domain, when
+    n rounds to zero (both points on the agent's cell cancel), or when not swimming.
+    """
+    h, w = solid_world.shape
+    out = np.zeros((h, w, 2))
+    slip = np.clip(swim_velocities, -MAX_RELATIVE_SPEED, MAX_RELATIVE_SPEED)
+    speed = np.linalg.norm(slip, axis=1)
+    unit = slip / np.maximum(speed, 1e-12)[:, None]
+    magnitude = coeff * radii * speed
+    cell = np.floor(np.asarray(positions) * np.array([h, w])).astype(int)
+    cell = np.clip(cell, 0, [h - 1, w - 1])
+    offset = np.rint(0.5 * length * unit).astype(int)
+    ends, inside = [], np.ones(cell.shape[0], bool)
+    for sign in (1, -1):
+        point = cell + sign * offset
+        if toroidal:
+            point = np.mod(point, [h, w])
+        inside &= np.all((point >= 0) & (point < [h, w]), axis=1)
+        ends.append(np.clip(point, 0, [h - 1, w - 1]))
+    front, rear = ends
+    ok = (
+        np.asarray(alive, bool) & (speed > 0) & inside
+        & (solid_world[front[:, 0], front[:, 1]] == 0)
+        & (solid_world[rear[:, 0], rear[:, 1]] == 0)
+        & np.any(offset != 0, axis=1)
+    )
+    push = (magnitude[:, None] * unit) * ok[:, None]
+    np.add.at(out, (front[:, 0], front[:, 1]), push)
+    np.add.at(out, (rear[:, 0], rear[:, 1]), -push)
+    return out

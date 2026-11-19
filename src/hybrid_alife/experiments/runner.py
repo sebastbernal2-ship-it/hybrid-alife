@@ -123,7 +123,7 @@ def initialize_sim(cfg: ExperimentConfig) -> SimState:
 
 def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_positions) -> None:
     """Queue the agents' Stokes-drag reaction on the live fluid for the next world step."""
-    from hybrid_alife.physics.lbm import agent_reaction_forces
+    from hybrid_alife.physics.lbm import agent_dipole_forces, agent_reaction_forces
 
     world_cfg, emb = cfg.world, state.embodied
     h, w = world_cfg.height, world_cfg.width
@@ -143,10 +143,18 @@ def _couple_agents_to_fluid(state: SimState, cfg: ExperimentConfig, old_position
         if cfg.embodied.body_morphology and "body_radius" in emb.genomes
         else np.ones(old.shape[0])
     )
-    force = agent_reaction_forces(
+    args = (
         np.asarray(emb.positions, dtype=np.float64), cells_per_lbm_step, radii,
         np.asarray(emb.alive), state.lbm.mask.T, world_cfg.lbm_agent_drag,
     )
+    if world_cfg.lbm_agent_coupling == "dipole":
+        force = agent_dipole_forces(
+            *args, world_cfg.lbm_dipole_length, world_cfg.toroidal
+        )
+    elif world_cfg.lbm_agent_coupling == "monopole":
+        force = agent_reaction_forces(*args)
+    else:
+        raise ValueError(f"unknown lbm_agent_coupling={world_cfg.lbm_agent_coupling!r}")
     state.lbm = state.lbm.with_pending_force(force)
 
 
