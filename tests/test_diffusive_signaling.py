@@ -131,7 +131,8 @@ def test_a_neighbour_senses_the_diffused_signal_through_the_sixth_sense():
     assert float(before[1, 7]) == 0.0  # nothing has reached the neighbour yet
     state = step_world(state, cfg.world)
     after = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, cfg.embodied, key)
-    assert float(after[1, 7]) > 0.0 and float(after[0, 7]) >= float(after[1, 7])
+    np.testing.assert_allclose(after[1, 7], 0.2, rtol=1e-4)  # one diffusion step, coeff 0.2
+    assert float(after[0, 7]) > 0.0
     hidden = replace(cfg.embodied, hidden_field_groups=("concentration",))
     blind = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, hidden, key)
     assert float(blind[1, 7]) == 0.0  # why construction rejects this combination
