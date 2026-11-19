@@ -6,7 +6,7 @@ Each lives on its own `feat/*` branch; its feature doc (named below) exists on t
 | Extension | Flag(s) | Native C++ | Feature doc | Config |
 |---|---|---|---|---|
 | LBM flow solver | `WorldConfig.flow_solver: lbm` | yes (`native/lbm.cpp`) | `lbm_flow.md` | `configs/ablation_lbm_flow.yaml` |
-| Native Avida VM | `AvidaConfig.native` | yes (`native/avida.cpp`) | `native_avida.md` | `configs/ablation_avida_energy.yaml` |
+| Native Avida VM | `AvidaConfig.native` | yes (`native/avida.cpp`) | `native_avida.md` | `configs/ablation_native_avida.yaml` |
 | Avida energy and heat | `AvidaConfig.instruction_energy_cost` | with the above | `native_avida.md` | `configs/ablation_avida_energy.yaml` |
 | Thermodynamic eating | `EmbodiedConfig.thermo_efficiency` | no | `energy_matter_conservation.md` | `configs/ablation_thermo.yaml` |
 | Chemical signaling | `EmbodiedConfig.chemical_signaling` | no | `chemical_signaling.md` | `configs/ablation_chemical_signaling.yaml` |
