@@ -187,7 +187,9 @@ def select_and_mutate_embodied(
     return pop
 
 
-def reseed_avida(pop: AvidaPopulationState, fraction: float, key: PRNGKey) -> AvidaPopulationState:
+def reseed_avida(
+    pop: AvidaPopulationState, fraction: float, key: PRNGKey, energy: float = 0.0
+) -> AvidaPopulationState:
     """If too many digital organisms are dead, randomize their genomes to reseed."""
     n = pop.alive.shape[0]
     alive_count = jnp.sum(pop.alive)
@@ -207,6 +209,10 @@ def reseed_avida(pop: AvidaPopulationState, fraction: float, key: PRNGKey) -> Av
             jnp.broadcast_to(template, (n, template.shape[0]))
         )
         dead = ~pop.alive
+        if pop.energy is not None and energy > 0.0:
+            # Revived organisms get fresh energy, booked as input so the ledger still balances.
+            pop.energy = jnp.where(dead, jnp.float32(energy), pop.energy)
+            pop.energy_in = pop.energy_in + jnp.float32(energy) * jnp.sum(dead)
         pop.genomes = jnp.where(dead[:, None], new_random, pop.genomes)
         pop.alive = jnp.ones((n,), dtype=bool)
         pop.ip = jnp.zeros((n,), dtype=jnp.int32)
