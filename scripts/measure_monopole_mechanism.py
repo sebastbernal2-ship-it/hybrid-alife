@@ -296,7 +296,14 @@ def eval_job(args) -> str:
 
 
 def replay_job(args) -> str:
-    """Replay the E-fluid flow series recorded from each genome set, agents not forcing."""
+    """Cross-replay: each genome set is scored in the E-fluid series produced by each set.
+
+    Replaying a population's own series is a tautology (its behaviour depends only on the flow
+    it sees, so the trajectory repeats exactly), so the informative cells are the foreign ones:
+    the series recorded from population S is replayed with the agents not forcing, and genome
+    set G is scored in it. G == S carries G's own wake; G != S carries a foreign wake that G did
+    not create and cannot influence.
+    """
     seed, out = args
     path = Path(out) / "replay" / f"seed{seed}.json"
     if path.exists():
@@ -305,17 +312,19 @@ def replay_job(args) -> str:
     config_e = law_config(seed, CONDITIONS["E"])
     config_replay = law_config(seed, {**CONDITIONS["E"], "lbm_agent_drag": 0.0})
     result: dict = {"seed": seed, "rows": []}
-    for gname in ("B", "init"):
-        for direction in DIAGONALS:
-            full = rollout(config_e, sets[gname], direction, shadows=False, capture_fields=True)
-            series = [r.full_flow for r in full]
-            rep = rollout(config_replay, sets[gname], direction, shadows=False,
-                          replay_series=series)
-            result["rows"].append({
-                "genomes": gname, "direction": str(direction),
-                **{f"full_{k}": v for k, v in rescore(full).items()},
-                **{f"replay_{k}": v for k, v in rescore(rep).items()},
-            })
+    for direction in DIAGONALS:
+        series = {}
+        for source in ("B", "init"):
+            full = rollout(config_e, sets[source], direction, shadows=False, capture_fields=True)
+            series[source] = [r.full_flow for r in full]
+        for source in ("B", "init"):
+            for gname in ("B", "init"):
+                rep = rollout(config_replay, sets[gname], direction, shadows=False,
+                              replay_series=series[source])
+                result["rows"].append({
+                    "genomes": gname, "series_from": source, "direction": str(direction),
+                    **rescore(rep),
+                })
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=1, sort_keys=True))
     return f"replay {seed}"

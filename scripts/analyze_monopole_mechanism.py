@@ -79,7 +79,8 @@ def main() -> int:
 
     print("== reproduction: median min_delta (official score)")
     for fluid, g in (("B", "B"), ("E", "B"), ("E", "E"), ("F", "B"), ("F", "E")):
-        print(f"  genomes {g} in fluid {fluid}: {np.median(min_delta(tab, fluid, g, 'official')):.3f}")
+        median = np.median(min_delta(tab, fluid, g, "official"))
+        print(f"  genomes {g} in fluid {fluid}: {median:.3f}")
 
     print("\n== mean alignment (over directions and seeds)")
     print("fluid genomes " + " ".join(f"{v:>10}" for v in VARIANTS))
@@ -99,10 +100,51 @@ def main() -> int:
             for fluid in ("E", "F"):
                 d = min_delta(tab, fluid, g, v)
                 res = paired(d, ref)
-                report["min_delta"][f"{g}-trained/{fluid}/{v}"] = {"median": float(np.median(d)), **res}
+                report["min_delta"][f"{g}-trained/{fluid}/{v}"] = {
+                    "median": float(np.median(d)), **res}
                 print(f"  {g}-trained in {fluid}, scored {v:>10}: median {np.median(d):6.3f} "
                       f"change {res['mean_diff']:+.3f} [{res['ci'][0]:+.3f},{res['ci'][1]:+.3f}] "
                       f"p={res['wilcoxon_p']:.4f} worse/better {res['worse']}/{res['better']}")
+
+    # ---- Holm over the primary family: fluid E, both genome sets, four scoring variants -----
+    family = [(g, v) for g in ("B", "E") for v in ("official", "law", "noself", "selfonly")]
+    ps = [report["min_delta"][f"{g}-trained/E/{v}"]["wilcoxon_p"] for g, v in family]
+    for (g, v), adj in zip(family, holm(ps), strict=True):
+        report["min_delta"][f"{g}-trained/E/{v}"]["holm_p_8"] = adj
+    print("\n== Holm-adjusted p over the 8 fluid-E tests (2 genome sets x 4 scorings)")
+    for (g, v), adj in zip(family, holm(ps), strict=True):
+        raw = report["min_delta"][f"{g}-trained/E/{v}"]["wilcoxon_p"]
+        print(f"  {g}-trained, {v:>8}: raw {raw:.4f} Holm {adj:.4f}")
+
+    # ---- Which side of min_delta moves: evolved or initial alignment ---------------------
+    print("\n== alignment change in fluid E vs fluid B (B-trained evolved vs initial), per scoring")
+    report["side"] = {}
+    for v in ("official", "law", "noself"):
+        ev = (tab["E"]["B"][v] - tab["B"]["B"]["official"]).mean(axis=1)
+        ini = (tab["E"]["init"][v] - tab["B"]["init"]["official"]).mean(axis=1)
+        pe, pi = paired(ev, np.zeros_like(ev)), paired(ini, np.zeros_like(ini))
+        report["side"][v] = {"evolved": pe, "initial": pi}
+        print(f"  {v:>8}: evolved {pe['mean_diff']:+.3f} [{pe['ci'][0]:+.3f},{pe['ci'][1]:+.3f}] "
+              f"p={pe['wilcoxon_p']:.4f} | initial {pi['mean_diff']:+.3f} "
+              f"[{pi['ci'][0]:+.3f},{pi['ci'][1]:+.3f}] p={pi['wilcoxon_p']:.4f}")
+
+    # ---- Share of the min_delta loss removed by taking the own wake out of the target ----
+    print("\n== share of the fluid-E loss removed by scoring without the own wake (seed bootstrap)")
+    report["explained"] = {}
+    rng = np.random.default_rng(1)
+    for g in ("B", "E"):
+        ref = min_delta(tab, "B", g, "official")
+        loss_official = ref - min_delta(tab, "E", g, "official")
+        loss_noself = ref - min_delta(tab, "E", g, "noself")
+        shares = []
+        for _ in range(5000):
+            idx = rng.integers(0, len(ref), len(ref))
+            lo = loss_official[idx].mean()
+            shares.append(1.0 - loss_noself[idx].mean() / lo if abs(lo) > 1e-9 else np.nan)
+        point = 1.0 - loss_noself.mean() / loss_official.mean()
+        ci = np.nanpercentile(shares, [2.5, 97.5])
+        report["explained"][g] = {"share": float(point), "ci": [float(ci[0]), float(ci[1])]}
+        print(f"  {g}-trained: {point:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]")
 
     print("\n== wake statistics (fluid E, B-trained evolved / initial)")
     report["wake"] = {}
@@ -115,21 +157,43 @@ def main() -> int:
         print(f"  {g}: " + ", ".join(f"{k}={v:.3f}" for k, v in report["wake"][g].items()))
 
     if args.replay:
-        print("\n== replay control (E-fluid series replayed, agents not forcing), B-trained")
         rep = load(args.replay)
-        for scoring in ("full", "replay"):
+        ref = min_delta(tab, "B", "B", "official")
+        print("\n== cross-replay (E-fluid series from population S, agents not forcing)")
+        print("   evolved = B-trained genomes, init = shared initial genomes")
+        report["replay"] = {}
+        for source in ("B", "init"):
             for v in ("official", "law"):
-                ev, ini = [], []
-                for res in rep:
-                    for g, store in (("B", ev), ("init", ini)):
-                        store.append([r[f"{scoring}_{v}"] for r in res["rows"] if r["genomes"] == g])
-                d = (np.array(ev) - np.array(ini)).min(axis=1)
-                ref = min_delta(tab, "B", "B", "official")
+                al = {}
+                for g in ("B", "init"):
+                    al[g] = np.array([[r[v] for r in res["rows"]
+                                       if r["genomes"] == g and r["series_from"] == source]
+                                      for res in rep])
+                d = (al["B"] - al["init"]).min(axis=1)
                 res = paired(d, ref)
-                report.setdefault("replay", {})[f"{scoring}/{v}"] = {"median": float(np.median(d)), **res}
-                print(f"  {scoring:>6} rollout scored {v:>8}: median {np.median(d):6.3f} "
-                      f"change vs B {res['mean_diff']:+.3f} p={res['wilcoxon_p']:.4f} "
+                key = f"series_from_{source}/{v}"
+                report["replay"][key] = {
+                    "median": float(np.median(d)), "evolved_mean": float(al["B"].mean()),
+                    "init_mean": float(al["init"].mean()), **res}
+                print(f"  series from {source:>4}, scored {v:>8}: evolved {al['B'].mean():.3f} "
+                      f"init {al['init'].mean():.3f} median min_delta {np.median(d):.3f} "
+                      f"change vs B {res['mean_diff']:+.3f} "
+                      f"[{res['ci'][0]:+.3f},{res['ci'][1]:+.3f}] p={res['wilcoxon_p']:.4f} "
                       f"worse/better {res['worse']}/{res['better']}")
+        own, foreign = {}, {}
+        for g, src_own in (("B", "B"), ("init", "init")):
+            for store, src in ((own, src_own), (foreign, "init" if g == "B" else "B")):
+                store[g] = np.array([[r["official"] for r in res["rows"]
+                                      if r["genomes"] == g and r["series_from"] == src]
+                                     for res in rep]).mean(axis=1)
+        print("\n  alignment of each genome set in its OWN wake vs a FOREIGN wake (official score)")
+        for g in ("B", "init"):
+            res = paired(own[g], foreign[g])
+            report["replay"][f"own_vs_foreign/{g}"] = {
+                "own": float(own[g].mean()), "foreign": float(foreign[g].mean()), **res}
+            print(f"   {g:>4}: own {own[g].mean():.3f} foreign {foreign[g].mean():.3f} "
+                  f"diff {res['mean_diff']:+.3f} [{res['ci'][0]:+.3f},{res['ci'][1]:+.3f}] "
+                  f"p={res['wilcoxon_p']:.4f}")
     if args.json:
         args.json.write_text(json.dumps(report, indent=1, sort_keys=True))
     return 0
