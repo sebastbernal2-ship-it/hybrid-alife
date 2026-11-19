@@ -214,6 +214,8 @@ class AvidaConfig:
     # Branch coupling: digital organisms read/produce world metabolites.
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
+    # Run the per-update cycle loop in the native C++ kernel (make -C native).
+    native: bool = False
 
 
 @dataclass(frozen=True)
