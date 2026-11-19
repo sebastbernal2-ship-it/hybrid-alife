@@ -21,7 +21,9 @@ def _config(chemical: bool):
         proprioception=True)
     world = replace(base.world, concentration_decay=1.0, concentration_diffusion=0.2,
                     flow_advection_strength=0.0, flow_noise_std=0.0, toroidal=True)
-    emb = replace(base.embodied, chemical_signaling=chemical, message_gate_threshold=0.0)
+    emb = replace(
+        base.embodied, chemical_signaling=chemical, message_gate_threshold=0.0,
+        hidden_field_groups=())  # the law config hides concentration; the signal must be visible
     return replace(base, world=world, embodied=emb)
 
 
@@ -81,3 +83,55 @@ def test_instant_broadcast_is_removed_from_crowding_context():
     on = sample_sixth_sense(state.world, pos, alive, msgs, zero_noise, cfg.embodied, key)
     legacy = sample_sixth_sense(state.world, pos, alive, msgs, zero_noise, off, key)
     assert float(on[0, -1]) == 0.0 and float(legacy[0, -1]) > 0.0
+
+
+def test_chemical_signaling_rejects_configs_where_the_signal_is_unobservable():
+    import pytest
+
+    from hybrid_alife.agents.embodied import initialize_embodied_population
+
+    cfg = _config(True)
+    key = jax.random.PRNGKey(0)
+    initialize_embodied_population(cfg.embodied, cfg.world, key)  # valid config works
+    for kwargs, match in (
+        ({"blind": True}, "observable"),
+        ({"hidden_field_groups": ("concentration",)}, "observable"),
+        ({"hidden_field_groups": ("all",)}, "observable"),
+        ({"use_comms": False}, "use_comms"),
+        ({"signal_deposit": -1.0}, "signal_deposit"),
+    ):
+        with pytest.raises(ValueError, match=match):
+            initialize_embodied_population(replace(cfg.embodied, **kwargs), cfg.world, key)
+    # Legacy broadcast is unaffected by the same settings.
+    off = replace(cfg.embodied, chemical_signaling=False, blind=True)
+    initialize_embodied_population(off, cfg.world, key)
+
+
+def test_other_hidden_groups_leave_the_signal_observable():
+    from hybrid_alife.agents.embodied import initialize_embodied_population
+
+    cfg = _config(True)
+    emb = replace(cfg.embodied, hidden_field_groups=("flow", "metabolites"))
+    initialize_embodied_population(emb, cfg.world, jax.random.PRNGKey(0))
+
+
+def test_a_neighbour_senses_the_diffused_signal_through_the_sixth_sense():
+    from hybrid_alife.world.sensing import sample_sixth_sense
+
+    cfg = _config(True)
+    state, _ = _emit(cfg)
+    cell = (SIZE // 2 + 0.5) / SIZE
+    near = (SIZE // 2 + 1.5) / SIZE  # one cell away along axis 0
+    positions = jnp.array([[cell, cell], [near, cell]], dtype=jnp.float32)
+    alive = jnp.array([True, True])
+    msgs = jnp.zeros((2, cfg.embodied.message_size))
+    world_cfg = replace(cfg.world, sensory_noise_std=0.0)
+    key = jax.random.PRNGKey(0)
+    before = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, cfg.embodied, key)
+    assert float(before[1, 7]) == 0.0  # nothing has reached the neighbour yet
+    state = step_world(state, cfg.world)
+    after = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, cfg.embodied, key)
+    assert float(after[1, 7]) > 0.0 and float(after[0, 7]) >= float(after[1, 7])
+    hidden = replace(cfg.embodied, hidden_field_groups=("concentration",))
+    blind = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, hidden, key)
+    assert float(blind[1, 7]) == 0.0  # why construction rejects this combination

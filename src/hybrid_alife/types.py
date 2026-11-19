@@ -149,6 +149,8 @@ class EmbodiedConfig:
     # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
     # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
     # concentration diffusion/decay/advection.
+    # The signal is an intensity (emit gate x signal_deposit), not message content; the emitter
+    # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
     chemical_signaling: bool = False
     signal_deposit: float = 1.0
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
