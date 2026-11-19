@@ -504,7 +504,9 @@ def apply_embodied_actions(
     thermo = embodied_cfg.thermo_efficiency
     if thermo > 0.0:
         # Conservative eating: agents sharing a cell split what is there instead of
-        # each drawing the full amount, so removed mass equals consumed mass.
+        # each drawing the full amount, so removed mass equals consumed mass. A negative
+        # eat gate would otherwise add matter, so it is clamped to zero here.
+        take_per_channel = jnp.maximum(take_per_channel, 0.0)
         demand = jnp.zeros_like(world.resources).at[grid[:, 0], grid[:, 1]].add(take_per_channel)
         scale = jnp.minimum(1.0, world.resources / jnp.maximum(demand, 1e-12))
         take_per_channel = take_per_channel * scale[grid[:, 0], grid[:, 1]]

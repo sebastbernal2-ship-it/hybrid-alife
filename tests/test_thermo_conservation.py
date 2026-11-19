@@ -62,3 +62,45 @@ def test_thermo_mode_conserves_matter_and_accounts_for_energy():
     assert abs(_mass(world) + gained / 5.0 - before_mass) < 1e-4
     np.testing.assert_allclose(gained, removed * 5.0 * EFFICIENCY, rtol=1e-4)
     assert float(world.resources.min()) >= 0.0
+
+
+def test_negative_eat_gate_cannot_create_matter_in_thermo_mode():
+    cfg, state, pop, actions = _crowded_state(EFFICIENCY)
+    actions = actions.at[:, 2].set(-1.0)
+    before = _mass(state.world)
+    pop, world, _ = apply_embodied_actions(
+        pop, actions, state.world, cfg.embodied, cfg.world, jnp.array([0, 1]))
+    assert abs(_mass(world) - before) < 1e-6
+    assert float(pop.energy.sum()) == 6 * 20.0
+
+
+def test_closed_system_conserves_matter_plus_energy_over_many_steps():
+    from hybrid_alife.world.env import step_world
+
+    cfg, state, pop, actions = _crowded_state(EFFICIENCY)
+    world_cfg = replace(cfg.world, resource_regen=0.0, metabolite_decay=1.0,
+                        hazard_decay=0.0, resource_advection_strength=0.0)
+    cfg = replace(cfg, world=world_cfg)
+    # Spread the agents over a few cells so crowding and free cells are both exercised.
+    pop.positions = jnp.array(
+        [[0.55, 0.55], [0.55, 0.55], [0.35, 0.35], [0.35, 0.35], [0.75, 0.15], [0.75, 0.15]],
+        dtype=jnp.float32)
+    state.embodied = pop
+    total0 = _mass(state.world) + float(pop.energy.sum()) / 5.0
+    for step in range(25):
+        pop, world, _ = apply_embodied_actions(
+            state.embodied, actions, state.world, cfg.embodied, world_cfg, jnp.array([step, 1]))
+        state.embodied, state.world = pop, world
+        state = step_world(state, world_cfg)
+    total = _mass(state.world) + float(state.embodied.energy.sum()) / 5.0
+    assert abs(total - total0) < 1e-3 * total0
+    assert float(state.world.metabolites.sum()) > 0.0  # waste really was produced
+
+
+def test_thermo_efficiency_is_validated_at_construction():
+    import pytest
+
+    cfg, *_ = _crowded_state(0.0)
+    for bad in (-0.1, 1.5):
+        with pytest.raises(ValueError, match="thermo_efficiency"):
+            replace(cfg.embodied, thermo_efficiency=bad)
