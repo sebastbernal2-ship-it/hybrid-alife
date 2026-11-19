@@ -10,6 +10,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Evidence contract for the wider causal-inquiry program: `docs/SELECTIVE_CAUSAL_INQUIRY_PROTOCOL.md`
 - Evidence tiers and how to read a metric: `docs/SCIENTIFIC_INTERPRETATION_GUIDE.md`
 - Closure rules: `docs/FINALIZATION_GATE.md`
+- Opt-in physics and native extensions (default off), flags and sharp edges: `docs/extensions/README.md`
 
 ## Commands
 
