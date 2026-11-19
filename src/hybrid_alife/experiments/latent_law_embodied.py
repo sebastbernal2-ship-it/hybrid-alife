@@ -386,8 +386,12 @@ def evaluate_frozen_alignment(
     steps: int = 12,
     genomes: dict[str, jnp.ndarray] | None = None,
     reverse_law: bool = False,
+    diagnostics: list | None = None,
 ) -> dict[str, float]:
     """Evaluate genomes on one direction with mutation disabled.
+
+    ``diagnostics`` (optional list) receives one record per step with the raw flow-estimate
+    inputs and the live local flow, for ``flow_estimate_errors``. It never changes the rollout.
 
     ``genomes`` defaults to the evolved genomes from ``state``. Pass the initial
     genomes to measure whether evolution improved anything at all.
@@ -417,9 +421,71 @@ def evaluate_frozen_alignment(
             target, tuple(float(v) for v in applied), magnitude
         )
         alignments.append(_mean_alignment_of_state(target))
+        if diagnostics is not None:
+            diagnostics.append(_estimate_record(target, applied, magnitude))
     return {
         "mean_alignment": float(np.mean(alignments)),
         "final_alignment": float(alignments[-1]) if alignments else 0.0,
+    }
+
+
+def angular_error_deg(a: np.ndarray, b: np.ndarray, floor: float = 1e-8) -> np.ndarray:
+    """Angle in degrees between row vectors ``a`` and ``b``; NaN where either is below ``floor``."""
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    na, nb = np.linalg.norm(a, axis=-1), np.linalg.norm(b, axis=-1)
+    cos = np.sum(a * b, axis=-1) / np.maximum(na * nb, 1e-300)
+    angle = np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))
+    return np.where((na > floor) & (nb > floor), angle, np.nan)
+
+
+def _estimate_record(state, applied, magnitude: float) -> dict:
+    """What the flow-head policy will use next step, and the live flow it will be scored on."""
+    pop = state.embodied
+    velocity, thrust = pop.previous_velocity, pop.previous_thrust
+    return {
+        "estimate": np.asarray(velocity - thrust, dtype=np.float64),
+        "flow": _local_flows(state).astype(np.float64),
+        "alive": np.asarray(pop.alive, dtype=bool),
+        "law": np.asarray(applied, dtype=np.float64) / max(float(np.linalg.norm(applied)), 1e-12)
+        * magnitude,
+    }
+
+
+def flow_estimate_errors(records: list[dict], floor: float = 1e-8) -> dict[str, float]:
+    """Summarise estimate quality over one rollout's per-step records.
+
+    The estimate recorded after step t is ``(previous_velocity - previous_thrust)``: the flow
+    the agent was advected by during step t. The policy acts on it at step t + 1 and is scored
+    against the flow it finds after that step, so the error pairs ``estimate[t]`` with
+    ``flow[t + 1]``. Reported per rollout (degrees unless noted):
+
+    - ``angle_mean``: mean angle between the estimate and that later local flow;
+    - ``law_angle_mean``: mean angle between the local flow and the imposed law direction;
+    - ``magnitude_dev_mean``: mean ``|flow - law| / |law|`` at the agents' cells;
+    - ``n``: number of valid agent-steps.
+    """
+    angles, law_angles, mags = [], [], []
+    for prev, cur in zip(records[:-1], records[1:], strict=True):
+        valid = prev["alive"] & cur["alive"]
+        angle = angular_error_deg(prev["estimate"], cur["flow"], floor)
+        angles.append(angle[valid])
+        law = np.broadcast_to(cur["law"], cur["flow"].shape)
+        law_angles.append(angular_error_deg(cur["flow"], law, floor)[valid])
+        deviation = np.linalg.norm(cur["flow"] - law, axis=-1) / np.linalg.norm(cur["law"])
+        mags.append(deviation[valid])
+    angle = np.concatenate(angles) if angles else np.array([])
+    law_angle = np.concatenate(law_angles) if law_angles else np.array([])
+    mag = np.concatenate(mags) if mags else np.array([])
+    ok = ~np.isnan(angle)
+    ok_law = ~np.isnan(law_angle)
+    return {
+        "angle_mean": float(angle[ok].mean()) if ok.any() else float("nan"),
+        "angle_median": float(np.median(angle[ok])) if ok.any() else float("nan"),
+        "frac_over_45": float((angle[ok] > 45.0).mean()) if ok.any() else float("nan"),
+        "law_angle_mean": float(law_angle[ok_law].mean()) if ok_law.any() else float("nan"),
+        "magnitude_dev_mean": float(mag.mean()) if mag.size else float("nan"),
+        "n": int(ok.sum()),
     }
 
 
