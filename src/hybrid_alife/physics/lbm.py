@@ -145,13 +145,11 @@ class LiveLBM:
     ) -> LiveLBM:
         """Channel along world axis 0, warmed up to (near) steady flow."""
         mask = channel_mask(width, height, obstacle_radius)  # LBM frame is [W, H]
-        n = mask.size
         u, v, rho = np.zeros(mask.shape), np.zeros(mask.shape), np.ones(mask.shape)
         f = np.zeros((*mask.shape, 9))
         _load().lbm_init(mask.shape[0], mask.shape[1], 1.0, u, v, f)
         out = cls(f, mask, nu, channel_body_force(mask.shape[0], nu, peak_speed), peak_speed,
                   u, v, rho, np.zeros((height, width, 2)))
-        assert n == height * width
         return out.advance(warm_steps)
 
     def advance(self, steps: int, force: np.ndarray | None = None) -> LiveLBM:
@@ -160,8 +158,13 @@ class LiveLBM:
         `force` is a world-frame [H, W, 2] force density per cell, applied every step.
         Defaults to `pending_force`.
         """
-        force = self.pending_force if force is None else force
-        force_l = np.ascontiguousarray(np.asarray(force, np.float64).transpose(1, 0, 2))
+        h, w = self.shape
+        if force is None:
+            force = self.pending_force if self.pending_force is not None else np.zeros((h, w, 2))
+        force = np.asarray(force, np.float64)
+        if force.shape != (h, w, 2):  # the kernel reads h*w*2 doubles: a bad shape is an overread
+            raise ValueError(f"force must have shape {(h, w, 2)}, got {force.shape}")
+        force_l = np.ascontiguousarray(force.transpose(1, 0, 2))
         f = np.ascontiguousarray(self.f.copy())
         u, v, rho = (np.zeros(self.mask.shape) for _ in range(3))
         rc = _load().lbm_advance(
@@ -170,12 +173,21 @@ class LiveLBM:
         )
         if rc < 0:
             raise ValueError("invalid LBM arguments (need h,w>=3, nu>0, steps>=0)")
+        speed = float(np.max(np.hypot(u, v)))
+        if not np.isfinite(speed) or speed > MAX_LATTICE_SPEED:
+            raise ValueError(
+                f"live LBM velocity {speed:.3g} exceeds the low-Mach limit {MAX_LATTICE_SPEED} "
+                "(lattice units); lower lbm_agent_drag or lbm_peak_speed, or raise lbm_viscosity"
+            )
         return LiveLBM(f, self.mask, self.nu, self.body_force, self.peak_speed, u, v, rho,
                        self.pending_force)
 
     def with_pending_force(self, force: np.ndarray) -> LiveLBM:
+        force = np.asarray(force, np.float64)
+        if force.shape != (*self.shape, 2):
+            raise ValueError(f"force must have shape {(*self.shape, 2)}, got {force.shape}")
         return LiveLBM(self.f, self.mask, self.nu, self.body_force, self.peak_speed, self.u,
-                       self.v, self.rho, np.asarray(force, np.float64))
+                       self.v, self.rho, force)
 
     def velocity(self) -> np.ndarray:
         """[H, W, 2] fluid velocity in lattice units (world frame)."""
