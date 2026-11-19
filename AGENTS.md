@@ -18,6 +18,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Lint: `venv/bin/ruff check src tests`
 - Gravity study replication: `JAX_PLATFORMS=cpu venv/bin/python scripts/run_gravity_study.py --seeds 0 1 2 3 4 --output docs/results/gravity_study_v1/summary.json`
 - Set `JAX_PLATFORMS=cpu` for local runs; CI runs both Python 3.11 and 3.12.
+- Native C++ kernels (need g++ and make): `make -C native`; also built on first import, and a failed build raises `RuntimeError`.
 
 ## Sharp edges
 
