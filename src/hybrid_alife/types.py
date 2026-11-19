@@ -89,6 +89,10 @@ class WorldConfig:
     lbm_agent_coupling: str = "monopole"
     lbm_dipole_length: float = 2.0
 
+    def __post_init__(self) -> None:
+        if self.flow_solver not in ("proxy", "lbm"):
+            raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy or lbm)")
+
 
 @dataclass(frozen=True)
 class EmbodiedConfig:
