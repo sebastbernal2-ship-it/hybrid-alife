@@ -28,6 +28,10 @@ inline int32_t wrap_add(int32_t a, int32_t b) { return (int32_t)((uint32_t)a + (
 
 extern "C" {
 
+// Opcode count, checked against the Python VM at load time so a stale build cannot silently
+// disagree about the instruction set.
+int avida_n_ops() { return N_OPS; }
+
 // All arrays are C-contiguous. registers is [n, nreg] with nreg >= 2.
 // rewards: 9 floats. div_mask (out): 1 where the organism executed H_DIVIDE.
 void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int32_t* lengths,
