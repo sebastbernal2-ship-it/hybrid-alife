@@ -184,6 +184,10 @@ class EmbodiedConfig:
     # Morphology genes: body radius and aspect. Off by default so the D1 studies
     # keep their exact dynamics.
     body_morphology: bool = False
+    # Stokes-drag mechanics: actions are thrust, drag grows with body radius, so swim speed
+    # is thrust / radius and movement cost is the dissipated power (radius * speed^2).
+    # Normalised so radius 1 at full thrust matches the legacy linear move cost.
+    stokes_mechanics: bool = False
     # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
     # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
     # concentration diffusion/decay/advection.
