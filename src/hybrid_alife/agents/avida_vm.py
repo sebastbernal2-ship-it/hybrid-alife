@@ -554,6 +554,7 @@ def step_avida_population(
     if cfg.native:
         from hybrid_alife.physics import avida_native
 
+        avida_native.require_concrete(pop.genomes, pop.merit, key)
         key, k_nat = jax.random.split(key)
         env_a, env_b = sample_env(world, positions, pop.alive.shape[0])
         seed = int(jax.random.randint(k_nat, (), 0, 2**31 - 1, dtype=jnp.int32))

@@ -226,3 +226,41 @@ def test_native_and_jax_agree_on_energy_without_mutation():
                 getattr(ref, f), getattr(nat, f), err_msg=f"{f} seed={seed}")
         np.testing.assert_allclose(float(ref.heat), float(nat.heat), rtol=1e-4)
         np.testing.assert_allclose(float(ref.energy_in), float(nat.energy_in), rtol=1e-4)
+def test_native_under_jit_fails_with_a_clear_error():
+    import pytest
+
+    cfg, world, pop, positions = _setup(0.0)
+    cfg = dataclasses.replace(cfg, native=True)
+
+    @jax.jit
+    def step(genomes, merit):
+        p = dataclasses.replace(pop, genomes=genomes, merit=merit)
+        out, _ = avida_vm.step_avida_population(p, world, cfg, 0, jax.random.PRNGKey(0), positions)
+        return out.merit
+
+    with pytest.raises(RuntimeError, match="cannot run under jax.jit"):
+        step(pop.genomes, pop.merit)
+
+
+def test_native_rejects_states_that_would_index_out_of_bounds():
+    import pytest
+
+    from hybrid_alife.physics import avida_native
+
+    cfg, world, pop, positions = _setup(0.0)
+    bad_len = dataclasses.replace(pop, genome_lengths=pop.genome_lengths.at[3].set(10_000))
+    with pytest.raises(ValueError, match="exceed max_genome_length"):
+        avida_native.run_update(
+            bad_len, cfg, jnp.full((64,), 2, jnp.int32), jnp.zeros(64, jnp.int32),
+            jnp.zeros(64, jnp.int32), avida_vm._task_reward_vector(cfg), seed=0)
+    one_reg = dataclasses.replace(pop, registers=pop.registers[:, :1])
+    with pytest.raises(ValueError, match="at least 2 registers"):
+        avida_native.run_update(
+            one_reg, cfg, jnp.full((64,), 2, jnp.int32), jnp.zeros(64, jnp.int32),
+            jnp.zeros(64, jnp.int32), avida_vm._task_reward_vector(cfg), seed=0)
+
+
+def test_native_opcode_count_matches_python_vm():
+    from hybrid_alife.physics import avida_native
+
+    assert avida_native._load().avida_n_ops() == avida_vm.INSTRUCTION_COUNT
