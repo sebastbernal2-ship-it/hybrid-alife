@@ -326,6 +326,11 @@ def new_live_lbm(cfg: WorldConfig):
     """Warmed-up live LBM channel for a world config (obstacle if curvature_regime says so)."""
     from hybrid_alife.physics.lbm import LiveLBM
 
+    if cfg.lbm_box == "periodic":
+        return LiveLBM.uniform(
+            cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
+            relax_steps=cfg.lbm_law_relax_steps,
+        )
     radius = min(cfg.height, cfg.width) / 6 if cfg.curvature_regime == "obstacle" else 0.0
     return LiveLBM.channel(
         cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
