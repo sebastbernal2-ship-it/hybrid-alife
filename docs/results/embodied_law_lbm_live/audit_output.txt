@@ -1,0 +1,200 @@
+== profile: pass / median / failing seeds (min_delta, min_reversed)
+  uniform                14/15  median min_delta 0.393  fails [(1, 0.193, 0.411)]
+  lbm-vectors            11/15  median min_delta 0.408  fails [(1, -0.464, -0.03), (4, 0.198, 0.632), (5, 0.044, 0.03), (9, -0.006, 0.403)]
+  lbm-geometry           10/15  median min_delta 0.316  fails [(1, 0.173, 0.337), (7, 0.169, 0.539), (9, 0.187, 0.508), (10, 0.086, 0.245), (13, 0.381, 0.181)]
+  lbm-channel            10/15  median min_delta 0.308  fails [(1, 0.099, 0.267), (4, 0.015, 0.421), (7, 0.124, 0.414), (10, -0.151, -0.273), (14, 0.09, 0.195)]
+  lbm-geometry-floor      7/15  median min_delta 0.145  fails [(1, 0.145, 0.293), (3, 0.142, 0.319), (5, 0.096, -0.001), (6, -0.047, 0.122), (7, -0.219, 0.275), (8, 0.094, 0.369), (9, 0.035, 0.216), (10, 0.134, 0.317)]
+== profile: Fisher exact on pass counts
+  uniform vs lbm-vectors: p = 0.330
+  uniform vs lbm-geometry: p = 0.169
+  uniform vs lbm-channel: p = 0.169
+  uniform vs lbm-geometry-floor: p = 0.014
+  lbm-vectors vs lbm-geometry: p = 1.000
+  lbm-vectors vs lbm-channel: p = 1.000
+  lbm-vectors vs lbm-geometry-floor: p = 0.264
+  lbm-geometry vs lbm-channel: p = 1.000
+  lbm-geometry vs lbm-geometry-floor: p = 0.462
+  lbm-channel vs lbm-geometry-floor: p = 0.462
+== profile: first five seeds (min_delta / min_reversed)
+  seed 0: uniform 0.659/0.567  lbm 0.549/0.477
+  seed 1: uniform 0.193/0.411  lbm -0.464/-0.030
+  seed 2: uniform 0.482/0.615  lbm 0.403/0.489
+  seed 3: uniform 0.376/0.547  lbm 0.428/0.623
+  seed 4: uniform 0.210/0.576  lbm 0.198/0.632
+== profile: margins quoted in the text
+  geometry seed 1: margin shortfall +0.027, reversed shortfall -0.137
+  geometry seed 7: margin shortfall +0.031, reversed shortfall -0.339
+  geometry seed 9: margin shortfall +0.013, reversed shortfall -0.308
+  geometry seed 13: margin shortfall -0.181, reversed shortfall +0.019
+  vectors seed 4 margin shortfall +0.002
+== profile: flow-floor failing seeds in full
+  seed 1: 0.145 / 0.293
+  seed 3: 0.142 / 0.319
+  seed 5: 0.096 / -0.001
+  seed 6: -0.047 / 0.122
+  seed 7: -0.219 / 0.275
+  seed 8: 0.094 / 0.369
+  seed 9: 0.035 / 0.216
+  seed 10: 0.134 / 0.317
+  paired Wilcoxon min_delta lbm-vectors vs uniform: mean -0.109 worse/better 10/5 p=0.2078 Holm(4)=0.2078
+  paired Wilcoxon min_delta lbm-geometry vs uniform: mean -0.115 worse/better 14/1 p=0.0003 Holm(4)=0.0012
+  paired Wilcoxon min_delta lbm-channel vs uniform: mean -0.130 worse/better 12/3 p=0.0043 Holm(4)=0.0085
+  paired Wilcoxon min_delta lbm-geometry-floor vs uniform: mean -0.218 worse/better 13/2 p=0.0012 Holm(4)=0.0035
+  uniform seeds 0-4 vs embodied_law_flow_head: max |min_delta diff| 4.7e-08
+== live: pass / median / failing seeds
+  A                      14/15  median min_delta 0.393  fails [(1, 0.193, 0.411)]
+  B                      14/15  median min_delta 0.393  fails [(1, 0.193, 0.411)]
+  C                      15/15  median min_delta 0.328  fails []
+  D                      14/15  median min_delta 0.325  fails [(9, 0.134, 0.378)]
+  E                      10/15  median min_delta 0.255  fails [(4, -0.047, 0.52), (6, 0.032, 0.266), (7, 0.171, 0.437), (9, 0.142, 0.586), (14, 0.125, 0.303)]
+  F                      14/15  median min_delta 0.418  fails [(8, 0.168, 0.342)]
+== live: A vs B max |min_delta| difference: 0.0
+== live: Fisher exact, all pairs
+  A vs B: p = 1.000
+  A vs C: p = 1.000
+  A vs D: p = 1.000
+  A vs E: p = 0.169
+  A vs F: p = 1.000
+  B vs C: p = 1.000
+  B vs D: p = 1.000
+  B vs E: p = 0.169
+  B vs F: p = 1.000
+  C vs D: p = 1.000
+  C vs E: p = 0.042
+  C vs F: p = 1.000
+  D vs E: p = 0.169
+  D vs F: p = 1.000
+  E vs F: p = 0.169
+== live: paired Wilcoxon on min_delta against A
+  C: mean -0.034 worse/better 10/5 p=0.4887
+  D: mean -0.039 worse/better 9/6 p=0.3591
+  E: mean -0.134 worse/better 13/2 p=0.0125
+  F: mean +0.001 worse/better 7/8 p=0.9780
+  E raw p 0.01245; Bonferroni x4 = 0.0498
+== live: monopole vs dipole at matched drag
+  F-E: mean +0.135 p=0.0034
+  D-C: mean -0.005 p=0.8904
+== live: min_reversed change against A
+  B: mean +0.000 p=nan
+  C: mean +0.008 p=0.847
+  D: mean -0.031 p=0.679
+  E: mean +0.010 p=0.679
+  F: mean -0.009 p=0.978
+== sweep: per condition (change vs B)
+  dipole 0.5             14/15  median min_delta 0.325  fails [(9, 0.134, 0.378)]
+                         mean change -0.039 worse/better 9/6 p=0.3591
+  dipole 1.0             13/15  median min_delta 0.380  fails [(6, -0.01, 0.189), (8, 0.179, 0.35)]
+                         mean change -0.021 worse/better 5/10 p=0.6788
+  dipole 1.5             14/15  median min_delta 0.347  fails [(6, 0.15, 0.356)]
+                         mean change -0.024 worse/better 8/7 p=0.6387
+  dipole 2.0             14/15  median min_delta 0.418  fails [(8, 0.168, 0.342)]
+                         mean change +0.001 worse/better 7/8 p=0.9780
+  monopole 0.5           15/15  median min_delta 0.328  fails []
+                         mean change -0.034 worse/better 10/5 p=0.4887
+  monopole 0.75          14/15  median min_delta 0.336  fails [(4, 0.113, 0.606)]
+                         mean change -0.060 worse/better 11/4 p=0.0554
+  monopole 1.0           12/15  median min_delta 0.295  fails [(3, 0.083, 0.331), (4, 0.1, 0.613), (8, 0.073, 0.324)]
+                         mean change -0.124 worse/better 11/4 p=0.0103
+  monopole 1.25          12/15  median min_delta 0.307  fails [(4, 0.036, 0.577), (7, 0.18, 0.617), (9, 0.131, 0.513)]
+                         mean change -0.080 worse/better 12/3 p=0.0637
+  monopole 1.5            9/15  median min_delta 0.266  fails [(1, 0.182, 0.521), (4, 0.01, 0.568), (6, 0.115, 0.309), (7, 0.171, 0.597), (8, 0.076, 0.402), (14, 0.194, 0.319)]
+                         mean change -0.114 worse/better 13/2 p=0.0103
+  monopole 2.0           10/15  median min_delta 0.255  fails [(4, -0.047, 0.52), (6, 0.032, 0.266), (7, 0.171, 0.437), (9, 0.142, 0.586), (14, 0.125, 0.303)]
+                         mean change -0.134 worse/better 13/2 p=0.0125
+  Holm over monopole drags: {0.5: np.float64(0.489), 0.75: np.float64(0.166), 1.0: np.float64(0.062), 1.25: np.float64(0.166), 1.5: np.float64(0.062), 2.0: np.float64(0.062)}
+== sweep: per-seed slope mean -0.0683, negative on 13/15, one-sided Wilcoxon p = 0.0017
+  pooled Spearman rho -0.268 p=0.0056
+  seven drags incl. 0: linear SSE 0.00267, best hinge SSE 0.00320 at onset 0.25
+  six drags excl. 0: linear SSE 0.00247, best hinge SSE 0.00247 at onset 0.45
+  bootstrap 95% CI of paired mean change (seed resample, rng seed 0):
+    drag 0.5: [-0.091, +0.024]
+    drag 0.75: [-0.116, -0.004]
+    drag 1.0: [-0.204, -0.039]
+    drag 1.25: [-0.145, -0.016]
+    drag 1.5: [-0.192, -0.035]
+    drag 2.0: [-0.211, -0.057]
+== sweep: dipole - monopole at matched drag
+  drag 0.5: mean -0.005 p=0.8904 Holm(4) 0.8904
+  drag 1.0: mean +0.103 p=0.0413 Holm(4) 0.0825
+  drag 1.5: mean +0.090 p=0.0009 Holm(4) 0.0034
+  drag 2.0: mean +0.135 p=0.0034 Holm(4) 0.0101
+  dipole 0.5 vs B: mean -0.039 p=0.359
+  dipole 1.0 vs B: mean -0.021 p=0.679
+  dipole 1.5 vs B: mean -0.024 p=0.639
+  dipole 2.0 vs B: mean +0.001 p=0.978
+  min_reversed means across coupled conditions: 0.47..0.55, B 0.53
+== estimate error: means over seeds (angle_mean, frac_over_45, law_angle_mean, magnitude_dev, median min_delta)
+  A: 0.00  0.000  0.00  0.000  0.393
+  B: 0.00  0.000  0.00  0.000  0.393
+  C: 1.08  0.000  3.87  0.176  0.328
+  D: 1.22  0.000  2.16  0.065  0.325
+  E: 4.14  0.003  13.33  0.686  0.255
+  F: 6.33  0.007  9.66  0.271  0.418
+  C vs B angle: higher on 15/15, p=6.1e-05
+  D vs B angle: higher on 15/15, p=6.1e-05
+  E vs B angle: higher on 15/15, p=6.1e-05
+  F vs B angle: higher on 15/15, p=6.1e-05
+  pooled Spearman (n=90): -0.15 p=0.17
+  within-condition pooled: all -0.22 p=0.037; coupled -0.30 p=0.021
+    C: rho -0.07 p=0.810
+    D: rho -0.32 p=0.243
+    E: rho -0.05 p=0.850
+    F: rho -0.59 p=0.022
+== estimate error: mediation point estimates (B pooled with E or F, OLS)
+  angle_mean           E: total -0.134 direct -0.102 indirect -0.032
+  angle_mean           F: total +0.001 direct +0.237 indirect -0.236
+  law_angle_mean       E: total -0.134 direct -0.219 indirect +0.085
+  law_angle_mean       F: total +0.001 direct +0.320 indirect -0.319
+  magnitude_dev_mean   E: total -0.134 direct -0.215 indirect +0.081
+  magnitude_dev_mean   F: total +0.001 direct +0.402 indirect -0.401
+== estimate error: cross-evaluation (median min_delta, mean angle, vs B->B)
+  E->E: median 0.255 angle 4.14  diff -0.134 p=0.012 worse 13/15
+  F->F: median 0.418 angle 6.33  diff +0.001 p=0.978 worse 7/15
+  B->E: median 0.359 angle 4.02  diff -0.093 p=0.001 worse 13/15
+  B->F: median 0.371 angle 6.18  diff -0.016 p=0.330 worse 10/15
+  E->B: median 0.372 angle 0.00  diff -0.018 p=0.639 worse 9/15
+  E->F: median 0.375 angle 5.83  diff -0.033 p=0.454 worse 10/15
+  F->B: median 0.427 angle 0.00  diff +0.009 p=0.720 worse 6/15
+  F->E: median 0.322 angle 3.99  diff -0.084 p=0.018 worse 11/15
+== mechanism: mean alignment
+  B B     official=0.612 law=0.612 noself=0.612 selfonly=0.612 noself_sum=0.612
+  B init  official=0.056 law=0.056 noself=0.056 selfonly=0.056 noself_sum=0.056
+  E B     official=0.671 law=0.569 noself=0.591 selfonly=0.678 noself_sum=0.592
+  E init  official=0.239 law=0.073 noself=0.049 selfonly=0.267 noself_sum=0.050
+  F B     official=0.609 law=0.600 noself=0.607 selfonly=0.602 noself_sum=0.607
+  F init  official=0.066 law=0.052 noself=0.057 selfonly=0.061 noself_sum=0.057
+== mechanism: min_delta change in E (and F) against B
+  B-trained in E, official  : median 0.359 change -0.093 [-0.129,-0.055] p=0.0012 worse/better 13/2
+  B-trained in E, law       : median 0.333 change -0.063 [-0.090,-0.040] p=0.0001 worse/better 14/1
+  B-trained in E, noself    : median 0.393 change -0.015 [-0.047,+0.017] p=0.5995 worse/better 8/7
+  B-trained in E, selfonly  : median 0.311 change -0.128 [-0.166,-0.088] p=0.0001 worse/better 14/1
+  B-trained in E, noself_sum: median 0.389 change -0.015 [-0.048,+0.016] p=0.6387 worse/better 8/7
+  E-trained in E, official  : median 0.255 change -0.116 [-0.151,-0.084] p=0.0001 worse/better 14/1
+  E-trained in E, law       : median 0.275 change -0.098 [-0.132,-0.065] p=0.0001 worse/better 14/1
+  E-trained in E, noself    : median 0.340 change -0.036 [-0.068,-0.004] p=0.0730 worse/better 10/5
+  E-trained in E, selfonly  : median 0.187 change -0.165 [-0.202,-0.126] p=0.0001 worse/better 15/0
+  E-trained in E, noself_sum: median 0.342 change -0.035 [-0.068,-0.001] p=0.0833 worse/better 10/5
+  B-trained in F, official  : median 0.371 change -0.016 [-0.041,+0.005] p=0.3303 worse/better 10/5
+  B-trained in F, law       : median 0.416 change -0.011 [-0.040,+0.017] p=0.8040 worse/better 8/7
+  B-trained in F, noself    : median 0.374 change -0.011 [-0.035,+0.010] p=0.5245 worse/better 9/6
+  B-trained in F, selfonly  : median 0.409 change -0.016 [-0.045,+0.006] p=0.2769 worse/better 8/7
+  B-trained in F, noself_sum: median 0.373 change -0.012 [-0.037,+0.010] p=0.5245 worse/better 9/6
+  E-trained in F, official  : median 0.375 change -0.015 [-0.043,+0.010] p=0.4212 worse/better 9/6
+  E-trained in F, law       : median 0.380 change -0.013 [-0.036,+0.007] p=0.9341 worse/better 7/8
+  E-trained in F, noself    : median 0.374 change -0.012 [-0.037,+0.011] p=0.6387 worse/better 8/7
+  E-trained in F, selfonly  : median 0.373 change -0.018 [-0.041,+0.002] p=0.4212 worse/better 7/8
+  E-trained in F, noself_sum: median 0.376 change -0.011 [-0.036,+0.012] p=0.6387 worse/better 8/7
+  Holm over the 8 fluid-E tests: {'B/official': 0.0035, 'B/law': 0.0009, 'B/noself': 0.5995, 'B/selfonly': 0.0009, 'E/official': 0.0009, 'E/law': 0.0009, 'E/noself': 0.146, 'E/selfonly': 0.0005}
+  share removed B-trained: 0.84 [0.57, 1.25]
+  share removed E-trained: 0.69 [0.47, 0.97]
+== mechanism: cos(thrust, own wake), fluid E
+  B: 0.93
+  init: 0.89
+== mechanism: wake statistics by fluid / genomes
+  E B     cos_thrust_own_wake=0.927 own_wake_mean=0.078 others_wake_mean=0.087 total_perturbation_mean=0.142 superposition_residual_mean=0.068 superposition_residual_max=0.139
+  E init  cos_thrust_own_wake=0.886 own_wake_mean=0.077 others_wake_mean=0.060 total_perturbation_mean=0.095 superposition_residual_mean=0.052 superposition_residual_max=0.097
+  F B     cos_thrust_own_wake=-0.214 own_wake_mean=0.016 others_wake_mean=0.047 total_perturbation_mean=0.051 superposition_residual_mean=0.036 superposition_residual_max=0.061
+  F init  cos_thrust_own_wake=0.109 own_wake_mean=0.016 others_wake_mean=0.048 total_perturbation_mean=0.052 superposition_residual_mean=0.040 superposition_residual_max=0.067
+== mechanism: cross-replay (official alignment, own vs foreign wake)
+  B: own 0.671 foreign 0.616 diff +0.056 p=0.0002
+  init: own 0.239 foreign 0.058 diff +0.181 p=0.0001
