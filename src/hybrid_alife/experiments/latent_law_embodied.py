@@ -172,7 +172,7 @@ def signed_alignment(
         raise ValueError("moves and flows must share a [n, 2] shape")
     move_norm = np.linalg.norm(moves, axis=-1)
     flow_norm = np.linalg.norm(flows, axis=-1)
-    valid = alive & (move_norm > 1e-8) & (flow_norm > 1e-8)
+    valid = alive & (move_norm > 1e-8) & (flow_norm > _FLOW_FLOOR)
     if not np.any(valid):
         return 0.0
     values = np.sum(moves[valid] * flows[valid], axis=-1) / (
@@ -191,7 +191,16 @@ def set_law_profile(builder) -> None:
     _LAW_FIELD = builder
 
 
-def lbm_law_profile(size: int) -> np.ndarray:
+# Cells with flow speed at or below this are not scored (alignment and fitness).
+_FLOW_FLOOR = 1e-8
+
+
+def set_flow_floor(floor: float) -> None:
+    global _FLOW_FLOOR
+    _FLOW_FLOOR = max(float(floor), 1e-8)
+
+
+def lbm_law_profile(size: int, obstacle: bool = True) -> np.ndarray:
     """Channel flow around an obstacle from the native LBM solver (peak speed 1).
 
     Returned in flow-vector convention: channel along axis 0 (component 0), walls at the
@@ -199,7 +208,8 @@ def lbm_law_profile(size: int) -> np.ndarray:
     """
     from hybrid_alife.physics import lbm
 
-    field = lbm.channel_flow(size, size, obstacle_radius=size / 6).astype(np.float64)
+    radius = size / 6 if obstacle else 0.0
+    field = lbm.channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
     return field.transpose(1, 0, 2)
 
 
@@ -434,7 +444,7 @@ def _per_agent_alignment(state) -> np.ndarray:
     alive = np.asarray(state.embodied.alive, dtype=bool)
     move_norm = np.linalg.norm(moves, axis=-1)
     flow_norm = np.linalg.norm(flows, axis=-1)
-    valid = alive & (move_norm > 1e-8) & (flow_norm > 1e-8)
+    valid = alive & (move_norm > 1e-8) & (flow_norm > _FLOW_FLOOR)
     values = np.sum(moves * flows, axis=-1) / np.maximum(
         move_norm * flow_norm, 1e-12
     )
