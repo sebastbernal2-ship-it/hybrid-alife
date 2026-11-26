@@ -1,0 +1,56 @@
+Initial and evolved scored separately, seeds 0-14 (mean over diagonals)
+  uniform            initial +0.056  evolved +0.612
+  vectors-only       initial +0.088  evolved +0.571
+  rotated geometry   initial +0.057  evolved +0.541
+  plain channel      initial +0.060  evolved +0.474
+  geometry + floor   initial +0.058  evolved +0.541
+  initial  vectors-only       vs uniform: +0.032 [-0.011, +0.078] 5/10 p=0.3591 Holm(4)=1
+  initial  rotated geometry   vs uniform: +0.001 [-0.027, +0.028] 7/8 p=0.9341 Holm(4)=1
+  initial  plain channel      vs uniform: +0.003 [-0.016, +0.020] 6/9 p=0.4887 Holm(4)=1
+  initial  geometry + floor   vs uniform: +0.002 [-0.032, +0.030] 4/11 p=0.3591 Holm(4)=1
+  evolved  vectors-only       vs uniform: -0.041 [-0.122, +0.026] 9/6 p=0.4887 Holm(4)=0.4887
+  evolved  rotated geometry   vs uniform: -0.071 [-0.120, -0.025] 12/3 p=0.01807 Holm(4)=0.0542
+  evolved  plain channel      vs uniform: -0.138 [-0.212, -0.079] 14/1 p=0.0001831 Holm(4)=0.0007324
+  evolved  geometry + floor   vs uniform: -0.071 [-0.130, -0.010] 10/5 p=0.04791 Holm(4)=0.09583
+
+min_reversed vs min_evolved over 335 rows: max |difference| 0.00e+00
+
+40-seed extension, plain channel minus uniform
+  CONFIRMATORY 15-39   min_delta -0.043 [-0.115, +0.025] 14/11 p=0.3957
+                       pass uniform 20/25 channel 17/25 Fisher p=0.5202 McNemar p=0.5078; median min_delta 0.396 / 0.359
+                       initial      +0.007 [-0.014, +0.027] 11/14 p=0.6721
+                       evolved      -0.074 [-0.132, -0.015] 15/10 p=0.05158
+  all 0-39             min_delta -0.076 [-0.131, -0.022] 26/14 p=0.01411
+                       pass uniform 34/40 channel 27/40 Fisher p=0.1136 McNemar p=0.09229; median min_delta 0.394 / 0.356
+                       initial      +0.005 [-0.009, +0.020] 17/23 p=0.4598
+                       evolved      -0.098 [-0.144, -0.054] 29/11 p=0.0003168
+  original 0-14        min_delta -0.130 [-0.215, -0.055] 12/3 p=0.004272
+                       pass uniform 14/15 channel 10/15 Fisher p=0.1686 McNemar p=0.125; median min_delta 0.393 / 0.308
+                       initial      +0.003 [-0.016, +0.020] 6/9 p=0.4887
+                       evolved      -0.138 [-0.212, -0.079] 14/1 p=0.0001831
+
+Max lattice speed over every sub-step at drag 2.0 (guard 0.3)
+  E training    max 0.2589 (seed 10) median 0.1567
+  E evaluation  max 0.2574 (seed 10) median 0.1467
+  E end_of_step max 0.2589 (seed 10) median 0.1655
+  E seeds 15, max |min_delta - committed| 0.00e+00
+  F training    max 0.1490 (seed 4) median 0.1188
+  F evaluation  max 0.1290 (seed 4) median 0.1075
+  F end_of_step max 0.1423 (seed 4) median 0.1174
+  F seeds 15, max |min_delta - committed| 0.00e+00
+
+Masked reruns, fluid E, 5 seeds
+  B    alignment official=0.695  noself_superposition=0.624  noself_open=0.627  noself_closed=0.648
+       target error mean 0.0047 max 0.0775; own wake 0.0833
+  E    alignment official=0.650  noself_superposition=0.575  noself_open=0.577  noself_closed=0.609
+       target error mean 0.0021 max 0.0238; own wake 0.0656
+  init alignment official=0.241  noself_superposition=0.059  noself_open=0.060  noself_closed=0.047
+       target error mean 0.0030 max 0.0321; own wake 0.0807
+  min_delta change E vs B, B-trained, official              mean -0.049  per seed [-0.1, 0.037, -0.071, -0.017, -0.094]
+  min_delta change E vs B, B-trained, noself_superposition  mean +0.017  per seed [-0.013, 0.077, 0.054, 0.017, -0.051]
+  min_delta change E vs B, B-trained, noself_open           mean +0.017  per seed [-0.012, 0.076, 0.054, 0.016, -0.052]
+  min_delta change E vs B, B-trained, noself_closed         mean +0.064  per seed [0.046, 0.087, 0.151, 0.044, -0.005]
+  min_delta change E vs B, E-trained, official              mean -0.067  per seed [-0.114, -0.043, -0.103, 0.011, -0.085]
+  min_delta change E vs B, E-trained, noself_superposition  mean -0.017  per seed [0.002, -0.042, -0.034, 0.054, -0.063]
+  min_delta change E vs B, E-trained, noself_open           mean -0.017  per seed [0.003, -0.043, -0.036, 0.054, -0.064]
+  min_delta change E vs B, E-trained, noself_closed         mean +0.026  per seed [0.028, 0.02, 0.061, 0.054, -0.033]

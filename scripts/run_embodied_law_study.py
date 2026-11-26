@@ -2,10 +2,13 @@
 
 Runs the pilot with previous-velocity and previous-thrust features plus a
 displacement reward, then evaluates frozen genomes on held-out diagonals against
-two controls: the initial population and a reversed law.
+the initial population.
 
 Gate, per held-out direction: the evolved alignment must beat the initial
-population by a margin, and the reversed-law alignment must be negative. The
+population by a margin, and the "reversed-law" alignment must be at least 0.2.
+The diagonals are closed under negation, so that second clause is the same
+measurement relabelled: it is an evolved >= 0.2 floor, not a second control.
+``--fitness-mode null_min_alignment`` is the separate null-selection control. The
 minimum over directions decides, never an average across opposite directions.
 
 Usage:
@@ -140,7 +143,10 @@ def main() -> int:
     parser.add_argument("--linear-policy", action="store_true")
     parser.add_argument("--unit-flow-features", action="store_true")
     parser.add_argument(
-        "--fitness-mode", choices=("energy", "min_alignment"), default="energy"
+        "--fitness-mode",
+        choices=("energy", "min_alignment", "null_min_alignment"),
+        default="energy",
+        help="null_min_alignment: min-alignment scores permuted across slots (control)",
     )
     parser.add_argument("--fitness-steps", type=int, default=6)
     parser.add_argument("--rank-replacement", action="store_true")
