@@ -21,8 +21,11 @@ Each lives on its own `feat/*` branch; its feature doc (named below) exists on t
 - Native code is exercised by the same tests that cover the JAX path. The pattern is a
   bit-exact comparison with the stochastic knobs off (mutation probabilities 0), plus an
   invariants test with them on, because the native RNG matches JAX in distribution only.
-- `AvidaConfig.native` is not supported under `jax.jit` (the POET jit-compiles the Avida step);
-  it raises a clear error rather than failing inside the tracer.
+- `AvidaConfig.native` works under `jax.jit` (including `lax.scan`): each update is one
+  `jax.pure_callback`, and `vmap` runs it sequentially (no gradients). Kernel seeds come from
+  the JAX key, so jitted and eager native runs agree. Input-validation errors raised inside the
+  callback surface as JAX runtime errors. Under jit it can be slower than compiled JAX (it is
+  on the POET config); see `native_avida.md`.
 - Sanitizer check used during review: compile a kernel with
   `-fsanitize=address,undefined -Wall -Wextra` and drive it with a small C++ harness.
 
