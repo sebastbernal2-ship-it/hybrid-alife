@@ -24,8 +24,8 @@ Each lives on its own `feat/*` branch; its feature doc (named below) exists on t
 - `AvidaConfig.native` works under `jax.jit` (including `lax.scan`): each update is one
   `jax.pure_callback`, and `vmap` runs it sequentially (no gradients). Kernel seeds come from
   the JAX key, so jitted and eager native runs agree. Input-validation errors raised inside the
-  callback surface as JAX runtime errors. See `benchmarks/bench_avida_native.py`: the callback
-  has a fixed per-update cost, so small populations are slower than compiled JAX.
+  callback surface as JAX runtime errors. Under jit it can be slower than compiled JAX (it is
+  on the POET config); see `native_avida.md`.
 - Sanitizer check used during review: compile a kernel with
   `-fsanitize=address,undefined -Wall -Wextra` and drive it with a small C++ harness.
 
