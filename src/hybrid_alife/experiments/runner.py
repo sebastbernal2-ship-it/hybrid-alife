@@ -156,9 +156,11 @@ def agent_force_field(
         world_cfg.lbm_agent_drag,
     )
     if world_cfg.lbm_agent_coupling == "dipole":
-        return agent_dipole_forces(*args, world_cfg.lbm_dipole_length, world_cfg.toroidal)
+        return agent_dipole_forces(
+            *args, world_cfg.lbm_dipole_length, world_cfg.toroidal, world_cfg.lbm_solid_force
+        )
     if world_cfg.lbm_agent_coupling == "monopole":
-        return agent_reaction_forces(*args)
+        return agent_reaction_forces(*args, world_cfg.lbm_solid_force)
     raise ValueError(f"unknown lbm_agent_coupling={world_cfg.lbm_agent_coupling!r}")
 
 
