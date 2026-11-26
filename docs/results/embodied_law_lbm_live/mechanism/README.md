@@ -163,6 +163,14 @@ penalised for tracking wakes, so neither target is a clean measure of learning u
 coupling. A margin that is robust to this would score both populations against a target the
 agents cannot influence, or against a no-coupling copy of the same trajectory.
 
+## Later check: per-agent force-masked reruns
+
+`../followups/` reruns the fluid with one agent's force masked (seeds 0-4). Along unchanged
+trajectories the superposition target used here is accurate (mean error 3-6% of the own wake).
+In a closed-loop rerun, where the masked agent's behaviour also changes, the scores differ by
+more, so "scoring without the own wake removes the loss" is a statement about the rescoring,
+not about what agents would do in a fluid they cannot stir.
+
 ## Caveats
 
 - 15 seeds, one drag value (2.0), one carrier (14x14 periodic box with mean-flow controller),
