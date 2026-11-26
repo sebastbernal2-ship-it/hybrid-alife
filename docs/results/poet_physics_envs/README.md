@@ -39,13 +39,12 @@ recompile the evaluator or the world step.
 
 ## `lbm_live` under POET jit: not usable
 
-Jitting POET's world step with `flow_solver="lbm_live"` raises no error, but the result is not
-live. POET carries only `WorldState`, so `SimState.lbm` is `None` on every call: the fluid is
-built and advanced in numpy while jit traces, and the flow is baked in as a constant. It is the
-same after 1 or 3 scan steps and ignores the input flow
-(`test_lbm_live_solver_is_trace_time_constant_in_poet_scan`). A real live fluid would need a JAX
-LBM or a callback with the fluid state in the scan carry. Neither was built. The physics genes use
-the steady solver.
+`step_world` raises `ValueError` when `flow_solver="lbm_live"` is traced (jit, scan, vmap).
+Without that guard the numpy fluid would be built while jax traces and its flow baked in as a
+constant (POET carries only `WorldState`, so `SimState.lbm` is `None` on every call). Eager
+calls are unaffected (`test_lbm_live_traced_step_raises_and_eager_stays_live`). A real live
+fluid under jit would need a JAX LBM or a callback with the fluid state in the scan carry.
+Neither was built. The physics genes use the steady solver.
 
 ## Pilot
 

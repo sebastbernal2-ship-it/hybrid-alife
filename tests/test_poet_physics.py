@@ -27,6 +27,7 @@ from hybrid_alife.poet import (
     run_poet,
     validate_physics_genes,
 )
+from hybrid_alife.world.env import step_world
 
 
 def cfg8(**kw):
@@ -247,22 +248,30 @@ def test_physics_jit_cache_uses_gene_arrays_as_dynamic_inputs():
     assert _step_world_physics_fast._cache_size() == before
 
 
-def test_lbm_live_solver_is_trace_time_constant_in_poet_scan():
+def test_lbm_live_traced_step_raises_and_eager_stays_live():
     cfg = _poet_world_config(cfg8())
     live = replace(cfg, flow_solver="lbm_live")
     legacy_env = initialize_environment(cfg8(), jax.random.PRNGKey(7))
     world, _ = initialize_environment_world(legacy_env, cfg8(), jax.random.PRNGKey(1))
+    key = jax.random.PRNGKey(2)
 
-    def scan(w, steps):
-        return jax.lax.scan(
-            lambda carry, _: (_step_world_jitted(carry, jax.random.PRNGKey(2), live)[0], None),
-            w,
-            None,
-            length=steps,
-        )[0]
+    def step(w, k):
+        return step_world(SimState(0, 0, k, w, None, None), live)
 
-    one, three = scan(world, 1), scan(world, 3)
-    changed = replace(world, flow=jnp.zeros_like(world.flow))
-    independent = scan(changed, 1)
-    np.testing.assert_array_equal(one.flow, three.flow)
-    np.testing.assert_array_equal(one.flow, independent.flow)
+    with pytest.raises(ValueError, match="lbm_live cannot be traced"):
+        jax.lax.scan(lambda c, _: (_step_world_jitted(c, key, live)[0], None), world, None,
+                     length=2)
+    with pytest.raises(ValueError, match="lbm_live cannot be traced"):
+        jax.jit(lambda w: step(w, key).world)(world)
+    # Concrete inputs closed over by a jitted function are traced too.
+    with pytest.raises(ValueError, match="lbm_live cannot be traced"):
+        jax.jit(lambda: step(world, key).world)()
+
+    state = SimState(0, 0, key, world, None, None)
+    state = step_world(state, live)
+    first = state.lbm
+    state = step_world(state, live)
+    assert state.lbm is not first
+    assert int(state.world.time) == int(world.time) + 2
+    with jax.disable_jit():
+        step(world, key)

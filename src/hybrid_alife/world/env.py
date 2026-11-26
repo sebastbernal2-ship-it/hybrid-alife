@@ -355,7 +355,15 @@ def new_live_lbm(cfg: WorldConfig):
 def step_world(state: SimState, cfg: WorldConfig) -> SimState:
     """Advance passive world fields (flow drift, advection, decay, regen)."""
     world = state.world
-    state.rng, k_drift = jax.random.split(state.rng)
+    rng, k_drift = jax.random.split(state.rng)
+    # The split is a tracer under jit/scan/vmap even if every input is concrete. Raise
+    # before touching `state`, so a failed trace cannot leave tracers in it.
+    if cfg.flow_solver == "lbm_live" and isinstance(k_drift, jax.core.Tracer):
+        raise ValueError(
+            "lbm_live cannot be traced (jit/scan/vmap): its numpy fluid would be frozen "
+            "as a trace-time constant. Call step_world eagerly or use another flow_solver."
+        )
+    state.rng = rng
 
     if cfg.flow_solver == "lbm_live":
         if state.lbm is None:
