@@ -61,3 +61,32 @@ jobs:
         run: |
           # Native kernels are built above, so workers never race on the import-time build.
           pytest -q -n auto --dist worksteal --durations=10 --cov=src/hybrid_alife --cov-report=term-missing --cov-fail-under=85
+
+  sanitizers:
+    # Native kernels under AddressSanitizer and UndefinedBehaviorSanitizer.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MPLBACKEND: Agg
+      PYTHONUTF8: "1"
+      JAX_PLATFORMS: cpu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build instrumented native kernels
+        run: make sanitize-build
+
+      - name: Test native kernels under sanitizers
+        run: make sanitize-test

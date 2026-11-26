@@ -14,7 +14,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 ## Commands
 
-- Full suite: `venv/bin/python -m pytest -q` (about 14 minutes; several tests train small JAX models)
+- Full suite: `venv/bin/python -m pytest -q -n 4 --dist worksteal` after `make -C native` (about 5 minutes on 4 cores, about 14 serial; several tests train small JAX models)
+- Native sanitizers (ASan+UBSan, also a CI job): `make sanitize-build sanitize-test PYTHON=venv/bin/python`, then `make -B -C native` to restore the normal build.
 - Lint: `venv/bin/ruff check src tests`
 - Gravity study replication: `JAX_PLATFORMS=cpu venv/bin/python scripts/run_gravity_study.py --seeds 0 1 2 3 4 --output docs/results/gravity_study_v1/summary.json`
 - Set `JAX_PLATFORMS=cpu` for local runs; CI runs both Python 3.11 and 3.12.
@@ -22,7 +23,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 ## Sharp edges
 
-- CI has a 35-minute job ceiling. The suite takes about 14 minutes. Keep new tests fast and put full-size training runs in `scripts/`, not the default suite.
+- CI has a 35-minute job ceiling. Shared-runner speed can vary by about 2x between identical runs, so judge CI timing over several runs. Keep new tests fast and put full-size training runs in `scripts/`, not the default suite.
+- Native versus JAX parity: integer and boolean state must match exactly; float state uses a tolerance (`rtol=1e-5, atol=1e-6`; accumulated energy totals `rtol=1e-4`) because XLA and the C++ build differ by about 1 ulp across CPUs. See `_same` in `tests/test_avida_native.py`.
 - Never report a mean across gravity directions as the primary result. Make the minimum across held-out directions the gate, because a mean hides a single-direction collapse.
 - Never average signed alignment over antipodal directions; it cancels to zero.
 - Avoid reward designs with an isolated optimum. They look like learner failures and are not.
