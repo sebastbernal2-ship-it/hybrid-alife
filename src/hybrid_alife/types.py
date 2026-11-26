@@ -203,8 +203,9 @@ class EmbodiedConfig:
     # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
     # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
     # concentration diffusion/decay/advection.
-    # The signal is an intensity (emit gate x signal_deposit), not message content; the emitter
-    # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
+    # By default the signal is an intensity (emit gate x signal_deposit; see signal_content).
+    # The emitter also senses its own deposit, and with concentration_decay == 1 it
+    # accumulates without bound.
     chemical_signaling: bool = False
     signal_deposit: float = 1.0
     # With chemical_signaling: each signal channel k >= 1 receives
