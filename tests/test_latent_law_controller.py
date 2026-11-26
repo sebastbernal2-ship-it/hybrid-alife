@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from hybrid_alife.experiments.latent_law_controller import (
     evaluate_gravity_controller,
@@ -245,6 +246,7 @@ def test_per_direction_reward_reports_every_direction_separately() -> None:
     assert set(result) == {str(d) for d in directions}
 
 
+@pytest.mark.slow
 def test_sampled_linear_policy_generalises_to_every_held_out_direction() -> None:
     """The sampled policy must be positive on every held-out direction.
 
@@ -283,6 +285,7 @@ def test_sampled_linear_policy_generalises_to_every_held_out_direction() -> None
     assert float(np.mean(values)) > 4.0, scores
 
 
+@pytest.mark.slow
 def test_argmax_mode_of_a_broad_policy_is_uninformative() -> None:
     """Documents the mode-versus-mean gap under a discrete action set.
 

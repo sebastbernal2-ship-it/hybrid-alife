@@ -76,6 +76,10 @@ class WorldConfig:
     # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
+    # Frame of the static "lbm" field (physics.lbm module docstring). "legacy" (recorded
+    # behaviour): component 0 is x, walls on the first and last row. "world": the lbm_live
+    # convention, component 0 along rows (the axis agents move on), walls on the columns.
+    lbm_frame: str = "legacy"
     # "lbm_live" (flow_solver): a stateful LBM fluid advanced `lbm_substeps` steps per world
     # step, flow = lattice velocity / lbm_peak_speed. lbm_agent_drag > 0 makes agents push
     # the fluid with Stokes drag (two-way coupling); 0 leaves the fluid unaffected.
@@ -87,19 +91,44 @@ class WorldConfig:
     # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
     # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
     lbm_agent_coupling: str = "monopole"
+    # Live channel walls: "auto" (straight channel, plus an obstacle when curvature_regime is
+    # "obstacle") or "serpentine" (meandering lumen, see physics.lbm.serpentine_mask).
+    lbm_geometry: str = "auto"
+    lbm_serpentine_waves: int = 1
+    lbm_serpentine_amplitude: float = 0.15
+    # Agent force landing on a solid cell: "drop" (recorded behaviour; that momentum is lost)
+    # or "redistribute" (moved to the nearest fluid cells, total unchanged).
+    lbm_solid_force: str = "drop"
     # "periodic": wall-free box carrying a uniform law (see LiveLBM.uniform); "channel" default.
     lbm_box: str = "channel"
     # Periodic box only: relaxation time (LBM steps) of the mean flow toward the imposed law.
     lbm_law_relax_steps: float = 0.0
     lbm_dipole_length: float = 2.0
+    # Chemical species in `concentration`. Channel 0 carries terraforming and the Avida
+    # coupling; channels 1.. are free for chemical signals. Changes observation widths.
+    concentration_channels: int = 2
 
     def __post_init__(self) -> None:
+        if self.concentration_channels < 2:
+            raise ValueError("concentration_channels must be >= 2")
         if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
             raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
+        if self.lbm_frame not in ("legacy", "world"):
+            raise ValueError(f"unknown lbm_frame={self.lbm_frame!r} (legacy or world)")
         if self.lbm_agent_coupling not in ("monopole", "dipole"):
             raise ValueError(
                 f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
             )
+        if self.lbm_geometry not in ("auto", "serpentine"):
+            raise ValueError(f"unknown lbm_geometry={self.lbm_geometry!r} (auto or serpentine)")
+        if self.lbm_solid_force not in ("drop", "redistribute"):
+            raise ValueError(
+                f"unknown lbm_solid_force={self.lbm_solid_force!r} (drop or redistribute)"
+            )
+        if self.lbm_geometry == "serpentine" and (
+            self.flow_solver != "lbm_live" or self.lbm_box != "channel"
+        ):
+            raise ValueError("lbm_geometry=serpentine needs flow_solver=lbm_live, lbm_box=channel")
         if self.flow_solver != "lbm_live":
             return
         if self.lbm_viscosity <= 0.0:
@@ -192,18 +221,29 @@ class EmbodiedConfig:
     # is thrust / radius and movement cost is the dissipated power (radius * speed^2).
     # Normalised so radius 1 at full thrust matches the legacy linear move cost.
     stokes_mechanics: bool = False
+    # With stokes_mechanics and body_morphology: body_aspect gives anisotropic spheroid
+    # drag (physics.spheroid_drag); the body axis follows the previous step's thrust.
+    aspect_drag: bool = False
     # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
     # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
     # concentration diffusion/decay/advection.
-    # The signal is an intensity (emit gate x signal_deposit), not message content; the emitter
-    # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
+    # By default the signal is an intensity (emit gate x signal_deposit; see signal_content).
+    # The emitter also senses its own deposit, and with concentration_decay == 1 it
+    # accumulates without bound.
     chemical_signaling: bool = False
     signal_deposit: float = 1.0
+    # With chemical_signaling: each signal channel k >= 1 receives
+    # signal_deposit * message[k - 1] instead of a bare intensity in channel 1.
+    signal_content: bool = False
     # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
     # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
-    # closure covers eating only: reward terms, predation transfers, max_energy clipping and
-    # Avida metabolite uptake are outside the matter-plus-energy ledger.
+    # closure covers eating only: energy_ledger tracks rewards, predation and max_energy;
+    # Avida metabolite uptake is outside both.
     thermo_efficiency: float = 0.0
+    # Keep cumulative energy totals (dissipated heat etc.) on the population state; see
+    # metrics.energy_ledger. Bookkeeping only, except that reproduction then uses a
+    # duplicate-free scatter (the legacy one can overwrite slot 0 and skip its payment).
+    energy_ledger: bool = False
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
@@ -215,6 +255,9 @@ class EmbodiedConfig:
     max_energy: float = 0.0
     predation_rate: float = 0.0
     predation_radius: float = 0.04
+    # Fraction of the energy drained from prey that the attacker receives; the rest is
+    # dissipated. 1 keeps the legacy lossless transfer.
+    predation_efficiency: float = 1.0
     # Prey escape reflex: move away from the nearest neighbour inside the radius.
     escape_gain: float = 0.0
     escape_radius: float = 0.06
@@ -232,6 +275,10 @@ class EmbodiedConfig:
     repro_gate_threshold: float = 0.5
 
     def __post_init__(self) -> None:
+        if self.aspect_drag and not (self.stokes_mechanics and self.body_morphology):
+            raise ValueError("aspect_drag needs stokes_mechanics and body_morphology")
+        if not 0.0 <= self.predation_efficiency <= 1.0:
+            raise ValueError("predation_efficiency must be in [0, 1]")
         # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
         if not 0.0 <= self.thermo_efficiency <= 1.0:
             raise ValueError("thermo_efficiency must be in [0, 1] (0 disables the closure)")
@@ -271,8 +318,10 @@ class AvidaConfig:
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
     # Run the whole update (cycles, division, metabolite coupling) in the native C++
-    # kernel (make -C native). Not supported under jax.jit.
+    # kernel (make -C native). Under jax.jit it runs through jax.pure_callback.
     native: bool = False
+    # Avoid legacy duplicate-index-0 writes for unmatched division rows.
+    divide_scatter_fix: bool = False
     # Opt-in energy economy, enabled when instruction_energy_cost > 0. Every executed
     # instruction costs this much energy, merit gained by an instruction is converted to
     # energy at energy_efficiency, an organism with no energy stops executing and dies at
@@ -386,6 +435,10 @@ class EmbodiedPopulationState:
     # Predation events for the renderer: attacker mask and target index.
     last_attack: Array | None = None
     last_attack_target: Array | None = None
+    # Cumulative energy totals (metrics.energy_ledger), None unless energy_ledger is on.
+    ledger: dict[str, Array] | None = None
+    # [N, 2] body symmetry axis (unit, or zero before the first thrust) under aspect_drag.
+    body_axis: Array | None = None
 
 
 @dataclass

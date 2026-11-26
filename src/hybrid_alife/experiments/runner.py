@@ -33,6 +33,7 @@ from hybrid_alife.evolution.selection import (
 )
 from hybrid_alife.logging.jsonl import JsonlWriter
 from hybrid_alife.metrics.core import collect_full_metrics
+from hybrid_alife.metrics.energy_ledger import heat_metrics
 from hybrid_alife.metrics.qd import archive_entropy, qd_score
 from hybrid_alife.metrics.qd import coverage as qd_coverage
 from hybrid_alife.replay.checkpoint import save_checkpoint
@@ -155,9 +156,11 @@ def agent_force_field(
         world_cfg.lbm_agent_drag,
     )
     if world_cfg.lbm_agent_coupling == "dipole":
-        return agent_dipole_forces(*args, world_cfg.lbm_dipole_length, world_cfg.toroidal)
+        return agent_dipole_forces(
+            *args, world_cfg.lbm_dipole_length, world_cfg.toroidal, world_cfg.lbm_solid_force
+        )
     if world_cfg.lbm_agent_coupling == "monopole":
-        return agent_reaction_forces(*args)
+        return agent_reaction_forces(*args, world_cfg.lbm_solid_force)
     raise ValueError(f"unknown lbm_agent_coupling={world_cfg.lbm_agent_coupling!r}")
 
 
@@ -262,7 +265,7 @@ def validate_runtime_invariants(state: SimState, cfg: ExperimentConfig) -> None:
         "world.shear_grad": (h, w, 2),
         "world.enrichment": (h, w, 1),
         "world.lift": (h, w, 2),
-        "world.concentration": (h, w, 2),
+        "world.concentration": (h, w, cfg.world.concentration_channels),
         "world.metabolites": (h, w, cfg.world.metabolite_channels),
         "world.occupancy": (h, w),
     }
@@ -328,6 +331,7 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                     metrics["embodied_deaths_per_generation"] = int(
                         state.embodied_deaths_this_gen
                     )
+                    metrics.update(heat_metrics(state))
                     state.metrics = metrics
                     writer.write(metrics)
 

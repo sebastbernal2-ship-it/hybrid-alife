@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from hybrid_alife.experiments.latent_law_simulator import (
     SimulatorOrganism,
@@ -52,6 +53,7 @@ DENSE_TRAIN = tuple(
 )
 
 
+@pytest.mark.slow
 def test_simulator_policy_reaches_held_out_flow_directions() -> None:
     """The decisive gate, asked inside the real world state.
 
@@ -82,6 +84,7 @@ def test_simulator_policy_reaches_held_out_flow_directions() -> None:
     assert float(np.mean(values)) > 9.0, scores
 
 
+@pytest.mark.slow
 def test_simulator_end_to_end_transfers_on_average() -> None:
     """Cardinal-only training transfers on average, with a seed-zero floor.
 

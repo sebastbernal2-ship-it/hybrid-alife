@@ -1,0 +1,211 @@
+{
+  "status": "pilot",
+  "source_commit": "9e99445557e078148011702b0a4b2b0ba9e105fb",
+  "config": "configs/poet_physics_pilot.yaml",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "generations": 12,
+  "cells": [
+    {
+      "arm": "legacy",
+      "seed": 0,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 1.1509895324707031,
+          "initial_best_per_env_mean": 2.7784295082092285,
+          "final_mean": 2.184230089187622,
+          "final_best_per_env_mean": 2.4211888313293457
+        },
+        "physics": {
+          "initial_mean": 0.7000548243522644,
+          "initial_best_per_env_mean": 2.174818277359009,
+          "final_mean": 1.7240545749664307,
+          "final_best_per_env_mean": 2.0506439208984375
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 1.7697545289993286,
+      "ecology": {
+        "resource_gather_events": 210.0,
+        "interaction_events": 116.0,
+        "reproduction_events": 63.0,
+        "success_events": 5.0,
+        "failure_events": 2.0,
+        "energy_cost": 55.98399501401932,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 413.0
+      },
+      "wall_seconds": 38.4
+    },
+    {
+      "arm": "physics",
+      "seed": 0,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 1.1509895324707031,
+          "initial_best_per_env_mean": 2.7784295082092285,
+          "final_mean": 1.3249965906143188,
+          "final_best_per_env_mean": 1.3472003936767578
+        },
+        "physics": {
+          "initial_mean": 0.7000548243522644,
+          "initial_best_per_env_mean": 2.174818277359009,
+          "final_mean": 1.22300386428833,
+          "final_best_per_env_mean": 1.2686901092529297
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 2.0741467711826167,
+      "ecology": {
+        "resource_gather_events": 161.0,
+        "interaction_events": 96.0,
+        "reproduction_events": 48.0,
+        "success_events": 21.0,
+        "failure_events": 6.0,
+        "energy_cost": 55.93653203379513,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 351.0
+      },
+      "wall_seconds": 28.4
+    },
+    {
+      "arm": "legacy",
+      "seed": 1,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.947577476501465,
+          "initial_best_per_env_mean": 7.190291881561279,
+          "final_mean": 6.02842903137207,
+          "final_best_per_env_mean": 6.039896011352539
+        },
+        "physics": {
+          "initial_mean": 2.8335959911346436,
+          "initial_best_per_env_mean": 6.660728454589844,
+          "final_mean": 6.014243125915527,
+          "final_best_per_env_mean": 6.027812957763672
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 12.950917800267538,
+      "ecology": {
+        "resource_gather_events": 182.0,
+        "interaction_events": 145.0,
+        "reproduction_events": 59.0,
+        "success_events": 99.0,
+        "failure_events": 0.0,
+        "energy_cost": 55.61986352100502,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 394.0
+      },
+      "wall_seconds": 27.5
+    },
+    {
+      "arm": "physics",
+      "seed": 1,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.947577476501465,
+          "initial_best_per_env_mean": 7.190291881561279,
+          "final_mean": 6.02842903137207,
+          "final_best_per_env_mean": 6.039896011352539
+        },
+        "physics": {
+          "initial_mean": 2.8335959911346436,
+          "initial_best_per_env_mean": 6.660728454589844,
+          "final_mean": 6.014243125915527,
+          "final_best_per_env_mean": 6.027812957763672
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 11.39149988691012,
+      "ecology": {
+        "resource_gather_events": 158.0,
+        "interaction_events": 159.0,
+        "reproduction_events": 57.0,
+        "success_events": 130.0,
+        "failure_events": 3.0,
+        "energy_cost": 55.2625430768056,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 387.0
+      },
+      "wall_seconds": 21.3
+    },
+    {
+      "arm": "legacy",
+      "seed": 2,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.4832894802093506,
+          "initial_best_per_env_mean": 5.559226036071777,
+          "final_mean": 3.346475124359131,
+          "final_best_per_env_mean": 3.3584976196289062
+        },
+        "physics": {
+          "initial_mean": 2.1382455825805664,
+          "initial_best_per_env_mean": 4.355923175811768,
+          "final_mean": 2.6770339012145996,
+          "final_best_per_env_mean": 2.6908602714538574
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 9.035515720645586,
+      "ecology": {
+        "resource_gather_events": 183.0,
+        "interaction_events": 117.0,
+        "reproduction_events": 67.0,
+        "success_events": 218.0,
+        "failure_events": 2.0,
+        "energy_cost": 55.6762741800677,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 381.0
+      },
+      "wall_seconds": 18.9
+    },
+    {
+      "arm": "physics",
+      "seed": 2,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.4832894802093506,
+          "initial_best_per_env_mean": 5.559226036071777,
+          "final_mean": 3.346475124359131,
+          "final_best_per_env_mean": 3.3584976196289062
+        },
+        "physics": {
+          "initial_mean": 2.1382455825805664,
+          "initial_best_per_env_mean": 4.355923175811768,
+          "final_mean": 2.6770339012145996,
+          "final_best_per_env_mean": 2.6908602714538574
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 12,
+      "candidate_score_mean": 10.774710466464361,
+      "ecology": {
+        "resource_gather_events": 177.0,
+        "interaction_events": 136.0,
+        "reproduction_events": 63.0,
+        "success_events": 192.0,
+        "failure_events": 0.0,
+        "energy_cost": 55.106537716363135,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 393.0
+      },
+      "wall_seconds": 18.6
+    }
+  ]
+}

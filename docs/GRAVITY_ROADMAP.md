@@ -1,5 +1,11 @@
 # Gravity study roadmap
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](results/embodied_law_null_selection/README.md).
+
 This document owns the prioritized next directions and the accumulated lessons.
 `docs/RESEARCH_ALIGNMENT.md` owns the research question and claim boundary.
 `docs/results/gravity_study_v1/README.md` owns the v1 findings.
@@ -105,8 +111,8 @@ result**. The movement head is `w_flow @ unit_flow + b_flow`, four parameters.
 - Seed 1 misses at `+0.193` against the `0.200` margin, and passes at 20
   generations with `+0.283` (separate diagnostic).
 - Training alignment trends upward, and reversed-law alignment is positive in
-  every seed (`+0.41` to `+0.62`). That is the law-following signature, not a
-  fixed action.
+  every seed (`+0.41` to `+0.62`), which is evolved alignment on all four diagonals
+  relabelled. It rules out a fixed action but is not a second measurement.
 
 Results in `docs/results/embodied_law_flow_head/`. This is a bounded pilot, not a
 `5/5` claim.

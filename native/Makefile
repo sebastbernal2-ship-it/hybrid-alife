@@ -10,3 +10,6 @@ $(OUT)/lib%.so: %.cpp
 
 clean:
 	rm -f $(OUT)/*.so
+
+# ib.cpp includes the fluid and contact sources.
+$(OUT)/libib.so: lbm.cpp contact.cpp

@@ -6,8 +6,9 @@ physically coupled through `flow_movement_scale`, and rewarded through
 `flow_alignment_reward` so selection can favour alignment.
 
 Scope is deliberately small. This is a plumbing and signal pilot, not a
-five-seed held-out claim. It reports per-direction alignment and a reversed-flow
-control, and it disables Avida and mutation during evaluation.
+five-seed held-out claim. It reports per-direction alignment (the "reversed-law"
+values are not an independent control, see ``alignment_gate_passes``), and it disables
+Avida and mutation during evaluation.
 """
 
 from __future__ import annotations
@@ -209,8 +210,7 @@ def lbm_law_profile(size: int, obstacle: bool = True) -> np.ndarray:
     from hybrid_alife.physics import lbm
 
     radius = size / 6 if obstacle else 0.0
-    field = lbm.channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
-    return field.transpose(1, 0, 2)
+    return lbm.world_channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
 
 
 def _rotation(unit: np.ndarray) -> np.ndarray:
@@ -346,12 +346,16 @@ def run_embodied_law_pilot(
             # The world does not drift, but re-impose so the law is exact.
             state = _impose_flow(state, direction, magnitude)
         training_alignment.append(_mean_alignment_of_state(state))
-        if fitness_mode == "min_alignment":
-            fitness = jnp.asarray(
-                minimum_direction_alignment(
-                    state, config, directions, steps=fitness_steps
-                )
+        if fitness_mode in ("min_alignment", "null_min_alignment"):
+            scores = minimum_direction_alignment(
+                state, config, directions, steps=fitness_steps
             )
+            if fitness_mode == "null_min_alignment":
+                # Null-selection control: same scores, randomly reassigned to slots, so
+                # selection acts but carries no information about the law. A separate
+                # generator leaves the simulation's random stream untouched.
+                scores = np.random.default_rng((seed, generation)).permutation(scores)
+            fitness = jnp.asarray(scores)
         else:
             fitness = jnp.asarray(np.asarray(state.embodied.energy))
         state.rng, k_sel = jax.random.split(state.rng)
@@ -588,8 +592,13 @@ def alignment_gate_passes(
     """Per-direction gate. Never averages across opposite directions.
 
     ``min_evolved`` checks an absolute floor. ``min_delta`` checks improvement
-    over ``initial``. ``reversed_min`` rejects a fixed action, which flips sign
-    under reversal. At least one of the first two must be supplied.
+    over ``initial``. At least one of the two must be supplied.
+
+    ``reversed_min`` is NOT an independent control when the directions are closed under
+    negation (the study's diagonals are): ``reversed_law[d]`` is the same rollout as
+    ``evolved[-d]``. The clause therefore only imposes ``evolved >= reversed_min`` on
+    every direction. That does reject a fixed action under the delta criterion, and is
+    redundant when ``min_evolved >= reversed_min``.
     """
     if min_evolved is None and min_delta is None:
         raise ValueError("supply min_evolved or min_delta")

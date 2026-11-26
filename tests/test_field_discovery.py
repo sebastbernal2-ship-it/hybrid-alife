@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from hybrid_alife.experiments.field_discovery import (
     _choice_diagnostics,
@@ -84,6 +85,7 @@ def test_intervention_flow_reverses_at_midpoint_and_transfer_scales():
     )
 
 
+@pytest.mark.slow
 def test_evaluation_uses_simulator_conditions_and_is_reproducible():
     first = run_evaluation(seed=7, steps=2, training_generations=1)
     second = run_evaluation(seed=7, steps=2, training_generations=1)

@@ -1,5 +1,11 @@
 # Flow-only movement head: results
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **positive bounded pilot, 4/5 seeds at the declared budget; the fifth seed
 clears at 20 generations (reported separately).**
 
@@ -54,7 +60,7 @@ Separate diagnostic, seed 1 at 20 generations: **passes**, evolved minus initial
 
 ## Why this is law-following, not a fixed action
 
-Two signatures separate the two:
+Two signatures separate the two (the second is evolved alignment itself, relabelled):
 
 - Training alignment now **trends upward**, for example seed 0:
   `0.33, 0.26, 0.30, 0.69, 0.56, 0.76, 0.49, 0.66`.
