@@ -3,6 +3,10 @@
 Do the opt-in physics features change evolutionary outcomes? Design, arms, regime and the
 list of what had been seen beforehand: [PREREGISTRATION.md](PREREGISTRATION.md).
 
+Not fully blind: before pre-registration, the original ten conditions were smoke-tested at seed
+1000 (3 generations, old base config) and their feature outputs were seen. The harsh regime was
+then chosen by calibrating the baseline arm only (seeds 1000-1007).
+
 ## Primary results (seeds 0-14, paired against the baseline)
 
 | Arm | Outcome | Arm / baseline mean | Mean difference [95% CI] | dz | p | Holm p | Reading |
