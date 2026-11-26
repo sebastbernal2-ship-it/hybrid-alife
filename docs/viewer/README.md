@@ -55,4 +55,6 @@ penalties, not hard constraints.
 
 ## Frame rate
 
-See `FPS_LINE`.
+Headless Windows Chrome (D3D11), NVIDIA RTX 5080 Laptop GPU, 1898x841 canvas, playing at
+2 beats/s with tracers on, 10 s after load, two runs: 171.0 and 172.8 fps mean, p95
+8.4 ms, worst frame 25 to 29 ms. Software GL was used only for stills and the stepped GIF.
