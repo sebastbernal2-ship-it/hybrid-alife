@@ -198,6 +198,8 @@ gate: seeds 0 and 1 of both arms match the committed `min_delta` exactly.
   both no effect and a loss close to the original one, so this is not evidence of no effect.
 - The pooled p = 0.014 is not independent evidence, since seeds 0-14 chose the hypothesis.
 - Pass counts stay unresolved at 40 seeds (Fisher p = 0.11, McNemar p = 0.092).
+  Without the reversed clause (see the audit correction above) they are 36/40 and 29/40
+  (Fisher p = 0.08, McNemar p = 0.065), still unresolved at 0.05.
 - Descriptive, not pre-registered as confirmatory: on seeds 15-39 the evolved side is lower by
   -0.074 [-0.132, -0.015] (p = 0.052) and the initial side is unchanged (+0.007, p = 0.67).
 

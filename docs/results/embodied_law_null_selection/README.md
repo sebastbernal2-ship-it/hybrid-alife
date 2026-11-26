@@ -8,10 +8,11 @@ and restarts any live fluid. The study's diagonals are closed under negation, so
 `reversed[d]` is exactly the rollout `evolved[-d]`. It holds for every law profile (uniform,
 LBM, rotated geometry, live fluid), whether or not the two fields are mirror images.
 
-`python scripts/audit_reversed_law.py`: 373 stored rows (368 earlier ones plus the 5 null
-rows below, including diagnostics and files that overlap by seed), 1492 values, **0 differ** from the antipodal evolved value,
+`python scripts/audit_reversed_law.py`: 453 stored rows (448 earlier ones plus the 5 null
+rows below, including diagnostics and files that overlap by seed), 1812 values, **0 differ** from the antipodal evolved value,
 maximum difference 0.0. `tests/test_reversed_law_control.py` checks the identity on a live
-rollout and records the independence claim as a strict expected failure.
+rollout: one test requires exact equality at each antipode. A second, strict expected failure
+states the independence claim more weakly, comparing only the sorted values.
 
 ## What the clause does
 
@@ -29,6 +30,8 @@ rollout and records the independence claim as a strict expected failure.
 | --- | --- | --- | --- |
 | D1 ablation `no_rank` | 0/5 | 1/5 | 0 (0.364 / 0.136) |
 | LBM rotated geometry | 10/15 | 11/15 | 13 (0.381 / 0.181) |
+| Extension40 uniform | 34/40 | 36/40 | 18 (0.305 / 0.195), 24 (0.435 / 0.124) |
+| Extension40 plain channel | 27/40 | 29/40 | 17 (0.327 / 0.125), 28 (0.259 / 0.051) |
 | Every other `embodied_law_*` and ablation file | as stored | unchanged | none |
 
 - The 4/5, 3/5 (absolute) and 5/5 results are unchanged. All negative pilots stay at 0 passes,
@@ -37,7 +40,9 @@ rollout and records the independence claim as a strict expected failure.
   on the floor.
 - LBM pass counts, Fisher exact without the clause: uniform against rotated geometry p = 0.33
   (stored 0.17); rotated geometry against flow floor p = 0.26 (stored 0.46); rotated geometry
-  against vectors-only p = 1.0. No conclusion about significance changes.
+  against vectors-only p = 1.0. Extension40, uniform against plain channel: Fisher p = 0.08 (stored
+  0.11), exact McNemar p = 0.065 (stored 0.092). On the new seeds 15-39 alone the counts go from
+  20/25 and 17/25 to 22/25 and 19/25. No conclusion about significance at 0.05 changes.
 - Paired tests on `min_delta` do not use the clause. Statements about `min_reversed` (live and
   drag-sweep READMEs) are statements about minimum evolved alignment.
 
