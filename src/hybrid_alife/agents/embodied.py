@@ -535,6 +535,8 @@ def apply_embodied_actions(
     new_resources = jnp.clip(new_resources, 0.0, 1.0)
     eaten_mass = jnp.sum(take_per_channel, axis=-1)
     energy_gained = eaten_mass * 5.0 * (thermo if thermo > 0.0 else 1.0)  # scaling
+    intake = energy_gained
+    predation_loss = jnp.zeros_like(energy_gained)
     flow_alignment = jnp.maximum(
         jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
     )
@@ -547,6 +549,10 @@ def apply_embodied_actions(
     )
     displacement = jnp.sum(commanded_move * unit_flow, axis=-1)
     energy_gained = energy_gained + embodied_cfg.displacement_reward * displacement
+    external_work = (
+        embodied_cfg.flow_alignment_reward * flow_alignment
+        + embodied_cfg.displacement_reward * displacement
+    )
 
     # Hazard damage (always applies, gated by attack to "fight"=halve damage)
     haz = hazard_damage(world.hazards, new_pos, pop.alive, h, w)
@@ -610,7 +616,8 @@ def apply_embodied_actions(
             * pop.energy[prey]
             * attackers.astype(jnp.float32)
         )
-        transfer_in = transfer
+        transfer_in = embodied_cfg.predation_efficiency * transfer
+        predation_loss = transfer - transfer_in
         transfer_out = jnp.zeros((n,), dtype=jnp.float32).at[prey].add(
             jnp.where(attackers, transfer, 0.0)
         )
@@ -682,11 +689,18 @@ def apply_embodied_actions(
             ledger = new_ledger(pop.energy)
         ledger = book(
             ledger,
+            intake=intake * alive_f,
+            external_work=external_work * alive_f,
+            predation_loss=predation_loss,
+            discarded=pop.energy * (1.0 - alive_f),  # empty slots are reset to zero below
             damage=damage * alive_f,
             costs=(move_cost + embodied_cfg.basal_metabolic_cost * body_factor + action_cost)
             * alive_f,
         )
     if embodied_cfg.max_energy > 0.0:
+        if embodied_cfg.energy_ledger:  # empty slots are already counted as discarded
+            over = jnp.maximum(new_energy - embodied_cfg.max_energy, 0.0)
+            ledger = book(ledger, cap_loss=over * alive_f)
         new_energy = jnp.minimum(new_energy, embodied_cfg.max_energy)
 
     # Reproduction is handled in apply_reproduction; here we only zero-out
@@ -793,8 +807,13 @@ def apply_reproduction(
 
     match_range = jnp.arange(n)
     use = match_range < num_matches
-    parents = jnp.where(use, parent_order, 0)
-    children = jnp.where(use, dead_order, 0)
+    # Unused entries normally point at slot 0, so their "keep the old value" writes can
+    # undo a real write to slot 0 (a parent then pays nothing). With the ledger on they
+    # point at index n instead: JAX drops out-of-bounds writes (reads are clamped and
+    # then discarded by `use`).
+    unused = n if cfg.energy_ledger else 0
+    parents = jnp.where(use, parent_order, unused)
+    children = jnp.where(use, dead_order, unused)
 
     # Mutate parent's genomes per-slot and write into child slots.
     keys = jax.random.split(key, len(pop.genomes))
@@ -884,6 +903,17 @@ def apply_reproduction(
         jnp.where(use, pop.lineage_depth[parents] + 1, pop.lineage_depth[children])
     )
 
+    if cfg.energy_ledger:
+        ledger = pop.ledger if pop.ledger is not None else new_ledger(pop.energy)
+        born = use.astype(jnp.float32)
+        pop.ledger = book(
+            ledger,
+            # A parent that cannot afford the cost goes negative until the next step,
+            # which books the unpaid part as shortfall.
+            reproduction_cost=born * cfg.reproduction_energy_cost,
+            injected=born * child_energy,
+            discarded=born * pop.energy[children],  # overwritten empty-slot energy
+        )
     pop.genomes = new_genomes
     pop.positions = new_positions
     pop.energy = new_energy

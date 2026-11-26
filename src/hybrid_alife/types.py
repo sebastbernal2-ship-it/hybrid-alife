@@ -205,7 +205,8 @@ class EmbodiedConfig:
     # Avida metabolite uptake are outside the matter-plus-energy ledger.
     thermo_efficiency: float = 0.0
     # Keep cumulative energy totals (dissipated heat etc.) on the population state; see
-    # metrics.energy_ledger. Bookkeeping only.
+    # metrics.energy_ledger. Bookkeeping only, except that reproduction then uses a
+    # duplicate-free scatter (the legacy one can overwrite slot 0 and skip its payment).
     energy_ledger: bool = False
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
@@ -218,6 +219,9 @@ class EmbodiedConfig:
     max_energy: float = 0.0
     predation_rate: float = 0.0
     predation_radius: float = 0.04
+    # Fraction of the energy drained from prey that the attacker receives; the rest is
+    # dissipated. 1 keeps the legacy lossless transfer.
+    predation_efficiency: float = 1.0
     # Prey escape reflex: move away from the nearest neighbour inside the radius.
     escape_gain: float = 0.0
     escape_radius: float = 0.06
@@ -235,6 +239,8 @@ class EmbodiedConfig:
     repro_gate_threshold: float = 0.5
 
     def __post_init__(self) -> None:
+        if not 0.0 <= self.predation_efficiency <= 1.0:
+            raise ValueError("predation_efficiency must be in [0, 1]")
         # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
         if not 0.0 <= self.thermo_efficiency <= 1.0:
             raise ValueError("thermo_efficiency must be in [0, 1] (0 disables the closure)")
