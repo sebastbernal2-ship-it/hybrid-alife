@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hybrid-alife flow viewer (prototype)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage">
+  <canvas id="view" aria-label="Fluid field and organisms. Drag to pan, scroll to zoom, click to inspect."></canvas>
+  <div id="scalebar"><i></i><span></span></div>
+  <div id="loading">Loading replay&hellip;</div>
+</main>
+<aside id="panel">
+  <header>
+    <h1>Live lattice-Boltzmann flow</h1>
+    <p id="subtitle"></p>
+  </header>
+  <section>
+    <h2>Field</h2>
+    <div class="seg" id="field-mode">
+      <button data-mode="0" class="on">Vorticity</button><button data-mode="1">Speed</button>
+    </div>
+    <canvas id="colorbar" width="560" height="20"></canvas>
+    <div class="ticks" id="ticks"><span></span><span></span><span></span></div>
+    <p class="unit" id="unit"></p>
+  </section>
+  <section>
+    <h2>Layers</h2>
+    <label><input type="checkbox" id="show-signal" checked><span class="key signal"></span>Chemical signal</label>
+    <div class="signal-scale"><canvas id="signalbar" width="560" height="12"></canvas>
+      <div class="ticks"><span>0</span><span id="signal-mid"></span><span id="signal-max"></span></div>
+      <p class="unit">Sim concentration units, &radic; scale.</p></div>
+    <label><input type="checkbox" id="show-tracers" checked><span class="key tracer"></span>Passive tracers (fading trails)</label>
+    <label><input type="checkbox" id="show-bodies" checked><span class="key body"></span>Organisms</label>
+  </section>
+  <section>
+    <h2>Founder lineages <small>alive now</small></h2>
+    <ul id="lineages"></ul>
+  </section>
+  <section id="inspector">
+    <h2>Inspector</h2>
+    <p class="hint" id="hint">Click an organism.</p>
+    <dl id="details"></dl>
+    <button id="follow" hidden>Follow</button>
+  </section>
+  <footer><details open id="provenance"><summary>What is data, what is drawing</summary>
+    <p><b>From the simulation:</b> fluid velocity, signal, positions, swim command and heading, body radius and aspect genes, energy, age, lineage.</p>
+    <p><b>Illustrative only:</b> flagella (not simulated; beat rate follows swim speed), body drawing scale and shading, 2.2&times; base elongation, motion between recorded steps. Signal is lightly smoothed for display.</p>
+    <p>This simulation has no solid collision: organisms can pass through the cylinder and walls (drawn faded while inside).</p>
+  </details></footer>
+</aside>
+<div id="transport">
+  <button id="play" aria-label="Play or pause">Pause</button>
+  <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Time">
+  <output id="clock"></output>
+  <select id="rate" aria-label="Playback speed">
+    <option value="2">2 steps/s</option><option value="4">4 steps/s</option>
+    <option value="8" selected>8 steps/s</option><option value="16">16 steps/s</option>
+    <option value="32">32 steps/s</option>
+  </select>
+  <button id="reset">Reset view</button>
+  <span id="fps"></span>
+</div>
+<script src="viewer.js"></script>
+</body>
+</html>

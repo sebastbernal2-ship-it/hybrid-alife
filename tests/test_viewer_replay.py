@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import gzip
 import struct
+import threading
+import urllib.error
+import urllib.request
 
 import numpy as np
 import pytest
 
+from hybrid_alife.viewer.bundle import make_server, standalone
 from hybrid_alife.viewer.export import record, viewer_config
 from hybrid_alife.viewer.replay import read_replay, write_replay
 
@@ -72,3 +76,20 @@ def test_record_rejects_invalid_steps(steps, field_every):
     cfg = viewer_config("periodic", grid=32, population=6, seed=17)
     with pytest.raises(ValueError, match="need steps"):
         record(cfg, "periodic", steps=steps, field_every=field_every)
+
+
+def test_standalone_inlines_assets_and_server_is_restricted(tmp_path):
+    replay = write_replay(tmp_path / "r.hvr", {}, {})
+    html = standalone(replay, tmp_path / "v.html").read_text(encoding="utf-8")
+    assert "window.REPLAY_B64" in html
+    assert 'src="viewer.js"' not in html and 'href="style.css"' not in html
+    with make_server(replay, 0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            assert urllib.request.urlopen(f"{base}/replay.hvr").read() == replay.read_bytes()
+            with pytest.raises(urllib.error.HTTPError):
+                urllib.request.urlopen(f"{base}/../export.py")
+        finally:
+            server.shutdown()

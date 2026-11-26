@@ -3,7 +3,8 @@
 Display frame: screen x is world axis 0 (the channel's flow direction), screen y (pointing
 up) is world axis 1. Field arrays are recorded as [y, x]; vectors as (x, y). Velocities are
 in lattice units (cells per LBM step); one simulation step is ``lbm_substeps`` LBM steps.
-Every recorded quantity is read from simulator state; nothing is synthesised here.
+Recorded quantities come from simulator state. Two are derived: ``swim`` is the commanded
+displacement (movement action times the 0.05 maximum step) and ``founder`` follows parent ids.
 """
 
 from __future__ import annotations
@@ -30,8 +31,8 @@ SCENES = ("obstacle", "periodic")
 
 
 def viewer_config(
-    scene: str = "obstacle", grid: int = 256, population: int = 48, seed: int = 3,
-    substeps: int = 60, drag: float = 0.01,
+    scene: str = "obstacle", grid: int = 256, population: int = 40, seed: int = 3,
+    substeps: int = 60, drag: float = 0.007,
 ) -> ExperimentConfig:
     if scene not in SCENES:
         raise ValueError(f"scene must be one of {SCENES}, got {scene!r}")
@@ -40,7 +41,9 @@ def viewer_config(
         width=grid, height=grid, toroidal=True, resource_channels=3, hazard_channels=2,
         max_agents=population, max_digital_organisms=0, flow_noise_std=0.0,
         concentration_decay=0.955, concentration_diffusion=0.22,
-        flow_advection_strength=1.0, flow_solver="lbm_live",
+        # Semi-Lagrangian step in cells = strength * flow, so this value advects the signal
+        # exactly as far per sim step as the fluid moves (lbm_substeps lattice velocities).
+        flow_advection_strength=peak * substeps, flow_solver="lbm_live",
         curvature_regime="obstacle" if scene == "obstacle" else "straight",
         lbm_viscosity=0.008, lbm_peak_speed=peak, lbm_substeps=substeps,
         lbm_agent_drag=drag, lbm_agent_coupling="dipole", lbm_dipole_length=6.0,
@@ -56,7 +59,7 @@ def viewer_config(
         stochastic_actions=True, action_temperature=0.5,
         # Passive drift equals tracer drift: flow * scale = u * substeps / grid.
         flow_movement_scale=peak * substeps / grid, max_energy=60.0,
-        initial_alive_fraction=0.7,
+        initial_alive_fraction=0.45,
     )
     return ExperimentConfig(
         seed=seed, run_name=f"viewer_{scene}", output_dir="outputs/viewer",
@@ -75,11 +78,12 @@ def obstacle_channel(cfg: WorldConfig, warm_steps: int) -> lbm.LiveLBM:
     that takes far too long to develop a wake. Same kernel, different initial condition.
     """
     n, peak = cfg.width, cfg.lbm_peak_speed
-    mask = lbm.channel_mask(n, n, n / 12)  # LBM frame [x, y]
+    mask = lbm.channel_mask(n, n, n / 12)  # [y, x]; cylinder at x = n/4
     y = np.arange(n)
     profile = peak * np.clip(4 * (y - 0.5) * (n - 1.5 - y) / (n - 2) ** 2, 0, None)
-    u = np.ascontiguousarray(np.tile(profile, (n, 1)), np.float64)
-    v = np.tile((0.05 * peak * np.sin(4 * np.pi * y / n))[:, None], (1, n))
+    # The kernel's arrays are [y, x]: world axis 1 first, world axis 0 (streamwise) second.
+    u = np.ascontiguousarray(np.tile(profile[:, None], (1, n)), np.float64)
+    v = np.tile(0.05 * peak * np.sin(4 * np.pi * y / n), (n, 1))
     u[mask > 0] = 0.0
     v[mask > 0] = 0.0
     f = np.zeros((n, n, 9))
@@ -168,7 +172,7 @@ def record(
 
     velocity = np.stack(fields)
     ux, uy = (velocity[..., 0] * U_SCALE), (velocity[..., 1] * U_SCALE)
-    solid = state.lbm.mask.T.astype(np.uint8)
+    solid = state.lbm.mask.astype(np.uint8)  # already [y, x]
     fluid = (solid == 0)
     interior = fluid & np.roll(fluid, 2, 0) & np.roll(fluid, -2, 0) \
         & np.roll(fluid, 2, 1) & np.roll(fluid, -2, 1)
@@ -182,7 +186,7 @@ def record(
         "flow_movement_scale": cfg.embodied.flow_movement_scale,
         "signal_max": signal_max, "population_slots": cfg.embodied.population_size,
         "speed_max": float(np.percentile(np.hypot(ux, uy)[:, fluid], 99.5)),
-        "vorticity_max": float(np.percentile(np.abs(vorticity), 98.5)),
+        "vorticity_max": float(np.percentile(np.abs(vorticity), 99.0)),
         "controllers": "random initial genomes, mutated at reproduction; untrained",
     }
     arrays = {
