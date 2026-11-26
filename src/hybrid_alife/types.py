@@ -197,6 +197,9 @@ class EmbodiedConfig:
     # is thrust / radius and movement cost is the dissipated power (radius * speed^2).
     # Normalised so radius 1 at full thrust matches the legacy linear move cost.
     stokes_mechanics: bool = False
+    # With stokes_mechanics and body_morphology: body_aspect gives anisotropic spheroid
+    # drag (physics.spheroid_drag); the body axis follows the previous step's thrust.
+    aspect_drag: bool = False
     # Messages travel as a diffusing chemical signal (concentration channel 1) instead of
     # an instantaneous same-cell broadcast; speed, range, and decay follow the world's
     # concentration diffusion/decay/advection.
@@ -209,8 +212,8 @@ class EmbodiedConfig:
     signal_content: bool = False
     # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
     # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
-    # closure covers eating only: reward terms, predation transfers, max_energy clipping and
-    # Avida metabolite uptake are outside the matter-plus-energy ledger.
+    # closure covers eating only: energy_ledger tracks rewards, predation and max_energy;
+    # Avida metabolite uptake is outside both.
     thermo_efficiency: float = 0.0
     # Keep cumulative energy totals (dissipated heat etc.) on the population state; see
     # metrics.energy_ledger. Bookkeeping only, except that reproduction then uses a
@@ -247,6 +250,8 @@ class EmbodiedConfig:
     repro_gate_threshold: float = 0.5
 
     def __post_init__(self) -> None:
+        if self.aspect_drag and not (self.stokes_mechanics and self.body_morphology):
+            raise ValueError("aspect_drag needs stokes_mechanics and body_morphology")
         if not 0.0 <= self.predation_efficiency <= 1.0:
             raise ValueError("predation_efficiency must be in [0, 1]")
         # Efficiency above 1 would deposit negative waste, i.e. create matter and energy.
@@ -405,6 +410,8 @@ class EmbodiedPopulationState:
     last_attack_target: Array | None = None
     # Cumulative energy totals (metrics.energy_ledger), None unless energy_ledger is on.
     ledger: dict[str, Array] | None = None
+    # [N, 2] body symmetry axis (unit, or zero before the first thrust) under aspect_drag.
+    body_axis: Array | None = None
 
 
 @dataclass

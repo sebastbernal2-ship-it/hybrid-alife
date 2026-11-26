@@ -62,6 +62,8 @@ def reseed_embodied(
             pop.previous_thrust = jnp.zeros_like(pop.previous_thrust)
         pop.lineage_depth = jnp.zeros((n,), dtype=jnp.int32)
         book_reset(pop, energy_before)
+        if pop.body_axis is not None:
+            pop.body_axis = jnp.zeros_like(pop.body_axis)
     _ = fitness
     return pop
 
@@ -117,6 +119,8 @@ def _rank_replace_embodied(
     energy_before = pop.energy
     pop.energy = jnp.where(replaced, cfg.initial_energy * 0.5, pop.energy)
     book_reset(pop, energy_before)
+    if pop.body_axis is not None:
+        pop.body_axis = jnp.where(replaced[:, None], 0.0, pop.body_axis)
     pop.alive = jnp.ones((n,), dtype=bool)
     pop.age = jnp.where(replaced, 0, pop.age)
     pop.hidden = jnp.where(replaced[:, None], jnp.zeros_like(pop.hidden), pop.hidden)
@@ -185,6 +189,8 @@ def select_and_mutate_embodied(
     energy_before = pop.energy
     pop.energy = jnp.where(dead, cfg.initial_energy * 0.5, pop.energy)
     book_reset(pop, energy_before)
+    if pop.body_axis is not None:
+        pop.body_axis = jnp.where(dead[:, None], 0.0, pop.body_axis)
     pop.alive = jnp.where(dead, jnp.ones((n,), dtype=bool), pop.alive)
     pop.age = jnp.where(dead, 0, pop.age)
     pop.hidden = jnp.where(dead[:, None], jnp.zeros_like(pop.hidden), pop.hidden)

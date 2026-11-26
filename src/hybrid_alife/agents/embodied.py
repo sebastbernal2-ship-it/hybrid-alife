@@ -38,6 +38,7 @@ from hybrid_alife.agents.controller import (
     forward as controller_forward,
 )
 from hybrid_alife.metrics.energy_ledger import book, new_ledger
+from hybrid_alife.physics.spheroid_drag import drag_factors
 from hybrid_alife.types import (
     EmbodiedConfig,
     EmbodiedPopulationState,
@@ -501,8 +502,32 @@ def apply_embodied_actions(
         if embodied_cfg.probe_enabled
         else None
     )
+    body_axis = pop.body_axis
+    axial_sq = None  # (drag along - drag across) * (swim speed along the body axis)^2
     if embodied_cfg.stokes_mechanics:
+        thrust = move
         move = move / body_radius[:, None]  # Stokes drag: swim speed = thrust / radius
+    if embodied_cfg.aspect_drag:
+        aspect = jnp.clip(
+            pop.genomes.get("body_aspect", jnp.ones_like(pop.energy)), 0.7, 1.4
+        )
+        along, across = drag_factors(aspect)
+        norm = jnp.linalg.norm(thrust, axis=-1, keepdims=True)
+        direction = jnp.where(norm > 0.0, thrust / jnp.where(norm > 0.0, norm, 1.0), 0.0)
+        if body_axis is None:
+            body_axis = jnp.zeros_like(thrust)
+        # The body keeps the axis set by its previous thrust; a body without one yet
+        # (zero vector) starts aligned with the current thrust.
+        has_axis = jnp.linalg.norm(body_axis, axis=-1, keepdims=True) > 0.0
+        axis = jnp.where(has_axis, body_axis, direction)
+        # v = F_across / (r * across) + F_along / (r * along). Written as the isotropic
+        # response plus a correction so that aspect 1 reduces exactly to the radius law.
+        iso = move / across[:, None]
+        thrust_along = jnp.sum(move * axis, axis=-1, keepdims=True)
+        move = iso + (thrust_along * (1.0 / along - 1.0 / across)[:, None]) * axis
+        axial_sq = (along - across) * jnp.sum(move * axis, axis=-1) ** 2
+        # Then the body turns to follow its thrust (kept when it does not thrust).
+        body_axis = jnp.where((norm > 0.0) & pop.alive[:, None], direction, body_axis)
     commanded_move = move
     swim_speed = jnp.linalg.norm(move, axis=-1)
     move = move + embodied_cfg.flow_movement_scale * local_flow
@@ -666,7 +691,10 @@ def apply_embodied_actions(
     if embodied_cfg.stokes_mechanics:
         # Dissipated swimming power = drag * speed^2, relative to the legacy cost at
         # radius 1 and the 0.05 maximum step (so legacy-scale configs stay comparable).
-        move_cost = embodied_cfg.cost_move_scale * body_radius * swim_speed**2 / 0.05
+        drag_speed_sq = swim_speed**2
+        if embodied_cfg.aspect_drag:  # force . velocity for the anisotropic drag
+            drag_speed_sq = across * drag_speed_sq + axial_sq
+        move_cost = embodied_cfg.cost_move_scale * body_radius * drag_speed_sq / 0.05
     else:
         move_cost = (
             jnp.linalg.norm(move, axis=-1)
@@ -771,6 +799,7 @@ def apply_embodied_actions(
         time=world.time,
     )
 
+    pop.body_axis = body_axis
     pop.positions = new_pos
     pop.energy = new_energy
     pop.alive = new_alive
@@ -899,6 +928,11 @@ def apply_reproduction(
                 jnp.zeros_like(pop.previous_thrust[children]),
                 pop.previous_thrust[children],
             )
+        )
+
+    if pop.body_axis is not None:  # newborns have no axis yet
+        pop.body_axis = pop.body_axis.at[children].set(
+            jnp.where(use[:, None], 0.0, pop.body_axis[children])
         )
 
     # Lineage
