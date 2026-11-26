@@ -56,6 +56,12 @@ class _Structure(ctypes.Structure):
         ("contact_radius", ctypes.c_double),
         ("contact_k", ctypes.c_double),
         ("ramp_steps", ctypes.c_double),
+        ("n_planes", ctypes.c_int32),
+        ("planes", ctypes.c_void_p),
+        ("n_discs", ctypes.c_int32),
+        ("discs", ctypes.c_void_p),
+        ("wall_range", ctypes.c_double),
+        ("wall_k", ctypes.c_double),
     ]
 
 
@@ -70,6 +76,7 @@ class _Report(ctypes.Structure):
             "tether_fy",
             "min_contact_distance",
             "max_speed",
+            "min_wall_gap",
         )
     ]
 
@@ -244,6 +251,10 @@ class Structure:
     contact_radius: float = 0.0
     contact_k: float = 0.0
     ramp_steps: float = 0.0
+    planes: np.ndarray = ()
+    discs: np.ndarray = ()
+    wall_range: float = 0.0
+    wall_k: float = 0.0
 
     @classmethod
     def from_bodies(
@@ -253,9 +264,31 @@ class Structure:
         contact_radius: float = 0.0,
         contact_k: float = 0.0,
         ramp_steps: float = 0.0,
+        *,
+        planes: np.ndarray = (),
+        discs: np.ndarray = (),
+        wall_range: float = 0.0,
+        wall_k: float = 0.0,
     ) -> Structure:
         if not bodies:
             raise ValueError("a structure needs at least one body")
+        planes = _array(planes, np.float64, (-1, 3))
+        discs = _array(discs, np.float64, (-1, 3))
+        if not np.all(np.isfinite(planes)) or not np.all(np.isfinite(discs)):
+            raise ValueError("surfaces must be finite")
+        if len(planes) and not np.allclose(np.linalg.norm(planes[:, :2], axis=1), 1.0,
+                                            rtol=0.0, atol=1e-8):
+            raise ValueError("plane normals must be unit length")
+        if len(discs) and np.any(discs[:, 2] <= 0):
+            raise ValueError("disc radii must be positive")
+        if len(planes) + len(discs):
+            if (not np.isfinite(wall_range) or wall_range <= 0 or
+                    not np.isfinite(wall_k) or wall_k <= 0):
+                raise ValueError(
+                    "wall_range and wall_k must be finite and positive when surfaces are given"
+                )
+        elif wall_range < 0 or wall_k < 0 or not np.isfinite(wall_range + wall_k):
+            raise ValueError("wall_range and wall_k must be finite and non-negative")
         cols: dict[str, list] = {k: [] for k in (
             "points", "body", "edges", "edge_rest", "edge_k", "edge_shift", "angles",
             "angle_base", "angle_amp", "angle_phase", "angle_omega", "angle_k",
@@ -302,7 +335,7 @@ class Structure:
         }
         return cls(kinds=tuple(b.kind for b in bodies), tether_k=tether_k,
                    contact_radius=contact_radius, contact_k=contact_k, ramp_steps=ramp_steps,
-                   **joined)
+                   planes=planes, discs=discs, wall_range=wall_range, wall_k=wall_k, **joined)
 
     def _c(self) -> _Structure:
         # The arrays are owned by self, which outlives every call that uses the pointers.
@@ -315,7 +348,8 @@ class Structure:
             n_points=len(self.points), n_edges=len(self.edges), n_angles=len(self.angles),
             n_tethers=len(self.tethers), tether_k=self.tether_k,
             contact_radius=self.contact_radius, contact_k=self.contact_k,
-            ramp_steps=self.ramp_steps, **values,
+            ramp_steps=self.ramp_steps, n_planes=len(self.planes), n_discs=len(self.discs),
+            wall_range=self.wall_range, wall_k=self.wall_k, **values,
         )
 
     def forces(self, X: np.ndarray, t: float) -> tuple[float, np.ndarray]:
@@ -463,6 +497,9 @@ def record_states(
     with open(path, "w", encoding="utf-8") as out:
         header = {"schema": STATE_SCHEMA, "nx": nx, "ny": ny, "dx_m": dx_m, "dt_s": dt_s,
                   "bodies": bodies}
+        if len(s.planes) or len(s.discs):
+            header["surfaces"] = {"planes": s.planes.tolist(), "discs": s.discs.tolist(),
+                                  "wall_range": s.wall_range, "wall_k": s.wall_k}
         out.write(json.dumps(header) + "\n")
         for frame in range(frames + 1):
             if frame:

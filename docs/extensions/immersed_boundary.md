@@ -45,9 +45,17 @@ never crossed. That is one tested scenario, not a proof: with point spacing near
 velocity field is continuous and by itself already resists crossing; at `r_c = 1.5`
 contact made almost no difference in this test. There is no self-contact.
 
-Walls: `mask` and `ImmersedSim.from_live(structure, live_lbm)` work, but a point whose
-4x4 stencil touches a solid node raises (no wall contact model). `from_live` keeps the
-channel body force, not the periodic box's mean-flow relaxation.
+Walls: `mask` and `ImmersedSim.from_live(structure, live_lbm)` work. Opt-in analytic wall
+surfaces add a soft repulsion to each Lagrangian point within `wall_range`: specify
+`planes` as `(nx, ny, c)` rows with unit normals pointing into the fluid, and/or `discs`
+as `(cx, cy, R)` rows. Plane gap is `nx*x + ny*y - c`; disc gap is distance from the
+centre minus `R`, using periodic minimum image for unwrapped points. The force magnitude
+is `wall_k * (wall_range - gap)` along the normal into the fluid. This is a soft penalty,
+not a hard constraint, and can be exceeded by strong forcing or insufficient stiffness.
+The existing solid-mask check is unchanged: a point whose 4x4 stencil touches a solid
+node raises. Place analytic surfaces far enough outward from solid nodes to keep the
+entire stencil clear (typically at least 2 cells). `from_live` keeps the channel body
+force, not the periodic box's mean-flow relaxation.
 
 ## Validation
 
@@ -233,5 +241,5 @@ this change does not add it to CI.
 - A free-swimmer run close to its grid limit (r = 4 is still about 17 % below the
   extrapolation).
 - IB accuracy away from `nu = 1/6`; no multiple-relaxation-time or direct-forcing variant.
-- Wall contact, self-contact, hard non-overlap constraint, scalar transport, Brownian
+- Self-contact, hard non-overlap constraint, scalar transport, Brownian
   motion, 3-D, threading, and any coupling to agents or evolution.

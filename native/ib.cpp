@@ -14,6 +14,7 @@
 #include "lbm.cpp"
 
 #include <cmath>
+#include <limits>
 
 extern "C" {
 
@@ -41,6 +42,12 @@ struct IbStructure {
   double contact_radius;  // 0 disables contact
   double contact_k;
   double ramp_steps;  // actuation amplitude rises linearly over this many steps
+  int32_t n_planes;
+  const double* planes;  // n_planes*3: unit normal into fluid (nx, ny), c
+  int32_t n_discs;
+  const double* discs;  // n_discs*3: (cx, cy, R)
+  double wall_range;
+  double wall_k;
 };
 
 struct IbReport {
@@ -50,6 +57,7 @@ struct IbReport {
   double tether_fx, tether_fy;  // total tether force on the structure at the last step
   double min_contact_distance;  // over all steps; contact_radius if never in contact
   double max_speed;             // largest fluid speed seen at the last step
+  double min_wall_gap;          // true minimum over all steps and surfaces; +inf if none
 };
 
 }  // extern "C"
@@ -130,13 +138,23 @@ double internal_forces(const IbStructure& s, const double* X, double t, double* 
 
 bool valid(const IbStructure& s) {
   const int n = s.n_points;
-  if (n < 0 || s.n_edges < 0 || s.n_angles < 0 || s.n_tethers < 0) return false;
+  if (n < 0 || s.n_edges < 0 || s.n_angles < 0 || s.n_tethers < 0 || s.n_planes < 0 ||
+      s.n_discs < 0) return false;
   for (int e = 0; e < 2 * s.n_edges; ++e)
     if (s.edges[e] < 0 || s.edges[e] >= n) return false;
   for (int a = 0; a < 3 * s.n_angles; ++a)
     if (s.angles[a] < 0 || s.angles[a] >= n) return false;
   for (int t = 0; t < s.n_tethers; ++t)
     if (s.tethers[t] < 0 || s.tethers[t] >= n) return false;
+  if ((s.n_planes || s.n_discs) && (!(s.wall_range > 0) || !(s.wall_k > 0))) return false;
+  for (int p = 0; p < 3 * s.n_planes; ++p)
+    if (!std::isfinite(s.planes[p])) return false;
+  for (int p = 0; p < s.n_planes; ++p)
+    if (std::fabs(std::hypot(s.planes[3 * p], s.planes[3 * p + 1]) - 1.0) > 1e-8) return false;
+  for (int d = 0; d < 3 * s.n_discs; ++d)
+    if (!std::isfinite(s.discs[d])) return false;
+  for (int d = 0; d < s.n_discs; ++d)
+    if (!(s.discs[3 * d + 2] > 0)) return false;
   return true;
 }
 
@@ -189,7 +207,8 @@ int ib_advance(int ny, int nx, const uint8_t* mask, double nu, double bx, double
   std::vector<int> touched;
   touched.reserve(16 * static_cast<size_t>(n));
   contact::Grid hash;
-  *rep = IbReport{0, 0, 0, 0, 0, contact_on ? s.contact_radius : 0.0, 0};
+  *rep = IbReport{0, 0, 0, 0, 0, contact_on ? s.contact_radius : 0.0, 0,
+                  std::numeric_limits<double>::infinity()};
 
   for (int step = 0; step < steps; ++step) {
     F.assign(2 * n, 0.0);
@@ -220,6 +239,32 @@ int ib_advance(int ny, int nx, const uint8_t* mask, double nu, double bx, double
       F[2 * p + 1] += fy;
       rep->tether_fx += fx;
       rep->tether_fy += fy;
+    }
+    for (int p = 0; p < n; ++p) {
+      for (int w = 0; w < s.n_planes; ++w) {
+        const double* plane = s.planes + 3 * w;
+        const double gap = plane[0] * X[2 * p] + plane[1] * X[2 * p + 1] - plane[2];
+        rep->min_wall_gap = std::fmin(rep->min_wall_gap, gap);
+        if (gap < s.wall_range) {
+          const double magnitude = s.wall_k * (s.wall_range - gap);
+          F[2 * p] += magnitude * plane[0];
+          F[2 * p + 1] += magnitude * plane[1];
+        }
+      }
+      for (int w = 0; w < s.n_discs; ++w) {
+        const double* disc = s.discs + 3 * w;
+        double dx = X[2 * p] - disc[0], dy = X[2 * p + 1] - disc[1];
+        dx -= nx * std::nearbyint(dx / nx);
+        dy -= ny * std::nearbyint(dy / ny);
+        const double distance = std::hypot(dx, dy);
+        const double gap = distance - disc[2];
+        rep->min_wall_gap = std::fmin(rep->min_wall_gap, gap);
+        if (gap < s.wall_range && distance > 0) {
+          const double magnitude = s.wall_k * (s.wall_range - gap) / distance;
+          F[2 * p] += magnitude * dx;
+          F[2 * p + 1] += magnitude * dy;
+        }
+      }
     }
 
     for (int node : touched) grid[2 * node] = grid[2 * node + 1] = 0.0;
