@@ -1,5 +1,11 @@
 # Absolute-floor confirmation: results
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **3/5 seeds. The absolute-floor threshold was not met, so the claim is not
 upgraded.**
 
@@ -36,8 +42,8 @@ fraction `0.25`, displacement reward `5.0`, eval steps `12`.
 Seeds 1 and 2 are law-following, not fixed actions:
 
 - Every evolved alignment is positive on all four diagonals.
-- Reversed-law alignment equals the evolved alignment, so the policy re-infers the
-  reversed flow.
+- The "reversed-law" minimum equals the evolved minimum by construction (same
+  rollouts), so it adds no evidence beyond the line above.
 - Seeds 1 and 2 simply do not reach `0.5` on their worst diagonal: `0.480` and
   `0.392`.
 

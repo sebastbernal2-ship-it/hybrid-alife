@@ -1,5 +1,11 @@
 # Continuation handoff: hybrid-alife
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](results/embodied_law_null_selection/README.md).
+
 Purpose: a new session with zero context can continue this project without
 re-deriving state. This file is the checkpoint owner. Deeper detail lives in the
 result documents it points to.
@@ -158,7 +164,7 @@ No work is in flight. Open follow-ups, on the captain's word:
 - Prefer continuous actions over a small discrete set when direction is the target, to avoid a mode-versus-mean failure.
 - Two silent plumbing bugs already cost a day in D1: no births meant no mutation, and evaluation resurrected only the elite half of the population. Always verify the control baseline actually differs from the treatment.
 - The embodied selection scheme only mutates dead slots. Once one clone dominates, survivors freeze and later generations change nothing. Do not assume a longer run explores more.
-- A gate can pass by accident if the metric tracks the imposed direction's sign rather than a learned response. Always include the reversed-law control, and get its direction right: a law-follower re-infers the reversed flow and stays positive, while a fixed action flips sign. The condition is `reversed >= margin`.
+- A gate can pass by accident if the metric tracks the imposed direction's sign rather than a learned response. (Superseded, see the audit note at the top: it is not a separate control.) Always include the reversed-law control, and get its direction right: a law-follower re-infers the reversed flow and stays positive, while a fixed action flips sign. The condition is `reversed >= margin`.
 - A per-episode advantage baseline erases the cross-episode signal that separates a fixed action from a flow-follower. Baseline across episodes at each timestep, matching `latent_law_continuous.py`.
 - Check feature and initial-genome scale before blaming the search. A mapping that is expressible can still be unreachable when the needed weights are three orders of magnitude from the initialization and the mutation scale.
 - Verify the selection operator actually acts. A fitness that is never used looks exactly like a bad fitness. If every result is identical across fitness changes, the operator is the suspect.

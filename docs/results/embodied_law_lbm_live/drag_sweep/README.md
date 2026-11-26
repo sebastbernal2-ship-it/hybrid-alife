@@ -1,5 +1,11 @@
 # Drag sweep: where does the monopole-coupling penalty begin?
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../../embodied_law_null_selection/README.md).
+
 Status: **exploratory pilot, 15 seeds per condition. The monopole penalty is a resolved
 dose-response trend (13 of 15 seeds have a negative slope against drag, p = 0.0017), but no
 single drag value is resolved after multiplicity correction, and the data cannot locate a

@@ -1,5 +1,11 @@
 # Expressive controller: results
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **negative pilot, lever 3 ruled out, search is the limiter**.
 
 ## Question

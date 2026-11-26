@@ -1,5 +1,11 @@
 # Flow-head law study under an LBM-derived law profile
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **bounded pilot, 15 seeds per condition. Pass counts: uniform 14/15, LBM
 vectors-only 11/15, rotated geometry 10/15, plain channel 10/15, rotated geometry with
 low-flow cells unscored 7/15. Pass counts alone do not separate the conditions (Fisher exact,
@@ -74,9 +80,10 @@ with the law. Cardinal directions are exact quarter turns (`tests/test_law_profi
 
 Median min_delta is 0.316 (uniform 0.393, vectors-only 0.408). Fisher exact: against
 uniform p = 0.17, against vectors-only p = 1.0. Every rotated-geometry failure still has
-positive reversed-law alignment, so none is the anti-aligned outcome seen once under
+positive alignment on every diagonal, so none is the anti-aligned outcome seen once under
 vectors-only (seed 1). Three are near-misses within 0.031 of the margin (seeds 1, 7, 9: 0.027, 0.031, 0.013), and seed 13
-clears the margin but misses the reversed floor by 0.019. Per-seed rows:
+clears the margin but misses the 0.2 floor on evolved alignment (stored as "reversed") by 0.019;
+without the clause it passes (geometry 11/15, Fisher against uniform p = 0.33). Per-seed rows:
 `seeds0-14_lbm_geometry.json`.
 
 Reading: the structure of the law costs pass rate in both variants (14/15 to 11/15 and
