@@ -8,6 +8,7 @@ artifacts suitable for a preregistered campaign.
 
 from __future__ import annotations
 
+import functools
 import json
 import pickle
 import platform
@@ -34,6 +35,7 @@ from hybrid_alife.world.env import (
     _compute_lift_proxy,
     _compute_shear,
     _compute_shear_gradient,
+    dean_secondary_flow,
     initialize_world,
     step_world,
 )
@@ -47,6 +49,18 @@ ENVIRONMENT_GENE_NAMES = (
     "hazard_rate",
     "flow_x",
     "flow_y",
+)
+PHYSICS_GENE_NAMES = (
+    "viscosity", "obstacle_radius", "obstacle_x", "obstacle_y",
+    "curvature_amplitude", "curvature_wavenumber", "dean_strength",
+    "flow_noise_std", "resource_abundance", "hazard_intensity", "hazard_decay",
+    "thermo_efficiency", "signal_diffusion", "signal_decay",
+)
+# Default bounds are also hard limits (configs may only narrow them), same order as the names.
+# Signal diffusion stays below the 0.25 stability limit of the explicit five-point stencil.
+PHYSICS_GENE_LIMITS = (
+    (0.05, 0.3), (0.0, 0.25), (0.2, 0.8), (0.35, 0.65), (0.0, 1.0), (1.0, 4.0), (0.0, 0.5),
+    (0.0, 0.05), (0.5, 1.5), (0.5, 2.0), (0.9, 1.0), (0.2, 1.0), (0.0, 0.2), (0.8, 1.0),
 )
 
 
@@ -89,8 +103,28 @@ class POETConfig:
     condition: str = ""
     archive_selection_limit: int | None = None
     causal_validity_limit: int | None = None
+    physics_genes: bool = False
+    physics_param_low: tuple[float, ...] = tuple(x[0] for x in PHYSICS_GENE_LIMITS)
+    physics_param_high: tuple[float, ...] = tuple(x[1] for x in PHYSICS_GENE_LIMITS)
+    physics_mutation_scale: float = 0.1
+    physics_lbm_steps: int = 4000
 
     def __post_init__(self) -> None:
+        if self.physics_genes:
+            low, high = np.asarray(self.physics_param_low), np.asarray(self.physics_param_high)
+            hard_low, hard_high = np.asarray(PHYSICS_GENE_LIMITS).T
+            if low.shape != (len(PHYSICS_GENE_NAMES),) or high.shape != low.shape:
+                raise ValueError("physics parameter bounds must match PHYSICS_GENE_NAMES")
+            if not np.all(np.isfinite(low)) or not np.all(np.isfinite(high)) or np.any(low > high):
+                raise ValueError("physics parameter bounds must be finite with low <= high")
+            if np.any(low < hard_low) or np.any(high > hard_high):
+                raise ValueError("physics parameter bounds may only narrow the hard limits")
+            if self.width < 4 or self.height < 4:
+                raise ValueError("physics genes require a grid at least 4x4")
+            if not np.isfinite(self.physics_mutation_scale) or self.physics_mutation_scale < 0:
+                raise ValueError("physics_mutation_scale must be finite and non-negative")
+            if self.physics_lbm_steps < (self.height - 2) ** 2 / low[0]:
+                raise ValueError("physics_lbm_steps is too small to approach steady state")
         if self.heldout_environments < 0:
             raise ValueError("heldout_environments must be non-negative")
         if self.avida_lifecycle not in {"reset", "persistent"}:
@@ -121,6 +155,7 @@ class PolicyParams(NamedTuple):
 class EnvironmentGenome(NamedTuple):
     params: jax.Array
     terrain: jax.Array
+    physics: jax.Array | None = None
 
     def dynamics_signature(self, cfg: POETConfig) -> tuple[float, float, float]:
         """Return values that make scalar and terrain changes observable."""
@@ -385,6 +420,28 @@ def _poet_world_config(cfg: POETConfig) -> WorldConfig:
     )
 
 
+def _physics_world_config(world_cfg: WorldConfig, physics: Any, params: Any) -> WorldConfig:
+    return replace(
+        world_cfg,
+        concentration_diffusion=physics[12],
+        concentration_decay=physics[13],
+        hazard_decay=physics[10],
+        resource_regen=0.005 * params[2],
+    )
+
+
+def _step_world_physics(world: WorldState, rng: jax.Array, world_cfg: WorldConfig,
+                        physics: jax.Array, env_params: jax.Array) -> tuple[WorldState, jax.Array]:
+    cfg = _physics_world_config(world_cfg, physics, env_params)
+    state = SimState(generation=0, step=0, rng=rng, world=world, embodied=None, avida=None)
+    state = step_world(state, cfg)
+    return state.world, state.rng
+
+
+# Genes are traced arguments, so new genomes never trigger a recompile.
+_step_world_physics_fast = jax.jit(_step_world_physics, static_argnums=2)
+
+
 def _poet_avida_config() -> AvidaConfig:
     return AvidaConfig(
         enabled=True,
@@ -442,6 +499,17 @@ def initialize_environment_world(
     env: EnvironmentGenome, cfg: POETConfig, key: jax.Array
 ) -> tuple[WorldState, WorldConfig]:
     """Inject an environment genome into the existing microfluidic world model."""
+    if env.physics is not None:
+        base_flow = physics_base_flow(env, cfg)
+        world = _initialize_environment_world_fast(
+            env.params, env.terrain, key, cfg, env.physics,
+            jnp.asarray(base_flow), jnp.asarray(_physics_mask(env.physics, cfg)),
+        )
+        # Plain floats keep the returned config hashable; stepping re-applies the genes.
+        world_cfg = _physics_world_config(
+            _poet_world_config(cfg), env.physics.tolist(), env.params.tolist()
+        )
+        return world, world_cfg
     world_cfg = _poet_world_config(cfg)
     world_cfg = replace(world_cfg, resource_regen=0.005 * float(env.params[2]))
     world = initialize_world(world_cfg, key)
@@ -490,7 +558,16 @@ def initialize_environment(cfg: POETConfig, key: jax.Array) -> EnvironmentGenome
     terrain = jax.random.uniform(
         k_terrain, (cfg.height, cfg.width), minval=0.0, maxval=1.0, dtype=jnp.float32
     )
-    return EnvironmentGenome(params=params, terrain=terrain)
+    physics = None
+    if cfg.physics_genes:
+        low = jnp.asarray(cfg.physics_param_low, dtype=jnp.float32)
+        high = jnp.asarray(cfg.physics_param_high, dtype=jnp.float32)
+        physics_key = jax.random.fold_in(key, 101)
+        physics = jax.random.uniform(physics_key, low.shape, minval=low, maxval=high)
+        if not _valid_physics_geometry(physics, cfg):
+            physics = physics.at[1].set(low[1])
+        validate_physics_genes(physics, cfg)
+    return EnvironmentGenome(params=params, terrain=terrain, physics=physics)
 
 
 def normalize_replication_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
@@ -603,7 +680,68 @@ def mutate_environment(
     mask = mask.at[0, 0].set(True)
     terrain_noise = cfg.terrain_mutation_std * jax.random.normal(k_noise, parent.terrain.shape)
     terrain = jnp.clip(parent.terrain + mask * terrain_noise, 0.0, 1.0)
-    return EnvironmentGenome(params=params, terrain=terrain)
+    if cfg.physics_genes != (parent.physics is not None):
+        raise ValueError("physics_genes and parent physics presence must agree")
+    physics = None
+    if cfg.physics_genes:
+        low = jnp.asarray(cfg.physics_param_low, dtype=jnp.float32)
+        high = jnp.asarray(cfg.physics_param_high, dtype=jnp.float32)
+        noise = jax.random.normal(jax.random.fold_in(key, 102), parent.physics.shape)
+        step = cfg.physics_mutation_scale * (high - low) * noise
+        physics = jnp.clip(parent.physics + step, low, high)
+        if not _valid_physics_geometry(physics, cfg):
+            physics = physics.at[1:4].set(parent.physics[1:4])
+    return EnvironmentGenome(params=params, terrain=terrain, physics=physics)
+
+
+def _physics_mask(physics: jax.Array, cfg: POETConfig) -> np.ndarray:
+    p = np.asarray(physics)
+    h, w = cfg.height, cfg.width
+    row, col = np.mgrid[0:h, 0:w]
+    mask = (row == 0) | (row == h-1)
+    if p[1] > 0:
+        mask |= ((row + .5 - p[3]*h)**2 + (col + .5 - p[2]*w)**2 <= (p[1]*h)**2)
+    return mask
+
+
+def _valid_physics_geometry(physics: jax.Array, cfg: POETConfig) -> bool:
+    return bool(np.all(np.any(~_physics_mask(physics, cfg), axis=0)))
+
+
+def validate_physics_genes(physics: jax.Array, cfg: POETConfig) -> None:
+    p = np.asarray(physics)
+    # Compare in float32: genes clipped to a bound must not fail on float64 rounding.
+    low = np.asarray(cfg.physics_param_low, np.float32)
+    high = np.asarray(cfg.physics_param_high, np.float32)
+    if p.shape != (len(PHYSICS_GENE_NAMES),) or not np.all(np.isfinite(p)):
+        raise ValueError("physics genes have wrong shape or non-finite values")
+    if np.any(p < low) or np.any(p > high):
+        raise ValueError("physics genes are outside configured bounds")
+    if not _valid_physics_geometry(physics, cfg):
+        raise ValueError("obstacle blocks the channel")
+
+
+@functools.lru_cache(maxsize=256)
+def _cached_physics_flow(
+    h: int, w: int, mask_bytes: bytes, viscosity: float, steps: int
+) -> np.ndarray:
+    from hybrid_alife.physics import lbm
+    mask = np.frombuffer(mask_bytes, dtype=np.uint8).reshape(h, w)
+    force = lbm.channel_body_force(h, .1, .05)
+    u, v, _ = lbm.solve(mask, viscosity, (force, 0.0), steps)
+    result = (np.stack((u, v), axis=-1) / .05).astype(np.float32)
+    result.setflags(write=False)
+    return result
+
+
+def physics_base_flow(env: EnvironmentGenome, cfg: POETConfig) -> np.ndarray:
+    if env.physics is None:
+        raise ValueError("environment has no physics genes")
+    validate_physics_genes(env.physics, cfg)
+    mask = np.ascontiguousarray(_physics_mask(env.physics, cfg), dtype=np.uint8)
+    return _cached_physics_flow(
+        cfg.height, cfg.width, mask.tobytes(), float(env.physics[0]), cfg.physics_lbm_steps
+    )
 
 
 def mutate_policy(parent: PolicyParams, cfg: POETConfig, key: jax.Array) -> PolicyParams:
@@ -731,22 +869,37 @@ def _initialize_environment_world_fast(
     terrain_genome: jax.Array,
     key: jax.Array,
     cfg: POETConfig,
+    physics: jax.Array | None = None,
+    base_flow: jax.Array | None = None,
+    solid_mask: jax.Array | None = None,
 ) -> WorldState:
     """Initialize an environment genome with tracer-safe JAX operations."""
     world_cfg = _poet_world_config(cfg)
+    if physics is not None:
+        world_cfg = replace(world_cfg, curvature_amplitude=0.0)
     world = initialize_world(world_cfg, key)
     terrain = world.terrain.at[..., 0].set(terrain_genome)
     terrain = terrain.at[..., 1].set(0.5 * terrain[..., 1] + 0.5 * terrain_genome)
-    resources = world.resources.at[..., 0].set(
-        jnp.clip(world.resources[..., 0] * env_params[2] + 0.35 * terrain_genome, 0.0, 1.0)
-    )
+    abundance = 1.0 if physics is None else physics[8]
+    seeded = world.resources[..., 0] * env_params[2] + 0.35 * terrain_genome
+    resources = world.resources.at[..., 0].set(jnp.clip(seeded * abundance, 0.0, 1.0))
     hazards = world.hazards.at[..., 0].set(
         jnp.clip(world.hazards[..., 0] * env_params[3] + 0.08 * (1.0 - terrain_genome), 0.0, 1.0)
     )
-    flow = world.flow + env_params[4:6]
+    if physics is None:
+        flow = world.flow + env_params[4:6]
+        curvature = world.curvature
+    else:
+        h, w = cfg.height, cfg.width
+        yy, xx = jnp.meshgrid(jnp.linspace(-1, 1, h), jnp.linspace(-1, 1, w), indexing="ij")
+        curvature = (physics[4] * jnp.sin(physics[5] * jnp.pi * xx) * (1 - .5 * yy**2))[..., None]
+        noise = jax.random.normal(jax.random.fold_in(key, 103), (h, w, 2))
+        flow = base_flow + physics[6] * dean_secondary_flow(curvature)
+        flow = flow + physics[7] * noise + env_params[4:6]
+        flow = jnp.where(solid_mask[..., None], 0.0, flow)
     shear = _compute_shear(flow)
     shear_grad = _compute_shear_gradient(shear)
-    lift = _compute_lift_proxy(flow, shear, world.curvature, world_cfg)
+    lift = _compute_lift_proxy(flow, shear, curvature, world_cfg)
     enrichment = _compute_enrichment_proxy(
         resources, hazards, lift, world.occupancy, world_cfg
     )
@@ -757,7 +910,7 @@ def _initialize_environment_world_fast(
         resources=resources,
         hazards=hazards,
         flow=flow,
-        curvature=world.curvature,
+        curvature=curvature,
         shear=shear,
         shear_grad=shear_grad,
         enrichment=enrichment,
@@ -775,11 +928,16 @@ def _evaluate_policy_fast(
     terrain_genome: jax.Array,
     key: jax.Array,
     cfg: POETConfig,
+    physics: jax.Array | None = None,
+    base_flow: jax.Array | None = None,
+    solid_mask: jax.Array | None = None,
 ) -> jax.Array:
     """Evaluate a deterministic no-Avida rollout with one compiled scan."""
     key, world_key, _ = jax.random.split(key, 3)
     world_cfg = _poet_world_config(cfg)
-    world = _initialize_environment_world_fast(env_params, terrain_genome, world_key, cfg)
+    world = _initialize_environment_world_fast(
+        env_params, terrain_genome, world_key, cfg, physics, base_flow, solid_mask
+    )
     initial_position = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
     initial_energy = jnp.asarray(1.0, dtype=jnp.float32)
     moves = jnp.asarray(
@@ -791,7 +949,7 @@ def _evaluate_policy_fast(
         key, world, position, energy = carry
         key, _ = jax.random.split(key)
         observation = _world_observation(
-            EnvironmentGenome(params=env_params, terrain=terrain_genome),
+            EnvironmentGenome(params=env_params, terrain=terrain_genome, physics=physics),
             world,
             position,
             step,
@@ -802,13 +960,12 @@ def _evaluate_policy_fast(
         logits, _ = policy_forward(params, observation)
         action = jnp.argmax(logits).astype(jnp.int32)
         move = moves[jnp.mod(action, 5)]
-        world, key = _step_world_jitted(world, key, world_cfg)
-        world = replace(
-            world,
-            resources=jnp.clip(
-                world.resources + 0.005 * env_params[2], 0.0, 1.0
-            ),
-        )
+        if physics is None:
+            world, key = _step_world_jitted(world, key, world_cfg)
+            regrown = jnp.clip(world.resources + 0.005 * env_params[2], 0.0, 1.0)
+            world = replace(world, resources=regrown)
+        else:
+            world, key = _step_world_physics(world, key, world_cfg, physics, env_params)
         flow = _grid_vector(world.flow, position)
         next_position = jnp.clip(position + move + 0.02 * flow, 0.0, 0.999)
         grid_x = jnp.clip(
@@ -821,28 +978,31 @@ def _evaluate_policy_fast(
         resource = world.resources[grid_y, grid_x, 0]
         hazard = world.hazards[grid_y, grid_x, 0]
         gather = resource * jnp.where((action == 4) | (action == 5), 0.4, 0.0)
+        eta = 1.0 if physics is None else physics[11]
         world = replace(
             world,
             resources=world.resources.at[grid_y, grid_x, 0].set(resource - gather),
             concentration=world.concentration.at[grid_y, grid_x].add(
                 0.01 * (action >= 4)
             ),
+            metabolites=world.metabolites.at[grid_y, grid_x, 0].add((1.0-eta) * gather),
         )
         interaction = (action == 6).astype(jnp.float32)
-        reproduce = ((action >= 7) & (energy + gather > 0.65)).astype(jnp.float32)
+        usable = gather * eta
+        reproduce = ((action >= 7) & (energy + usable > 0.65)).astype(jnp.float32)
         world = replace(
             world,
             resources=world.resources.at[grid_y, grid_x, 0].add(0.05 * reproduce),
         )
         movement_cost = 0.02 * jnp.linalg.norm(move)
         energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
-        hazard_cost = hazard * 0.25
-        next_energy = energy + 1.5 * gather - energy_cost - hazard_cost
+        hazard_cost = hazard * 0.25 * (1.0 if physics is None else physics[9])
+        next_energy = energy + 1.5 * usable - energy_cost - hazard_cost
         distance = jnp.linalg.norm(next_position - env_params[:2])
         success = (distance < 0.12) & (next_energy > 0.0)
         failure = next_energy <= 0.0
         done = success | failure
-        reward = 1.5 * gather + 0.2 * terrain + 0.2 * interaction
+        reward = 1.5 * usable + 0.2 * terrain + 0.2 * interaction
         reward = reward - hazard_cost - energy_cost - 0.1 * distance
         reward = reward + jnp.where(success, 1.0, 0.0) - jnp.where(failure, 1.0, 0.0)
         next_position = jnp.where(done, initial_position, next_position)
@@ -876,7 +1036,12 @@ def _rollout_step(
     interacts, and action 7 attempts reproduction. Smaller legacy action heads
     retain movement plus action 4 gathering.
     """
-    state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
+    if env.physics is None:
+        state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
+    else:
+        state.world, state.rng = _step_world_physics_fast(
+            state.world, state.rng, _poet_world_config(cfg), env.physics, env.params
+        )
     moves = jnp.asarray(
         [[0.0, 0.08], [0.0, -0.08], [-0.08, 0.0], [0.08, 0.0], [0.0, 0.0]],
         dtype=jnp.float32,
@@ -912,23 +1077,28 @@ def _rollout_step(
     resource = state.world.resources[grid_y, grid_x, 0]
     hazard = state.world.hazards[grid_y, grid_x, 0]
     gather = float(resource * (0.4 if action_index in {4, 5} else 0.0))
+    eta = 1.0 if env.physics is None else float(env.physics[11])
+    usable = gather * eta
     state.world.resources = state.world.resources.at[grid_y, grid_x, 0].set(resource - gather)
+    if env.physics is not None:
+        waste = (1.0 - eta) * gather
+        state.world.metabolites = state.world.metabolites.at[grid_y, grid_x, 0].add(waste)
     interaction = float(action_index == 6)
-    reproduce = float(action_index >= 7 and energy + gather > 0.65)
+    reproduce = float(action_index >= 7 and energy + usable > 0.65)
     signal = 0.01 * controller_event
     if signal:
         state.world.concentration = state.world.concentration.at[grid_y, grid_x].add(signal)
     movement_cost = 0.02 * float(jnp.linalg.norm(move))
     energy_cost = 0.03 + movement_cost + 0.05 * interaction + 0.25 * reproduce
-    hazard_cost = float(hazard) * 0.25
-    energy = energy + 1.5 * gather - energy_cost - hazard_cost
+    hazard_cost = float(hazard) * 0.25 * (1.0 if env.physics is None else float(env.physics[9]))
+    energy = energy + 1.5 * usable - energy_cost - hazard_cost
     if reproduce:
         state.world.resources = state.world.resources.at[grid_y, grid_x, 0].add(0.05)
     distance = jnp.linalg.norm(next_position - env.params[:2])
     success = bool(distance < 0.12 and energy > 0.0)
     failure = bool(energy <= 0.0)
     done = success or failure
-    reward = 1.5 * gather + 0.2 * float(terrain) + 0.2 * interaction
+    reward = 1.5 * usable + 0.2 * float(terrain) + 0.2 * interaction
     reward -= hazard_cost + energy_cost + 0.1 * float(distance)
     reward += 1.0 if success else 0.0
     reward -= 1.0 if failure else 0.0
@@ -1187,6 +1357,12 @@ def evaluate_policy(
 ) -> float:
     if cfg.avida_enabled:
         return _evaluate_policy_reference(params, env, cfg, seed)
+    if env.physics is not None:
+        validate_physics_genes(env.physics, cfg)
+        base_flow = physics_base_flow(env, cfg)
+        solid_mask = _physics_mask(env.physics, cfg)
+    else:
+        base_flow = solid_mask = None
     return float(
         np.asarray(
             _evaluate_policy_fast_jitted(
@@ -1195,6 +1371,9 @@ def evaluate_policy(
                 env.terrain,
                 jax.random.PRNGKey(seed),
                 cfg,
+                env.physics,
+                None if base_flow is None else jnp.asarray(base_flow),
+                None if solid_mask is None else jnp.asarray(solid_mask),
             ),
             dtype=np.float32,
         )
@@ -1323,7 +1502,12 @@ def _run_avida_comparator(
         avida=population,
     )
     for _ in range(_avida_comparator_steps(generations)):
-        state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
+        if env.physics is None:
+            state.world, state.rng = _step_world_fast(state.world, state.rng, world_cfg)
+        else:
+            state.world, state.rng = _step_world_physics_fast(
+                state.world, state.rng, _poet_world_config(cfg), env.physics, env.params
+            )
         state.rng, step_key = jax.random.split(state.rng)
         state.avida, state.world, lineage_start = _step_avida_fast(
             state.avida, state.world, avida_cfg, lineage_start, step_key, positions
@@ -1624,6 +1808,14 @@ def write_poet_artifacts(
             "terrain": np.asarray(entry.environment.terrain).tolist(),
             "terrain_mean": float(jnp.mean(entry.environment.terrain)),
             "terrain_std": float(jnp.std(entry.environment.terrain)),
+            **(
+                {}
+                if entry.environment.physics is None
+                else {
+                    "physics": np.asarray(entry.environment.physics).tolist(),
+                    "physics_gene_names": list(PHYSICS_GENE_NAMES),
+                }
+            ),
         }
         for entry in state.environment_archive
     ]
@@ -1767,6 +1959,9 @@ def load_poet_config(
     import yaml
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    for name in ("physics_param_low", "physics_param_high"):
+        if name in raw:
+            raw[name] = tuple(raw[name])
     ppo = PPOConfig(**raw.pop("ppo", {}))
     if track is not None:
         raw["track"] = track
