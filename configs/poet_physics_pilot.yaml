@@ -1,0 +1,26 @@
+# Shared by both pilot arms; scripts/run_poet_physics_pilot.py toggles physics_genes.
+width: 8
+height: 8
+population_size: 4
+policy_hidden: 16
+action_count: 8
+rollout_steps: 16
+transfer_steps: 16
+heldout_environments: 16
+environment_mutation_std: 0.08
+terrain_mutation_std: 0.12
+terrain_mutation_prob: 0.2
+policy_mutation_std: 0.01
+policy_mutation_prob: 0.05
+archive_selection_limit: 8
+causal_validity_limit: 2
+physics_mutation_scale: 0.1
+physics_lbm_steps: 4000
+ppo:
+  learning_rate: 0.003
+  clip_ratio: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  gamma: 0.99
+  gae_lambda: 0.95
+  epochs: 2

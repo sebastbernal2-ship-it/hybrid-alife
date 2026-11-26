@@ -51,8 +51,12 @@ def initialize_world(cfg: WorldConfig, key: PRNGKey) -> WorldState:
     if cfg.flow_solver == "lbm":
         from hybrid_alife.physics import lbm
 
-        radius = h / 6 if cfg.curvature_regime == "obstacle" else 0.0
-        flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=radius))
+        obstacle = cfg.curvature_regime == "obstacle"
+        if cfg.lbm_frame == "world":
+            radius = min(h, w) / 6 if obstacle else 0.0
+            flow = jnp.asarray(lbm.world_channel_flow(h, w, obstacle_radius=radius))
+        else:
+            flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=h / 6 if obstacle else 0.0))
     noise = cfg.flow_noise_std * jax.random.normal(k3, flow.shape, dtype=jnp.float32)
     flow = flow + noise
     shear = _compute_shear(flow)
@@ -325,13 +329,21 @@ def advect_field(
 
 
 def new_live_lbm(cfg: WorldConfig):
-    """Warmed-up live LBM channel for a world config (obstacle if curvature_regime says so)."""
-    from hybrid_alife.physics.lbm import LiveLBM
+    """Warmed-up live LBM fluid for a world config: periodic box, serpentine channel, or a
+    straight channel (with an obstacle if curvature_regime says so)."""
+    from hybrid_alife.physics.lbm import LiveLBM, serpentine_mask
 
     if cfg.lbm_box == "periodic":
         return LiveLBM.uniform(
             cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
             relax_steps=cfg.lbm_law_relax_steps,
+        )
+    if cfg.lbm_geometry == "serpentine":
+        return LiveLBM.channel(
+            cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
+            mask=serpentine_mask(  # solver frame [W, H]
+                cfg.width, cfg.height, cfg.lbm_serpentine_waves, cfg.lbm_serpentine_amplitude
+            ),
         )
     radius = min(cfg.height, cfg.width) / 6 if cfg.curvature_regime == "obstacle" else 0.0
     return LiveLBM.channel(
@@ -343,7 +355,15 @@ def new_live_lbm(cfg: WorldConfig):
 def step_world(state: SimState, cfg: WorldConfig) -> SimState:
     """Advance passive world fields (flow drift, advection, decay, regen)."""
     world = state.world
-    state.rng, k_drift = jax.random.split(state.rng)
+    rng, k_drift = jax.random.split(state.rng)
+    # The split is a tracer under jit/scan/vmap even if every input is concrete. Raise
+    # before touching `state`, so a failed trace cannot leave tracers in it.
+    if cfg.flow_solver == "lbm_live" and isinstance(k_drift, jax.core.Tracer):
+        raise ValueError(
+            "lbm_live cannot be traced (jit/scan/vmap): its numpy fluid would be frozen "
+            "as a trace-time constant. Call step_world eagerly or use another flow_solver."
+        )
+    state.rng = rng
 
     if cfg.flow_solver == "lbm_live":
         if state.lbm is None:

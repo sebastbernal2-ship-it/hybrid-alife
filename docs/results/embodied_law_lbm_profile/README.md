@@ -12,7 +12,16 @@ low-flow cells unscored 7/15. Pass counts alone do not separate the conditions (
 uniform against each of the first three: p = 0.17 to 0.33; the flow-floor condition, p =
 0.014). A paired test on the continuous min_delta is more powerful and does resolve a lower
 min_delta than uniform for rotated geometry, plain channel and the flow-floor condition, but
-not for vectors-only (see "Paired test on min_delta"). Not a claim.**
+not for vectors-only (see "Paired test on min_delta"). Those tests used the seeds that suggested
+them. For the plain channel, a pre-registered test on 25 new seeds did NOT replicate the lower
+min_delta (mean -0.043, p = 0.40; see "Follow-ups"). The other two structured laws have not been
+tested on new seeds. Not a claim.**
+
+**Correction to the gate:** `min_reversed` is not an independent control. The four diagonals are
+closed under negation and the rollout is deterministic, so the reversed-law run at diagonal d is
+the evolved run at -d and `min_reversed` equals `min_evolved` in every committed row (checked by
+`scripts/analyze_lbm_followups.py`). Read each "reversed floor" or "reversed-law alignment"
+below as the evolved population's lowest absolute alignment. It still rejects a fixed action.
 
 ## Question
 
@@ -151,12 +160,56 @@ was measured, estimate error did not explain the loss: `exp/lbm-live-estimate`.)
 open alternative from the live-fluid study is that the baseline term of `min_delta` changes
 under a structured law.
 
+## Follow-ups
+
+Corrections to the sections above: "the speed profile across the channel is enough to lower the
+pass rate" and "resolved lower for ... plain channel" did not replicate on new seeds, and the
+baseline explanation raised in "Taken together" is not supported.
+
+### Initial and evolved populations scored separately (seeds 0-14, post hoc)
+
+Mean alignment over the four diagonals; change is paired against uniform, Holm over four laws
+within each population.
+
+| Law | Initial | Change (p, Holm) | Evolved | Change (p, Holm) |
+|---|---|---|---|---|
+| Uniform | 0.056 | | 0.612 | |
+| Vectors-only | 0.088 | +0.032 (0.36, 1) | 0.571 | -0.041 (0.49, 0.49) |
+| Rotated geometry | 0.057 | +0.001 (0.93, 1) | 0.541 | -0.071 (0.018, 0.054) |
+| Plain channel | 0.060 | +0.003 (0.49, 1) | 0.474 | -0.138 (0.0002, 0.0007) |
+| Geometry + flow floor | 0.058 | +0.002 (0.36, 1) | 0.541 | -0.071 (0.048, 0.096) |
+
+The baseline does not move detectably; where min_delta is lower, the evolved side is lower.
+This is unlike the live monopole fluid, where the baseline rose. This compares population means,
+while min_delta takes the worst diagonal, so the two do not add up exactly.
+
+### Plain channel against uniform, 40 seeds per arm
+
+Pre-registered in `extension40/PREREGISTRATION.md` before seeds 15-39 were run. Reproduction
+gate: seeds 0 and 1 of both arms match the committed `min_delta` exactly.
+
+| Seeds | Mean change in min_delta [95% bootstrap CI] | Worse / better | Wilcoxon p | Pass uniform / channel |
+|---|---|---|---|---|
+| **15-39 (confirmatory)** | **-0.043 [-0.115, +0.025]** | 14 / 11 | **0.40** | 20/25, 17/25 |
+| 0-39 (descriptive, includes discovery seeds) | -0.076 [-0.131, -0.022] | 26 / 14 | 0.014 | 34/40, 27/40 |
+| 0-14 (discovery) | -0.130 [-0.215, -0.055] | 12 / 3 | 0.0043 | 14/15, 10/15 |
+
+- **The confirmatory test fails.** The lower min_delta is not established. The interval allows
+  both no effect and a loss close to the original one, so this is not evidence of no effect.
+- The pooled p = 0.014 is not independent evidence, since seeds 0-14 chose the hypothesis.
+- Pass counts stay unresolved at 40 seeds (Fisher p = 0.11, McNemar p = 0.092).
+- Descriptive, not pre-registered as confirmatory: on seeds 15-39 the evolved side is lower by
+  -0.074 [-0.132, -0.015] (p = 0.052) and the initial side is unchanged (+0.007, p = 0.67).
+
+Per-seed rows: `extension40/seeds0-39_uniform.json`, `extension40/seeds0-39_plain_channel.json`.
+All numbers in this section: `python scripts/analyze_lbm_followups.py` (output committed in
+`../embodied_law_lbm_live/followups/analysis.txt`).
+
 ## Next
 
 Measure the unit-flow estimate's error against the true local direction for these structured
-laws (it has been measured only for live-coupled fluids), score the initial and evolved
-populations separately to see which side of `min_delta` moves, and run about 40 seeds per arm
-to resolve the pass-count gaps.
+laws (it has been measured only for live-coupled fluids), and test rotated geometry and the
+flow floor on new seeds.
 
 ## Files and reproduction
 

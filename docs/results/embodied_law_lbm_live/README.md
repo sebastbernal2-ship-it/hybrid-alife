@@ -20,6 +20,12 @@ mechanism), `exp/lbm-live-sweep-rescored` (`drag_sweep_rescored/`: whether the s
 the same baseline inflation). Read this file's "lowers the margin" statements through that
 result.
 
+**Correction to the gate:** `min_reversed` is not an independent control. The reversed-law run
+at diagonal d is the evolved run at -d (diagonals closed under negation, deterministic rollout),
+so `min_reversed` equals `min_evolved` in every committed row. "The reversed-law floor" below
+means the evolved population's lowest absolute alignment; it still rejects a fixed action.
+Follow-ups on the lattice-speed guard and the own-wake-removed target are in `followups/`.
+
 ## Question
 
 Does two-way coupling to a live lattice-Boltzmann fluid, as a monopole (agents push the
@@ -132,8 +138,8 @@ in any condition (mean change within 0.04, all p > 0.6).
 
 ## Next
 
-Done since this was written: the estimate-error measurement, the drag sweep, and the mechanism
-study (branches above). Still open: repeat in a wall-bounded channel carrier, add
+Done since this was written: the estimate-error measurement, the drag sweep, the mechanism
+study (branches above), and the speed-guard and masked-rerun checks (`followups/`). Still open: repeat in a wall-bounded channel carrier, add
 train-uncoupled, evaluate-coupled transfer beyond the cross-evaluation in `estimate_error/`,
 and score both populations against a target the agents cannot influence.
 
