@@ -502,7 +502,7 @@ async function main() {
 
   /* view state */
   const view = { x: 0.5, y: 0.5, zoom: 1 };
-  let t = Math.min(STEPS, Math.max(0, Number(params.get('t') ?? 0)));
+  let t = Math.min(STEPS, Math.max(0, Number(params.get('t')) || 0));
   let playing = !params.has('paused'), mode = params.get('field') === 'speed' ? 1 : 0;
   let provenanceClosed = false;
   let selected = null, follow = false, isolate = null, drawn = [], needsTrailReset = true;
@@ -742,7 +742,7 @@ async function main() {
   function advance(dt) {
     const dSteps = playing ? dt * Number($('rate').value) : 0;
     t += dSteps;
-    if (t >= STEPS) { t = 0; needsTrailReset = true; }
+    if (t >= STEPS) { t %= STEPS; needsTrailReset = true; } // loop, keeping the overshoot
     if (needsTrailReset) { resetTrails(t); needsTrailReset = false; }
     else if (dSteps > 0) {
       const parts = Math.ceil(dSteps / 0.25);
