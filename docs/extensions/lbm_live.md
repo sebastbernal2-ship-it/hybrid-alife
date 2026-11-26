@@ -6,9 +6,10 @@ it pickles and is saved and restored by the checkpoint code; legacy checkpoints 
 warmed-up channel).
 
 - Per world step, `step_world` advances `lbm_substeps` LBM steps and refreshes flow, shear and
-  lift. Flow is lattice velocity divided by `lbm_peak_speed`. The channel runs along world axis 0
-  with walls on the first and last column, which is how `flow_movement_scale` actually moves
-  agents (the legacy `lbm` mode uses the proxy field convention instead).
+  lift. Flow is lattice velocity divided by `lbm_peak_speed`. Flow is in the world frame (see the
+  `physics/lbm.py` module docstring): the channel runs along world axis 0 with walls on the first
+  and last column, which is how `flow_movement_scale` moves agents. The static `lbm` mode uses
+  the proxy-field convention unless `lbm_frame: world`.
 - Two-way coupling, when `lbm_agent_drag > 0`: each agent pushes the fluid with its Stokes drag
   (`lbm_agent_drag * radius * swim velocity` relative to the fluid, passive advection removed,
   slip clipped to 0.1 lattice units), deposited at its cell for the next step.

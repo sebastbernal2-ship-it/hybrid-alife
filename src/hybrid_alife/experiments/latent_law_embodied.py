@@ -209,8 +209,7 @@ def lbm_law_profile(size: int, obstacle: bool = True) -> np.ndarray:
     from hybrid_alife.physics import lbm
 
     radius = size / 6 if obstacle else 0.0
-    field = lbm.channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
-    return field.transpose(1, 0, 2)
+    return lbm.world_channel_flow(size, size, obstacle_radius=radius).astype(np.float64)
 
 
 def _rotation(unit: np.ndarray) -> np.ndarray:

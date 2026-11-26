@@ -1,4 +1,25 @@
-"""Lattice-Boltzmann (D2Q9) flow solver; replaces proxy flow when requested."""
+"""Lattice-Boltzmann (D2Q9) flow solver; replaces proxy flow when requested.
+
+Frame convention
+----------------
+Fields are [rows, cols, ...] arrays. Two frames exist, and only two:
+
+- **Solver frame** (``solve``, ``channel_mask``, ``channel_flow``, ``serpentine_mask``,
+  ``LiveLBM.f/mask/u/v/rho``): component 0 (``u``, LBM x) is along *columns*, component 1
+  (``v``, LBM y) along rows; a channel runs along columns with walls on rows.
+- **World frame** (``world_channel_flow``, ``LiveLBM.flow/velocity``, agent positions, forces
+  and ``pending_force``): component ``k`` is along array axis ``k``, so component 0 is along
+  *rows*, which is how ``flow_movement_scale`` moves agents; a channel runs along rows with
+  walls on the first and last column.
+
+World = solver field with the two *array axes* swapped (``to_world_frame``); the components
+are not swapped, because swapping the axes already turns "along columns" into "along rows".
+A world [H, W] channel is therefore a solver [W, H] channel.
+
+``flow_solver: lbm_live`` is always in the world frame. The static ``flow_solver: lbm`` keeps
+the solver frame by default (``lbm_frame: legacy``, the same convention as the proxy fields,
+so recorded outputs do not change) and uses the world frame with ``lbm_frame: world``.
+"""
 
 from __future__ import annotations
 
@@ -96,6 +117,16 @@ def channel_flow(
     uv = np.stack([u, v], -1)
     peak = np.abs(uv).max()
     return (uv / peak if peak > 0 else uv).astype(np.float32)
+
+
+def to_world_frame(field: np.ndarray) -> np.ndarray:
+    """Solver-frame [rows, cols, ...] field as a world-frame field (see module docstring)."""
+    return np.ascontiguousarray(np.swapaxes(field, 0, 1))
+
+
+def world_channel_flow(h: int, w: int, **kwargs) -> np.ndarray:
+    """``channel_flow`` for a world [h, w] grid, in the world frame."""
+    return to_world_frame(channel_flow(w, h, **kwargs))
 
 
 _CX = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1])

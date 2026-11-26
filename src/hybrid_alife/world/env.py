@@ -51,8 +51,12 @@ def initialize_world(cfg: WorldConfig, key: PRNGKey) -> WorldState:
     if cfg.flow_solver == "lbm":
         from hybrid_alife.physics import lbm
 
-        radius = h / 6 if cfg.curvature_regime == "obstacle" else 0.0
-        flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=radius))
+        obstacle = cfg.curvature_regime == "obstacle"
+        if cfg.lbm_frame == "world":
+            radius = min(h, w) / 6 if obstacle else 0.0
+            flow = jnp.asarray(lbm.world_channel_flow(h, w, obstacle_radius=radius))
+        else:
+            flow = jnp.asarray(lbm.channel_flow(h, w, obstacle_radius=h / 6 if obstacle else 0.0))
     noise = cfg.flow_noise_std * jax.random.normal(k3, flow.shape, dtype=jnp.float32)
     flow = flow + noise
     shear = _compute_shear(flow)

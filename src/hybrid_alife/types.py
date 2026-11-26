@@ -76,6 +76,10 @@ class WorldConfig:
     # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
+    # Frame of the static "lbm" field (physics.lbm module docstring). "legacy" (recorded
+    # behaviour): component 0 is x, walls on the first and last row. "world": the lbm_live
+    # convention, component 0 along rows (the axis agents move on), walls on the columns.
+    lbm_frame: str = "legacy"
     # "lbm_live" (flow_solver): a stateful LBM fluid advanced `lbm_substeps` steps per world
     # step, flow = lattice velocity / lbm_peak_speed. lbm_agent_drag > 0 makes agents push
     # the fluid with Stokes drag (two-way coupling); 0 leaves the fluid unaffected.
@@ -101,6 +105,8 @@ class WorldConfig:
             raise ValueError("concentration_channels must be >= 2")
         if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
             raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
+        if self.lbm_frame not in ("legacy", "world"):
+            raise ValueError(f"unknown lbm_frame={self.lbm_frame!r} (legacy or world)")
         if self.lbm_agent_coupling not in ("monopole", "dipole"):
             raise ValueError(
                 f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
