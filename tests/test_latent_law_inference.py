@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from hybrid_alife.experiments.latent_law_inference import (
     infer_law,
@@ -46,6 +47,7 @@ def test_identity_map_on_the_estimate_reaches_the_optimum() -> None:
         assert result["total_reward"] > 10.5, result["total_reward"]
 
 
+@pytest.mark.slow
 def test_inference_policy_solves_every_held_out_direction() -> None:
     """The decisive gate for the internal-estimate architecture."""
     policy, metadata = train_estimate_policy_rwr(
@@ -127,6 +129,7 @@ def test_false_revelation_is_corrected_by_the_internal_estimate() -> None:
     assert 9.9 < result["total_reward"] < 11.1, result["total_reward"]
 
 
+@pytest.mark.slow
 def test_trained_policy_can_use_a_revelation() -> None:
     """A policy trained with a true revelation must exploit it at step zero."""
     policy, metadata = train_estimate_policy_rwr(

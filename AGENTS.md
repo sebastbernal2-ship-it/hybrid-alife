@@ -14,7 +14,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 ## Commands
 
-- Full suite: `venv/bin/python -m pytest -q -n 4 --dist worksteal` after `make -C native` (about 5 minutes on 4 cores, about 14 serial; several tests train small JAX models)
+- Full suite: `venv/bin/python -m pytest -q -n 4 --dist worksteal` after `make -C native` (about 5 minutes on 4 cores, about 14 serial; several tests train small JAX models). CI runs tests marked `slow` in a separate job; the command above runs everything.
 - Native sanitizers (ASan+UBSan, also a CI job): `make sanitize-build sanitize-test PYTHON=venv/bin/python`, then `make -B -C native` to restore the normal build.
 - Lint: `venv/bin/ruff check src tests`
 - Gravity study replication: `JAX_PLATFORMS=cpu venv/bin/python scripts/run_gravity_study.py --seeds 0 1 2 3 4 --output docs/results/gravity_study_v1/summary.json`
