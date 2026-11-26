@@ -67,6 +67,9 @@ end-of-generation revivals and reseeding.
   reading the analysis script or `analysis.json`. Means, differences, dz, p and Holm p matched.
   Bootstrap interval ends differed slightly (independent resampling). It also confirmed that
   per-seed totals equal the sums of the generation records.
+- Runs used the simulator at `bd6d84c`. After merging `main` at `bdd818c`, seeds 0 and 1 of
+  `baseline`, `thermo`, `lbm_dipole` and `combined` reproduced byte for byte; other arms and
+  seeds were not rerun.
 
 ## Files and reproduction
 
