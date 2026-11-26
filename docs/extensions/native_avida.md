@@ -23,12 +23,14 @@ uptake/deposit coupling (`avida_couple`).
   The cycle-only `run_update` entry point is eager-only.
 - Run: `configs/ablation_native_avida.yaml`.
 
-## Division quirk (kept on purpose)
+## Division quirk
 
-In JAX `apply_h_divide`, rows with no parent/child match all scatter to index 0, so when there
-are fewer matches than organisms the slot-0 child write and the slot-0 parent buffer reset are
-undone. `avida_divide` reproduces this so the two paths stay bit-exact (a test fails without
-it). It is a latent JAX bug; fixing it changes legacy behaviour and must be done in both paths.
+By default, JAX `apply_h_divide` rows with no parent/child match scatter to index 0. When there
+are fewer matches than organisms, this undoes a slot-0 child write or parent buffer reset.
+`AvidaConfig.divide_scatter_fix=True` sends unmatched rows out of bounds with dropped scatters
+in JAX and skips the matching restores in native code. The default remains `False` to preserve
+legacy results. The native bridge checks its ABI version and requires `make -B -C native` to
+rebuild an incompatible shared library.
 
 ## Energy and heat (`instruction_energy_cost > 0`)
 

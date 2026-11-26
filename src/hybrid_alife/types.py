@@ -273,6 +273,8 @@ class AvidaConfig:
     # Run the whole update (cycles, division, metabolite coupling) in the native C++
     # kernel (make -C native). Under jax.jit it runs through jax.pure_callback.
     native: bool = False
+    # Avoid legacy duplicate-index-0 writes for unmatched division rows.
+    divide_scatter_fix: bool = False
     # Opt-in energy economy, enabled when instruction_energy_cost > 0. Every executed
     # instruction costs this much energy, merit gained by an instruction is converted to
     # energy at energy_efficiency, an organism with no energy stops executing and dies at

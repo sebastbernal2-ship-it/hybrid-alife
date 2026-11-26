@@ -118,10 +118,13 @@ void avida_run_update(int n, int max_len, int nreg, int32_t* genomes, const int3
 // Parents (executed H_DIVIDE with copied_length >= min_copy) are matched in index
 // order to dead slots in index order. JAX scatters with duplicate index 0 for the
 // unmatched rows, so when matches < n the slot-0 child writes and slot-0 parent
-// buffer reset are undone; that behaviour is reproduced here on purpose.
+// buffer reset are undone unless scatter_fix is enabled.
+int avida_abi_version() { return 2; }
+
 void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_copy,
                   double ins_p, double del_p, double dup_p, uint64_t seed,
-                  int32_t next_lineage_start, const uint8_t* div_mask, int32_t* genomes,
+                  int32_t next_lineage_start, const uint8_t* div_mask, int scatter_fix,
+                  int32_t* genomes,
                   int32_t* lengths, int32_t* registers, int32_t* memory, int32_t* ip,
                   int32_t* rh, int32_t* wh, int32_t* copied, int32_t* cl, float* merit,
                   int32_t* age, uint8_t* alive, int32_t* tasks, int32_t* lineage_id,
@@ -135,7 +138,7 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
   const int m = (int)(parents.size() < dead.size() ? parents.size() : dead.size());
   if (m == 0) return;
 
-  // Snapshot of slot 0 (restored below if unmatched rows would overwrite it).
+  // Snapshot restores slot 0 only for legacy duplicate-index scatter behaviour.
   std::vector<int32_t> g0(genomes, genomes + max_len), r0(registers, registers + nreg),
       m0(memory, memory + mem), c0(copied, copied + max_len);
   const int32_t len0 = lengths[0], ip0 = ip[0], rh0 = rh[0], wh0 = wh[0], cl0 = cl[0],
@@ -181,13 +184,13 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
     lineage_id[ch] = wrap_add(next_lineage_start, k);  // int32 wrap, like JAX
     parent_id[ch] = lineage_id[p];
     depth[ch] = wrap_add(depth[p], 1);
-    if (energy && !(ch == 0 && m < n)) {  // a slot-0 child that gets undone is not paid for
+    if (energy && (scatter_fix || !(ch == 0 && m < n))) {
       const float half = 0.5f * energy[p];
       energy[p] = energy[p] - half;
       energy[ch] = energy[ch] + half;
     }
   }
-  if (m < n) {  // duplicate-index-0 scatter writes from unmatched rows
+  if (!scatter_fix && m < n) {  // duplicate-index-0 writes from unmatched rows
     for (int j = 0; j < max_len; ++j) { genomes[j] = g0[j]; copied[j] = c0[j]; }
     for (int j = 0; j < nreg; ++j) registers[j] = r0[j];
     for (int j = 0; j < mem; ++j) memory[j] = m0[j];
@@ -203,7 +206,7 @@ void avida_divide(int n, int max_len, int nreg, int mem, int min_len, int min_co
     for (int j = 0; j < max_len; ++j) copied[(int64_t)p * max_len + j] = 0;
     cl[p] = 0;
   }
-  if (m < n) {
+  if (!scatter_fix && m < n) {
     for (int j = 0; j < max_len; ++j) copied[j] = pc0[j];
     cl[0] = pcl0;
   }

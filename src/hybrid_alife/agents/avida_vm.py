@@ -386,10 +386,12 @@ def apply_h_divide(
     """For each organism that just executed H_DIVIDE with enough copied
     content, spawn its offspring into a free slot.
 
-    Known quirk, kept on purpose: rows without a match all scatter to index 0, so when there
-    are fewer matches than organisms the slot-0 child write and the slot-0 parent buffer reset
-    are undone. ``native/avida.cpp`` (``avida_divide``) reproduces this so the two paths stay
-    bit-exact; fixing it would change legacy behaviour and must be done in both.
+    By default, rows without a match scatter to index 0, so when there are fewer matches than
+    organisms the slot-0 child write and the slot-0 parent buffer reset are undone. This legacy
+    behaviour is kept so recorded results are unchanged. ``cfg.divide_scatter_fix`` sends those
+    rows to index ``n`` instead; JAX drops out-of-bounds scatter updates (gathers clamp, and
+    the gathered values are only written back through those dropped rows).
+    ``native/avida.cpp`` (``avida_divide``) follows the same setting.
     """
     pop = _ensure_task_fields(pop)
     n = pop.alive.shape[0]
@@ -406,8 +408,9 @@ def apply_h_divide(
 
     match_range = jnp.arange(n)
     use = match_range < num_matches
-    parents = jnp.where(use, parent_order, 0)
-    children = jnp.where(use, dead_order, 0)
+    unmatched = n if cfg.divide_scatter_fix else 0
+    parents = jnp.where(use, parent_order, unmatched)
+    children = jnp.where(use, dead_order, unmatched)
 
     # ---- Child genome construction --------------------------------------
     parent_copied = pop.copied[parents]

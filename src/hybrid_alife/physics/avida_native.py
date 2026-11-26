@@ -28,6 +28,19 @@ def _load() -> ctypes.CDLL:
                     f"run `make -C native`):\n{detail}"
                 ) from exc
         lib = ctypes.CDLL(str(_LIB_PATH))
+        try:
+            lib.avida_abi_version.argtypes = []
+            lib.avida_abi_version.restype = ctypes.c_int
+            abi_version = lib.avida_abi_version()
+        except AttributeError as exc:
+            raise RuntimeError(
+                "native Avida kernel ABI is stale or incompatible; rebuild with `make -B -C native`"
+            ) from exc
+        if abi_version != 2:
+            raise RuntimeError(
+                f"native Avida kernel ABI version {abi_version} is incompatible; "
+                "rebuild with `make -B -C native`"
+            )
         nd = np.ctypeslib.ndpointer
         i32, f32, u8 = (nd(t, flags="C_CONTIGUOUS") for t in (np.int32, np.float32, np.uint8))
         lib.avida_run_update.argtypes = [
@@ -40,7 +53,7 @@ def _load() -> ctypes.CDLL:
         dd = ctypes.c_double
         lib.avida_divide.argtypes = [
             ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-            dd, dd, dd, ctypes.c_uint64, ctypes.c_int32, u8,
+            dd, dd, dd, ctypes.c_uint64, ctypes.c_int32, u8, ctypes.c_int,
             i32, i32, i32, i32, i32, i32, i32, i32, i32, f32, i32, u8, i32, i32, i32, i32,
             ctypes.c_void_p,
         ]
@@ -141,7 +154,8 @@ def _call_divide(lib, cfg, x, next_lineage_start, seed, alive, div, energy) -> N
         n, max_len, x["registers"].shape[1], x["memory"].shape[1], int(cfg.min_genome_length),
         max(1, cfg.genome_length // 8), float(cfg.insertion_prob), float(cfg.deletion_prob),
         float(cfg.duplication_prob), seed & 0xFFFFFFFFFFFFFFFF, next_lineage_start, div,
-        x["genomes"], x["genome_lengths"], x["registers"], x["memory"], x["ip"], x["read_head"],
+        int(cfg.divide_scatter_fix), x["genomes"], x["genome_lengths"], x["registers"],
+        x["memory"], x["ip"], x["read_head"],
         x["write_head"], x["copied"], x["copied_length"], x["merit"], x["age"], alive,
         x["tasks_completed"], x["lineage_id"], x["parent_id"], x["lineage_depth"],
         energy.ctypes.data if energy is not None else None,
