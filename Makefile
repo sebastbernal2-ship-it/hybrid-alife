@@ -41,3 +41,22 @@ gallery-clean:
 
 test:
 	pytest -q
+
+SAN_FLAGS := -O1 -g -std=c++17 -fPIC -Wall -Wextra -fno-omit-frame-pointer \
+	-fsanitize=address,undefined -fno-sanitize-recover=all
+# Python is not instrumented, so the runtime must be preloaded. libstdc++ goes with it so
+# ASan can intercept C++ throws from jaxlib. Leak checking is off: CPython "leaks" by design.
+SAN_ENV = LD_PRELOAD="$$(g++ -print-file-name=libasan.so) $$(g++ -print-file-name=libstdc++.so)" \
+	ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 PYTHONPATH=src
+# Deliberately undersized buffers prove that the sanitizer is really active.
+SAN_CANARY := import numpy as np; from hybrid_alife.physics import lbm; \
+	a = np.zeros(1000); lbm._load().lbm_init(64, 64, 1.0, a, a, a)
+
+# Replaces the normal native libraries; restore them with `make -B -C native`.
+sanitize-build:
+	$(MAKE) -B -C native CXXFLAGS="$(SAN_FLAGS)"
+
+# -s keeps a sanitizer report visible: it aborts the process before pytest can print captures.
+sanitize-test:
+	$(SAN_ENV) $(PYTHON) -c "$(SAN_CANARY)" 2>&1 | grep -q "AddressSanitizer: heap-buffer-overflow"
+	$(SAN_ENV) $(PYTHON) -m pytest -q -s tests/test_avida_native.py tests/test_lbm_*.py

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from hybrid_alife.experiments.latent_law_continuous import (
     per_direction_continuous_rewards,
@@ -32,6 +33,7 @@ def test_continuous_training_is_deterministic() -> None:
     assert (first["w"] == second["w"]).all()
 
 
+@pytest.mark.slow
 def test_plain_reinforce_collapses_to_a_fixed_direction() -> None:
     """Documents why reward-weighted regression is the adopted learner.
 
