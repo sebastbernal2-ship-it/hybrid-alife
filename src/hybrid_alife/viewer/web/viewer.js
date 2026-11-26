@@ -1,6 +1,6 @@
-/* hybrid-alife flow viewer. WebGL2, no dependencies.
- * World frame: unit square, x = simulator axis 0 (channel flow direction), y = axis 1, y up.
- * Time `t` is in simulation steps; everything between recorded steps is interpolated. */
+/* hybrid-alife immersed-boundary viewer. WebGL2, no dependencies.
+ * World frame: lattice cells, node (i, j) at (i, j), y up; periodic in x.
+ * Time `t` is in recorded frames; everything between records is interpolated. */
 'use strict';
 
 const $ = (id) => document.getElementById(id);
@@ -53,7 +53,7 @@ async function loadReplay() {
   return { meta: header.meta, arrays };
 }
 
-/* ---------- perceptual colour maps (built in OKLab, lightness linear in value) ---------- */
+/* ---------- colour maps, built in OKLab so lightness follows magnitude ---------- */
 function oklchToRgb(L, C, h) {
   const a = C * Math.cos(h * Math.PI / 180), b = C * Math.sin(h * Math.PI / 180);
   const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
@@ -71,20 +71,14 @@ function buildLut(mode) {
   for (let i = 0; i < 256; i++) {
     const x = i / 255;
     let rgb;
-    if (mode === 0) { // diverging: teal-blue (clockwise) - near-black - copper (counter-clockwise)
+    if (mode === 0) { // diverging: steel blue (clockwise), near-black, sand (counter-clockwise)
       const s = 2 * x - 1, m = Math.abs(s);
-      rgb = oklchToRgb(0.17 + 0.47 * m, 0.118 * Math.min(1, 1.35 * m), s < 0 ? 238 : 52);
-    } else { // sequential: indigo to pale rose, dark to light (kept clear of the green signal)
-      rgb = oklchToRgb(0.15 + 0.55 * x, 0.03 + 0.095 * Math.sin(Math.PI * Math.min(1, x * 0.9)), 272 + 68 * x);
-    }
+      rgb = oklchToRgb(0.178 + 0.54 * m, 0.095 * Math.min(1, 1.4 * m), s < 0 ? 245 : 62);
+    } else rgb = oklchToRgb(0.165 + 0.56 * x, 0.012 + 0.06 * Math.sin(Math.PI * x), 255 - 55 * x);
     lut.set([...rgb, 255], i * 4);
   }
   return lut;
 }
-// dataviz skill dark categorical steps (validated for adjacent pairs); gray folds the rest.
-const LINEAGE_COLORS = ['#00a888', '#d28e05', '#e24d8b', '#0aac23', '#9887ef', '#eb6263'];
-const OTHER_COLOR = '#aeb7c2';
-const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
 /* ---------- GL helpers ---------- */
 function program(vs, fs, varyings) {
@@ -116,11 +110,12 @@ function bind(unit, tex) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(
 
 const QUAD_VS = `
 uniform vec2 uCenter, uScale; // clip = (world - uCenter) * uScale
+uniform vec2 uRes;
 out vec2 vWorld;
 void main() {
   vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1);
-  vWorld = corner;
-  gl_Position = vec4((corner - uCenter) * uScale, 0.0, 1.0);
+  vWorld = corner * uRes - 0.5;
+  gl_Position = vec4((vWorld - uCenter) * uScale, 0.0, 1.0);
 }`;
 
 const SAMPLING = `
@@ -137,558 +132,402 @@ vec4 bicubic(sampler2D tex, vec2 uv, vec2 res) {
 }`;
 
 const FIELD_FS = `
-uniform sampler2D uVel0, uVel1, uSig0, uSig1, uSolid, uLut;
-uniform float uMix, uVortMax, uSpeedMax, uSignal;
+uniform sampler2D uVel0, uVel1, uLut;
+uniform float uMix, uVortMax, uSpeedMax;
 uniform int uMode;
-uniform vec2 uRes;
+uniform vec2 uRes, uTex;
 in vec2 vWorld;
 out vec4 color;
 ${SAMPLING}
-vec2 vel(vec2 p) { return mix(bicubic(uVel0, p, uRes).xy, bicubic(uVel1, p, uRes).xy, uMix); }
-float sig(vec2 p) { // stored as sqrt(signal / max)
-  float a = texture(uSig0, p).r, b = texture(uSig1, p).r;
-  return mix(a * a, b * b, uMix);
+// Soft compression: no flat clipped plateaus. x is the value over its reference level; the
+// legend below uses the same function over [0, LEGEND_MAX] reference levels.
+float compress(float x) { float y = pow(x / 0.55, 0.9); return y / sqrt(1.0 + y * y); }
+vec2 vel(vec2 p) { // p in cells
+  vec2 uv = (p + 0.5) / uRes;
+  return mix(bicubic(uVel0, uv, uTex).xy, bicubic(uVel1, uv, uTex).xy, uMix);
 }
 void main() {
-  vec2 e = 0.75 / uRes;
   float value;
   if (uMode == 0) {
-    float dvdx = (vel(vWorld + vec2(e.x, 0)).y - vel(vWorld - vec2(e.x, 0)).y) / 1.5;
-    float dudy = (vel(vWorld + vec2(0, e.y)).x - vel(vWorld - vec2(0, e.y)).x) / 1.5;
-    float w = (dvdx - dudy) / uVortMax;
-    // mild gamma lifts weak structure; the colour bar is drawn with the same mapping
-    value = 0.5 + 0.5 * sign(w) * pow(min(abs(w), 1.0), 0.8);
-  } else value = length(vel(vWorld)) / uSpeedMax;
-  vec3 c = texture(uLut, vec2(clamp(value, 0.0, 1.0) * 255.0 / 256.0 + 0.5 / 256.0, 0.5)).rgb;
-  if (uSignal > 0.0) { // display-only 9-tap smoothing, radius ~2 cells
-    vec2 r = 2.2 / uRes;
-    float s = 0.0;
-    for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
-      s += sig(vWorld + vec2(i, j) * r) * float((2 - abs(i)) * (2 - abs(j))) / 16.0;
-    float level = sqrt(clamp(s, 0.0, 1.0)); // square-root display scale (see legend)
-    c = mix(c, vec3(0.62, 0.93, 0.70), 0.54 * smoothstep(0.14, 1.0, level));
-  }
-  float solid = bicubic(uSolid, vWorld, uRes).r;
-  float aa = max(fwidth(solid), 0.02);
-  float inside = smoothstep(0.5 - aa, 0.5 + aa, solid);
-  c = mix(c, vec3(0.115, 0.130, 0.152), inside);
-  c = mix(c, vec3(0.50, 0.55, 0.62), (1.0 - smoothstep(0.0, 2.0 * aa, abs(solid - 0.5))) * 0.8);
+    float h = 1.0;
+    float w = (vel(vWorld + vec2(h, 0)).y - vel(vWorld - vec2(h, 0)).y
+             - vel(vWorld + vec2(0, h)).x + vel(vWorld - vec2(0, h)).x) / (2.0 * h);
+    value = 0.5 + 0.5 * sign(w) * compress(abs(w) / uVortMax);
+  } else value = compress(length(vel(vWorld)) / uSpeedMax);
+  vec3 c = texture(uLut, vec2(value * 255.0 / 256.0 + 0.5 / 256.0, 0.5)).rgb;
+  // ordered-noise dither removes banding in the dark gradients
+  c += (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) / 255.0;
   color = vec4(c, 1.0);
 }`;
 
-const ADVECT_VS = `
-uniform sampler2D uVel0, uVel1, uSolid;
-uniform float uMix, uDt, uSeed, uPeriodicY; // uDt in LBM steps
-uniform vec2 uRes;
-in vec3 aState; // x, y, remaining life (simulation steps)
-uniform float uSteps;
-out vec3 vState;
-float rand(vec2 s) { return fract(sin(dot(s, vec2(12.9898, 78.233))) * 43758.5453); }
-vec2 vel(vec2 p) { return mix(texture(uVel0, p).xy, texture(uVel1, p).xy, uMix); }
-void main() {
-  vec2 p = aState.xy;
-  vec2 mid = p + 0.5 * uDt * vel(p) / uRes;            // RK2 midpoint
-  vec2 q = p + uDt * vel(mid) / uRes;
-  float life = aState.z - uSteps;
-  bool out_y = uPeriodicY < 0.5 && (q.y < 0.004 || q.y > 0.996);
-  q = fract(q);
-  if (life <= 0.0 || out_y || texture(uSolid, q).r > 0.002) {
-    float id = float(gl_VertexID) * 0.0001 + uSeed;
-    q = vec2(rand(vec2(id, 1.7)), rand(vec2(id, 9.2)));
-    life = -1.0 - (6.0 + 24.0 * rand(vec2(id, 4.4)));   // negative marks a fresh respawn
-  }
-  vState = vec3(q, life < -1.0 ? -life : life);
-  gl_Position = vec4(0.0);
-}`;
-
-const SEGMENT_VS = `
-in vec3 aFrom, aTo;
-out float vAlpha;
-void main() {
-  vec2 p = gl_VertexID == 0 ? aFrom.xy : aTo.xy;
-  bool jumped = distance(aFrom.xy, aTo.xy) > 0.08 || aTo.z > aFrom.z + 0.001;
-  vAlpha = jumped ? 0.0 : min(1.0, aTo.z / 4.0);
-  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
-}`;
-const SEGMENT_FS = `
-uniform float uGain;
-in float vAlpha;
-out vec4 color;
-void main() { color = vec4(vec3(vAlpha * uGain), 1.0); }`;
-const FADE_FS = `
-uniform float uKeep, uDrop;
-out vec4 color;
-void main() { color = vec4(vec3(uDrop), uKeep); }`;
-const TRAIL_FS = `
-uniform sampler2D uTrail;
-in vec2 vWorld;
-out vec4 color;
-void main() {
-  float a = clamp(texture(uTrail, vWorld).r, 0.0, 1.0);
-  color = vec4(0.87, 0.91, 0.95, a * 0.46);
-}`;
-
-// Instance: aPose (x, y, heading, flagellum phase), aShape (length, width, alpha, selected), aColor
-const BODY_VS = `
+// Flat-coloured triangles with per-vertex RGBA, in cells.
+const MESH_VS = `
 uniform vec2 uCenter, uScale;
-uniform float uShadow;
-in vec4 aPose, aShape;
-in vec3 aColor;
-out vec2 vLocal;
-out vec4 vShape;
-out vec3 vColor;
-out float vHeading;
-void main() {
-  vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2.0 - 1.0;
-  vec2 local = corner * vec2(1.55, 2.0);
-  vec2 p = local * aShape.xy * 0.5;
-  float c = cos(aPose.z), s = sin(aPose.z);
-  vec2 world = aPose.xy + vec2(c * p.x - s * p.y, s * p.x + c * p.y)
-             + uShadow * vec2(0.35, -0.55) * aShape.y;
-  vLocal = local; vShape = aShape; vColor = aColor; vHeading = aPose.z;
-  gl_Position = vec4((world - uCenter) * uScale, 0.0, 1.0);
-}`;
-const BODY_FS = `
-uniform float uShadow;
-in vec2 vLocal;
-in vec4 vShape;
-in vec3 vColor;
-in float vHeading;
-out vec4 color;
-void main() {
-  // egg profile: broad rounded front (+x), narrower rear where the flagellum attaches
-  float taper = 1.0 - 0.17 * clamp(-vLocal.x + 0.2, 0.0, 1.2);
-  vec2 q = vec2(vLocal.x, vLocal.y / taper);
-  float r = length(q);
-  float aa = fwidth(r) * 1.1;
-  if (uShadow > 0.5) {
-    color = vec4(0.0, 0.0, 0.0, 0.42 * (1.0 - smoothstep(0.65, 1.45, r)) * vShape.z);
-    return;
-  }
-  float body = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
-  vec3 n = vec3(q * 0.94, sqrt(max(0.0, 1.0 - 0.88 * min(r * r, 1.0))));
-  float c = cos(vHeading), s = sin(vHeading);
-  n = normalize(vec3(c * n.x - s * n.y, s * n.x + c * n.y, n.z));
-  vec3 light = normalize(vec3(-0.45, 0.65, 0.62));
-  float diffuse = max(dot(n, light), 0.0);
-  float spec = pow(max(dot(reflect(-light, n), vec3(0, 0, 1)), 0.0), 22.0);
-  vec3 shade = vColor * (0.52 + 0.58 * diffuse) + spec * 0.11;
-  shade = mix(shade, vColor * 0.34, smoothstep(0.70, 1.0, r)); // membrane edge
-  float outline = (1.0 - smoothstep(1.13 - aa, 1.13 + aa, r)) * (1.0 - body);
-  vec4 result = vec4(mix(vec3(0.02, 0.03, 0.04), shade, body), max(body, outline * 0.8) * vShape.z);
-  if (vShape.w > 0.5) {
-    float ring = 1.0 - smoothstep(0.0, aa * 1.6, abs(length(vLocal * vec2(1.0, 0.92)) - 1.42));
-    result = mix(result, vec4(1.0), ring);
-  }
-  color = result;
-}`;
-const TAIL_VS = `
-uniform vec2 uCenter, uScale;
-in vec4 aPose, aShape;
-in vec3 aColor;
+uniform float uShift;
+in vec2 aPos;
+in vec4 aColor;
 out vec4 vColor;
-out float vSide;
-void main() {
-  float s = float(gl_VertexID / 2) / 24.0;
-  vSide = float(gl_VertexID & 1) * 2.0 - 1.0;
-  float len = aShape.x, k = 9.4;
-  float amp = len * 0.13 * smoothstep(0.0, 0.45, s);
-  vec2 p = vec2(-len * 0.46 - s * len * 0.95, amp * sin(k * s - aPose.w));
-  float slope = len * 0.13 * (smoothstep(0.0, 0.45, s) * k * cos(k * s - aPose.w)) / (len * 0.95);
-  vec2 normal = normalize(vec2(slope, 1.0));
-  p += normal * vSide * aShape.y * mix(0.11, 0.035, s);
-  float c = cos(aPose.z), sn = sin(aPose.z);
-  vec2 world = aPose.xy + vec2(c * p.x - sn * p.y, sn * p.x + c * p.y);
-  vColor = vec4(mix(aColor, vec3(0.9), 0.35), aShape.z * (0.85 - 0.5 * s));
-  gl_Position = vec4((world - uCenter) * uScale, 0.0, 1.0);
-}`;
-const TAIL_FS = `
+void main() { vColor = aColor; gl_Position = vec4((aPos + vec2(uShift, 0.0) - uCenter) * uScale, 0.0, 1.0); }`;
+const MESH_FS = `
 in vec4 vColor;
-in float vSide;
 out vec4 color;
-void main() { color = vec4(vColor.rgb, vColor.a * (1.0 - smoothstep(0.55, 1.0, abs(vSide)))); }`;
+void main() { color = vColor; }`;
+
+/* ---------- geometry ---------- */
+const catmull = (p0, p1, p2, p3, s) =>
+  p1 + 0.5 * s * (p2 - p0 + s * (2 * p0 - 5 * p1 + 4 * p2 - p3 + s * (3 * (p1 - p2) + p3 - p0)));
+// Catmull-Rom through a list of [x, y]; `closed` wraps the ends.
+function spline(points, closed, per) {
+  const n = points.length, out = [];
+  const at = (i) => points[closed ? (i + n) % n : Math.max(0, Math.min(n - 1, i))];
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    for (let k = 0; k < per; k++) {
+      const s = k / per;
+      out.push([0, 1].map((a) => catmull(at(i - 1)[a], at(i)[a], at(i + 1)[a], at(i + 2)[a], s)));
+    }
+  }
+  if (!closed) out.push(points[n - 1]);
+  return out;
+}
+// Unit normals of a polyline (left of travel direction).
+function normals(line, closed) {
+  const n = line.length;
+  return line.map((_, i) => {
+    const a = line[closed ? (i - 1 + n) % n : Math.max(0, i - 1)], b = line[closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
+    return [-dy / d, dx / d];
+  });
+}
+class Mesh {
+  constructor() { this.data = []; }
+  tri(a, b, c, ca, cb = ca, cc = ca) { this.data.push(a[0], a[1], ...ca, b[0], b[1], ...cb, c[0], c[1], ...cc); }
+  strip(left, right, leftColor, rightColor = leftColor, closed = false) {
+    const n = left.length;
+    for (let i = 0; i < (closed ? n : n - 1); i++) {
+      const j = (i + 1) % n;
+      this.tri(left[i], right[i], left[j], leftColor, rightColor, leftColor);
+      this.tri(left[j], right[i], right[j], leftColor, rightColor, rightColor);
+    }
+  }
+  fan(centre, ring, centreColor, rimColor) {
+    ring.forEach((p, i) => this.tri(centre, p, ring[(i + 1) % ring.length], centreColor, rimColor, rimColor));
+  }
+  disc(c, r, color, n = 10) {
+    this.fan(c, Array.from({ length: n }, (_, i) => [c[0] + r * Math.cos(2 * Math.PI * i / n), c[1] + r * Math.sin(2 * Math.PI * i / n)]), color, color);
+  }
+}
+const rgba = (hex, a = 1) => [...hexToRgb(hex), a];
+const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+const BODY = { fill: '#aeb3b4', core: '#e2e5e2', edge: '#06080a' };
+const ACCENT = { fill: '#a9d24f', core: '#e0fa9f', edge: '#0a0c0f' };
 
 /* ---------- application ---------- */
 async function main() {
   if (!gl) return fail('This viewer needs WebGL2.');
   const { meta, arrays: A } = await loadReplay();
-  const [NX, NY] = meta.grid;
-  const N = meta.population_slots, STEPS = meta.steps, EVERY = meta.field_every;
-  const FRAMES = STEPS + 1, KEYS = STEPS / EVERY + 1;
-  const periodicY = meta.scene === 'periodic';
+  const NX = meta.nx, NY = meta.ny, TX = NX / 2, TY = NY / 2;
+  const FRAMES = meta.frames, LAST = FRAMES - 1, PER_BEAT = meta.beat_steps / meta.stride;
+  const NPOINTS = meta.bodies.reduce((a, b) => a + b.count, 0);
+  const uScale = meta.velocity_range / 32767;
 
-  /* textures */
-  const velocityCache = new Map(), signalCache = new Map();
+  const velocityCache = new Map();
   function velocityTexture(k) {
-    if (!velocityCache.has(k)) {
-      const data = new Float32Array(NX * NY * 2), base = k * NX * NY * 2;
-      for (let i = 0; i < data.length; i++) data[i] = A.velocity[base + i] * meta.u_scale;
-      velocityCache.set(k, texture(NX, NY, gl.RG16F, gl.RG, gl.FLOAT, data));
+    let tex = velocityCache.get(k);
+    if (tex) velocityCache.delete(k);
+    else {
+      const data = new Float32Array(TX * TY * 2), base = k * TX * TY * 2;
+      for (let i = 0; i < data.length; i++) data[i] = A.velocity[base + i] * uScale;
+      tex = texture(TX, TY, gl.RG16F, gl.RG, gl.FLOAT, data);
+      if (velocityCache.size >= 48) { // bounded GPU memory
+        const oldest = velocityCache.keys().next().value;
+        gl.deleteTexture(velocityCache.get(oldest)); velocityCache.delete(oldest);
+      }
     }
-    return velocityCache.get(k);
+    velocityCache.set(k, tex);
+    return tex;
   }
-  function signalTexture(k) {
-    if (!signalCache.has(k)) {
-      signalCache.set(k, texture(NX, NY, gl.R8, gl.RED, gl.UNSIGNED_BYTE, A.signal.subarray(k * NX * NY, (k + 1) * NX * NY)));
-    }
-    return signalCache.get(k);
-  }
-  const solidTexture = texture(NX, NY, gl.R8, gl.RED, gl.UNSIGNED_BYTE, A.solid.map((v) => v * 255));
   const lutData = [buildLut(0), buildLut(1)];
   const luts = lutData.map((d) => texture(256, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, d, gl.LINEAR, gl.CLAMP_TO_EDGE));
-
-  /* programs */
   const fieldProgram = program(QUAD_VS, FIELD_FS);
-  const advect = program(ADVECT_VS, 'out vec4 c; void main(){c=vec4(0);}', ['vState']);
-  const segment = program(SEGMENT_VS, SEGMENT_FS);
-  const fade = program(QUAD_VS, FADE_FS);
-  const trailProgram = program(QUAD_VS, TRAIL_FS);
-  const bodyProgram = program(BODY_VS, BODY_FS);
-  const tailProgram = program(TAIL_VS, TAIL_FS);
-
-  /* tracers */
-  const COUNT = Number(params.get('particles')) || 9000;
-  const seeds = new Float32Array(COUNT * 3);
-  for (let i = 0; i < COUNT; i++) seeds.set([Math.random(), Math.random(), Math.random() * 28], i * 3);
-  const particleBuffers = [0, 1].map(() => {
-    const b = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, b);
-    gl.bufferData(gl.ARRAY_BUFFER, seeds, gl.DYNAMIC_COPY);
-    return b;
-  });
-  function attribute(prog, name, buffer, size, stride, offset, divisor) {
-    const loc = gl.getAttribLocation(prog, name);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, offset);
-    gl.vertexAttribDivisor(loc, divisor);
-  }
-  const advectVaos = particleBuffers.map((b) => {
-    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-    attribute(advect, 'aState', b, 3, 12, 0, 0);
-    return vao;
-  });
-  const segmentVaos = [0, 1].map((from) => {
-    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-    attribute(segment, 'aFrom', particleBuffers[from], 3, 12, 0, 1);
-    attribute(segment, 'aTo', particleBuffers[1 - from], 3, 12, 0, 1);
-    return vao;
-  });
-  const feedback = gl.createTransformFeedback();
+  const meshProgram = program(MESH_VS, MESH_FS);
   const emptyVao = gl.createVertexArray();
-  const TRAIL = Math.min(Number(params.get('trail')) || 2048, gl.getParameter(gl.MAX_TEXTURE_SIZE));
-  const halfFloat = !!gl.getExtension('EXT_color_buffer_float');
-  const trailTexture = texture(TRAIL, TRAIL, halfFloat ? gl.R16F : gl.R8, gl.RED,
-    halfFloat ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null, gl.LINEAR, gl.CLAMP_TO_EDGE);
-  const trailBuffer = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, trailBuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, trailTexture, 0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  let current = 0;
-
-  function fieldAt(t) {
-    const k = Math.min(KEYS - 1, t / EVERY), k0 = Math.floor(k), k1 = Math.min(KEYS - 1, k0 + 1);
-    return { k0, k1, mix: k - k0 };
-  }
-  function stepTracers(t, dSteps) {
-    const f = fieldAt(t);
-    gl.useProgram(advect);
-    bind(0, velocityTexture(f.k0)); bind(1, velocityTexture(f.k1)); bind(2, solidTexture);
-    gl.uniform1i(advect.u('uVel0'), 0); gl.uniform1i(advect.u('uVel1'), 1); gl.uniform1i(advect.u('uSolid'), 2);
-    gl.uniform1f(advect.u('uMix'), f.mix);
-    gl.uniform1f(advect.u('uDt'), dSteps * meta.lbm_substeps);
-    gl.uniform1f(advect.u('uSteps'), dSteps);
-    gl.uniform1f(advect.u('uSeed'), Math.random());
-    gl.uniform1f(advect.u('uPeriodicY'), periodicY ? 1 : 0);
-    gl.uniform2f(advect.u('uRes'), NX, NY);
-    gl.bindVertexArray(advectVaos[current]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, feedback);
-    gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, particleBuffers[1 - current]);
-    gl.enable(gl.RASTERIZER_DISCARD);
-    gl.beginTransformFeedback(gl.POINTS);
-    gl.drawArrays(gl.POINTS, 0, COUNT);
-    gl.endTransformFeedback();
-    gl.disable(gl.RASTERIZER_DISCARD);
-    gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
-    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, trailBuffer);
-    gl.viewport(0, 0, TRAIL, TRAIL);
-    gl.enable(gl.BLEND);
-    // fade: dst * keep - drop (the small subtraction clears 8-bit residue)
-    gl.useProgram(fade);
-    gl.uniform2f(fade.u('uCenter'), 0.5, 0.5); gl.uniform2f(fade.u('uScale'), 2, 2);
-    gl.uniform1f(fade.u('uKeep'), Math.exp(-dSteps / 4.0));
-    gl.uniform1f(fade.u('uDrop'), halfFloat ? 0.0005 : 1 / 255);
-    gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
-    gl.blendFunc(gl.ONE, gl.SRC_ALPHA);
-    gl.bindVertexArray(emptyVao);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.blendEquation(gl.MAX);
-    gl.useProgram(segment);
-    gl.uniform1f(segment.u('uGain'), 0.85);
-    gl.bindVertexArray(segmentVaos[current]);
-    gl.drawArraysInstanced(gl.LINES, 0, 2, COUNT);
-    gl.blendEquation(gl.FUNC_ADD);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    current = 1 - current;
-  }
-  function resetTrails(t) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, trailBuffer);
-    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    for (let i = 0; i < 24; i++) stepTracers(t, 0.2); // pre-roll so a paused frame has streaks
+  const meshBuffer = gl.createBuffer(), meshVao = gl.createVertexArray();
+  gl.bindVertexArray(meshVao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, meshBuffer);
+  for (const [name, size, offset] of [['aPos', 2, 0], ['aColor', 4, 8]]) {
+    const loc = gl.getAttribLocation(meshProgram, name);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 24, offset);
   }
 
-  /* organisms: lineage ranking, headings, flagellum phase */
-  const presence = new Map();
-  for (let i = 0; i < FRAMES * N; i++) if (A.alive[i]) presence.set(A.founder[i], (presence.get(A.founder[i]) || 0) + 1);
-  const top = [...presence.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, LINEAGE_COLORS.length).map((e) => e[0]);
-  const colorOf = (founder) => (top.includes(founder) ? LINEAGE_COLORS[top.indexOf(founder)] : OTHER_COLOR);
-  const rgbCache = new Map([...LINEAGE_COLORS, OTHER_COLOR].map((c) => [c, hexToRgb(c)]));
-
-  const heading = new Float32Array(FRAMES * N), phase = new Float32Array(FRAMES * N);
-  let meanSwim = 0, living = 0;
-  for (let i = 0; i < FRAMES * N; i++) if (A.alive[i]) { meanSwim += Math.hypot(A.swim[2 * i], A.swim[2 * i + 1]); living++; }
-  meanSwim /= Math.max(living, 1);
-  for (let n = 0; n < N; n++) {
-    for (let f = 0; f < FRAMES; f++) {
-      // swim[f] drove the move from f-1 to f; frame 0 has none, so borrow frame 1.
-      const i = Math.max(f, 1) * N + n, sx = A.swim[2 * i], sy = A.swim[2 * i + 1];
-      const speed = Math.hypot(sx, sy), o = f * N + n;
-      heading[o] = speed > 1e-5 ? Math.atan2(sy, sx) : (f ? heading[o - N] : 0);
-      phase[o] = f ? phase[o - N] + 4.2 * Math.min(2.5, 0.25 + speed / meanSwim) : n * 2.4;
+  /* tracers: pathlines through the recorded velocity, computed once (RK2, 2 substeps) */
+  const SPACING = 13, tracerSeeds = [];
+  let seed = 7;
+  const random = () => (seed = (seed * 48271) % 2147483647) / 2147483647; // fixed, reproducible
+  for (let y = SPACING / 2; y < NY - 3; y += SPACING) {
+    for (let x = SPACING / 2; x < NX; x += SPACING) {
+      const p = [x + (random() - 0.5) * SPACING * 0.8, Math.max(2, Math.min(NY - 3, y + (random() - 0.5) * SPACING * 0.8))];
+      if (Math.hypot(p[0] - meta.post[0], p[1] - meta.post[1]) > meta.post[2] + 2) tracerSeeds.push(p);
+    }
+  }
+  const NT = tracerSeeds.length, paths = new Float32Array(FRAMES * NT * 2);
+  function sampleVelocity(k, x, y, c) {
+    const gx = (x + 0.5) / 2 - 0.5, gy = Math.max(0, Math.min(TY - 1.001, (y + 0.5) / 2 - 0.5));
+    const ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy;
+    const x0 = ((ix % TX) + TX) % TX, x1 = (x0 + 1) % TX, base = k * TX * TY * 2;
+    const v = (i, j) => A.velocity[base + (j * TX + i) * 2 + c];
+    return uScale * ((v(x0, iy) * (1 - fx) + v(x1, iy) * fx) * (1 - fy) + (v(x0, iy + 1) * (1 - fx) + v(x1, iy + 1) * fx) * fy);
+  }
+  tracerSeeds.forEach((p, i) => paths.set(p, i * 2));
+  for (let k = 0; k < LAST; k++) {
+    for (let i = 0; i < NT; i++) {
+      let x = paths[(k * NT + i) * 2], y = paths[(k * NT + i) * 2 + 1];
+      for (let sub = 0; sub < 2; sub++) {
+        const s = sub / 2, h = meta.stride / 2;
+        const at = (px, py, w, c) => sampleVelocity(k, px, py, c) * (1 - w) + sampleVelocity(k + 1, px, py, c) * w;
+        const mx = x + 0.5 * h * at(x, y, s, 0), my = y + 0.5 * h * at(x, y, s, 1);
+        x += h * at(mx, my, s + 0.25, 0); y += h * at(mx, my, s + 0.25, 1);
+      }
+      paths[((k + 1) * NT + i) * 2] = x; paths[((k + 1) * NT + i) * 2 + 1] = y; // unwrapped in x
     }
   }
 
-  const sameBody = (a, b) => A.alive[a] && A.alive[b] && A.lineage[a] === A.lineage[b];
-  const wrapDelta = (d) => d - Math.round(d);
-  function catmull(p0, p1, p2, p3, s) {
-    return p1 + 0.5 * s * (p2 - p0 + s * (2 * p0 - 5 * p1 + 4 * p2 - p3 + s * (3 * (p1 - p2) + p3 - p0)));
-  }
-  function angleLerp(a, b, s) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * s; }
-  function pose(n, t) {
-    const f = Math.min(STEPS - 1, Math.floor(t)), s = Math.min(1, t - f);
-    const i = f * N + n, j = i + N;
-    const out = [];
-    const make = (index, x, y, angle, ph, alpha, scale) => out.push({ index, x, y, angle, phase: ph, alpha, scale });
-    if (sameBody(i, j)) {
-      const prev = f > 0 && sameBody(i - N, i) ? i - N : i;
-      const next = f + 2 < FRAMES && sameBody(j, j + N) ? j + N : j;
-      const xy = [0, 1].map((a) => {
-        const p1 = A.position[2 * i + a];
-        const p2 = p1 + wrapDelta(A.position[2 * j + a] - p1);
-        const p0 = p1 + wrapDelta(A.position[2 * prev + a] - p1);
-        const p3 = p2 + wrapDelta(A.position[2 * next + a] - p2);
-        const v = catmull(p0, p1, p2, p3, s);
-        return v - Math.floor(v);
-      });
-      // each step's swim direction is centred on that step's midpoint
-      const a = Math.max(0, Math.min(STEPS - 1, Math.floor(t - 0.5)));
-      const angle = angleLerp(heading[(a + 1) * N + n], heading[Math.min(STEPS, a + 2) * N + n], Math.max(0, Math.min(1, t - 0.5 - a)));
-      make(j, xy[0], xy[1], angle, phase[i] + (phase[j] - phase[i]) * s, 1, 1);
-    } else {
-      if (A.alive[i]) make(i, A.position[2 * i], A.position[2 * i + 1], heading[i], phase[i], 1 - s, 1 - 0.35 * s); // death
-      if (A.alive[j]) make(j, A.position[2 * j], A.position[2 * j + 1], heading[j], phase[j], s, 0.4 + 0.6 * s); // birth
+  /* swimmers */
+  function pointsAt(t) {
+    const f = Math.min(LAST - 1, Math.floor(t)), s = t - f, out = new Float64Array(NPOINTS * 2);
+    const rows = [Math.max(0, f - 1), f, f + 1, Math.min(LAST, f + 2)].map((k) => k * NPOINTS * 2);
+    for (let i = 0; i < NPOINTS * 2; i++) {
+      out[i] = catmull(A.points[rows[0] + i], A.points[rows[1] + i], A.points[rows[2] + i], A.points[rows[3] + i], s) / meta.point_scale;
     }
     return out;
   }
-  // Drawn size in grid cells: illustrative scale; proportions follow the genes.
-  function bodySize(index) {
-    const r = A.radius[index], a = Math.max(0.5, A.aspect[index]), stretch = Math.sqrt(2.2 * a);
-    return [6.7 * r * stretch / NX, 6.7 * r / stretch / NX];
+  function shape(X, body) {
+    const p = (i) => [X[2 * (body.start + i)], X[2 * (body.start + i) + 1]];
+    const ring = Array.from({ length: body.ring }, (_, i) => p(1 + i));
+    const chain = [p(1 + body.ring / 2)];
+    for (let i = 1 + body.ring; i < body.count; i++) chain.push(p(i));
+    return { hub: p(0), ring, chain };
+  }
+  function drawSwimmer(mesh, X, body, isSelected, px) {
+    const { hub, ring, chain } = shape(X, body);
+    const style = isSelected ? ACCENT : BODY;
+    const line = spline(chain, false, 5), n = normals(line, false);
+    const width = line.map((_, i) => meta.tail_width[0] + (meta.tail_width[1] - meta.tail_width[0]) * i / (line.length - 1));
+    const offset = (pts, ns, d) => pts.map((q, i) => { const w = typeof d === 'number' ? d : d[i]; return [q[0] + ns[i][0] * w, q[1] + ns[i][1] * w]; });
+    // head outline: ring points, grown outward by head_pad
+    let outline = spline(ring, true, 5);
+    let on = normals(outline, true);
+    let area = 0;
+    outline.forEach((q, i) => { const r = outline[(i + 1) % outline.length]; area += q[0] * r[1] - r[0] * q[1]; });
+    if (area > 0) on = on.map((v) => [-v[0], -v[1]]); // make them point outward
+    const rim = offset(outline, on, meta.head_pad);
+    const edge = Math.min(0.42, 1.4 / px), soft = 1.0 / px;
+    const clear = rgba(style.edge, 0);
+    // dark keyline just outside the drawn shape, so bodies read on both field colours
+    const halo = (a, b) => mesh.strip(a, b, rgba(style.edge, 0.72), clear);
+    mesh.strip(offset(line, n, width), offset(line, n, width.map((w) => -w)), rgba(style.fill));
+    const tip = line[line.length - 1];
+    mesh.disc(tip, meta.tail_width[1], rgba(style.fill), 12);
+    for (const side of [1, -1]) {
+      const at = offset(line, n, width.map((w) => side * w));
+      halo(at, offset(line, n, width.map((w) => side * (w + edge))));
+    }
+    mesh.fan(hub, rim, rgba(style.core), rgba(style.fill));
+    mesh.strip(rim, offset(outline, on, meta.head_pad + soft), rgba(style.fill), rgba(style.fill, 0), true);
+    mesh.strip(offset(outline, on, meta.head_pad + 0.5 * soft), offset(outline, on, meta.head_pad + 0.5 * soft + edge), rgba(style.edge, 0.72), clear, true);
+  }
+  function drawSolids(mesh, px) {
+    const fill = rgba('#252a31'), line = rgba('#7b8490');
+    const x0 = -0.5, x1 = NX - 0.5, rim = Math.max(0.45, 1.3 / px);
+    for (const [y, out] of [[meta.walls[0], -1], [meta.walls[1], 1]]) {
+      mesh.strip([[x0, y], [x1, y]], [[x0, y + out * 4], [x1, y + out * 4]], fill);
+      mesh.strip([[x0, y], [x1, y]], [[x0, y + out * rim], [x1, y + out * rim]], line);
+    }
+    const [cx, cy, r] = meta.post;
+    const circle = (radius) => Array.from({ length: 96 }, (_, i) => [cx + radius * Math.cos(Math.PI * i / 48), cy + radius * Math.sin(Math.PI * i / 48)]);
+    mesh.fan([cx, cy], circle(r), fill, fill);
+    mesh.strip(circle(r), circle(r - rim), line, line, true);
+  }
+  // Each tracer is sampled once per beat at the current beat phase, so the trail shows net
+  // transport over the last TRAIL_BEATS beats without the back-and-forth within a beat.
+  const TRAIL_BEATS = 8;
+  function drawTracers(mesh, t, px) {
+    const half = Math.max(0.14, 0.6 / px);
+    for (let i = 0; i < NT; i++) {
+      const at = (u) => {
+        const f = Math.min(LAST - 1, Math.floor(u)), s = u - f;
+        return [0, 1].map((a) => paths[(f * NT + i) * 2 + a] * (1 - s) + paths[((f + 1) * NT + i) * 2 + a] * s);
+      };
+      const line = [];
+      for (let m = TRAIL_BEATS; m >= 0; m--) if (t - m * PER_BEAT >= 0) line.push(at(t - m * PER_BEAT));
+      const head = line[line.length - 1];
+      const wrap = Math.floor((head[0] + 0.5) / NX) * NX;
+      for (const q of line) q[0] -= wrap;
+      let length = 0;
+      for (let k = 1; k < line.length; k++) length += Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]);
+      // tracers that have barely moved are left undrawn rather than shown as specks
+      const moved = Math.min(1, Math.max(0, (length - 0.8) / 2.5));
+      if (line.length > 1 && moved > 0) {
+        const smooth = spline(line, false, 3), n = normals(smooth, false), m = smooth.length - 1;
+        for (let k = 0; k < m; k++) {
+          const c0 = [0.86, 0.89, 0.92, 0.55 * moved * k / m], c1 = [0.86, 0.89, 0.92, 0.55 * moved * (k + 1) / m];
+          const q = (j, side) => [smooth[j][0] + side * half * n[j][0], smooth[j][1] + side * half * n[j][1]];
+          mesh.tri(q(k, 1), q(k, -1), q(k + 1, 1), c0, c0, c1);
+          mesh.tri(q(k + 1, 1), q(k, -1), q(k + 1, -1), c1, c0, c1);
+        }
+      }
+      if (moved > 0) mesh.disc(line[line.length - 1], half, [0.88, 0.91, 0.94, 0.55 * moved], 8);
+    }
+  }
+  function flush(mesh, shifts) {
+    gl.bindVertexArray(meshVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, meshBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.data), gl.STREAM_DRAW);
+    for (const shift of shifts) {
+      gl.uniform1f(meshProgram.u('uShift'), shift);
+      gl.drawArrays(gl.TRIANGLES, 0, mesh.data.length / 6);
+    }
   }
 
   /* view state */
-  const view = { x: 0.5, y: 0.5, zoom: 1 };
-  let t = Math.min(STEPS, Math.max(0, Number(params.get('t')) || 0));
+  const home = { x: (NX - 1) / 2, y: (NY - 1) / 2, zoom: 1 };
+  const view = { ...home };
+  const startFrame = params.has('beat') ? Number(params.get('beat')) * PER_BEAT : 0;
+  let t = Math.min(LAST, Math.max(0, startFrame));
   let playing = !params.has('paused'), mode = params.get('field') === 'speed' ? 1 : 0;
-  let provenanceClosed = false;
-  let selected = null, follow = false, isolate = null, drawn = [], needsTrailReset = true;
+  let selected = null, follow = false, current = null;
   if (params.has('zoom')) view.zoom = Number(params.get('zoom'));
   if (params.has('cx')) view.x = Number(params.get('cx'));
   if (params.has('cy')) view.y = Number(params.get('cy'));
+  if (params.has('select')) selected = Number(params.get('select'));
+  if (params.get('tracers') === '0') $('show-tracers').checked = false;
 
-  const instanceBuffer = gl.createBuffer();
-  const instances = new Float32Array(2 * N * 11);
-  const bodyVaos = [bodyProgram, tailProgram].map((p) => {
-    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-    attribute(p, 'aPose', instanceBuffer, 4, 44, 0, 1);
-    attribute(p, 'aShape', instanceBuffer, 4, 44, 16, 1);
-    attribute(p, 'aColor', instanceBuffer, 3, 44, 32, 1);
-    return vao;
-  });
-
-  const pixelsPerUnit = () => Math.max(50, Math.min(canvas.clientWidth, canvas.clientHeight) - 24) * view.zoom;
+  // CSS pixels per cell: the whole channel, walls included, fits at zoom 1.
+  const pixelsPerCell = () => Math.max(0.2, Math.min((canvas.clientWidth - 32) / NX, (canvas.clientHeight - 8) / (NY + 6))) * view.zoom;
+  const centroid = (X, body) => [X[2 * body.start], X[2 * body.start + 1]];
   function draw() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    current = pointsAt(t);
+    if (follow && selected !== null) {
+      const c = centroid(current, meta.bodies[selected]);
+      view.x = c[0] - Math.floor((c[0] + 0.5) / NX) * NX; view.y = c[1];
+    }
     gl.viewport(0, 0, w, h);
     gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
-    gl.clearColor(0.043, 0.051, 0.063, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-    const ppu = pixelsPerUnit();
-    const scale = [2 * ppu / canvas.clientWidth, 2 * ppu / canvas.clientHeight];
+    gl.clearColor(0.047, 0.055, 0.067, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    const ppc = pixelsPerCell(), px = ppc * dpr;
+    const scale = [2 * ppc / canvas.clientWidth, 2 * ppc / canvas.clientHeight];
     const setView = (p) => { gl.uniform2f(p.u('uCenter'), view.x, view.y); gl.uniform2f(p.u('uScale'), ...scale); };
+    const sx = (x) => Math.round(w / 2 + (x - view.x) * px), sy = (y) => Math.round(h / 2 + (y - view.y) * px);
+    gl.enable(gl.SCISSOR_TEST); // clip to the domain plus the wall slabs
+    const clip = (y0, y1) => gl.scissor(sx(-0.5), sy(y0), Math.max(0, sx(NX - 0.5) - sx(-0.5)), Math.max(0, sy(y1) - sy(y0)));
+    clip(-0.5, NY - 0.5);
 
-    const f = fieldAt(t);
+    const f = Math.min(LAST - 1, Math.floor(t));
     gl.useProgram(fieldProgram); setView(fieldProgram);
-    [velocityTexture(f.k0), velocityTexture(f.k1), signalTexture(f.k0), signalTexture(f.k1), solidTexture, luts[mode]]
-      .forEach((tex, unit) => bind(unit, tex));
-    ['uVel0', 'uVel1', 'uSig0', 'uSig1', 'uSolid', 'uLut'].forEach((name, unit) => gl.uniform1i(fieldProgram.u(name), unit));
-    gl.uniform1f(fieldProgram.u('uMix'), f.mix);
+    [velocityTexture(f), velocityTexture(f + 1), luts[mode]].forEach((tex, unit) => bind(unit, tex));
+    ['uVel0', 'uVel1', 'uLut'].forEach((name, unit) => gl.uniform1i(fieldProgram.u(name), unit));
+    gl.uniform1f(fieldProgram.u('uMix'), t - f);
     gl.uniform1f(fieldProgram.u('uVortMax'), meta.vorticity_max);
     gl.uniform1f(fieldProgram.u('uSpeedMax'), meta.speed_max);
-    gl.uniform1f(fieldProgram.u('uSignal'), $('show-signal').checked ? 1 : 0);
     gl.uniform1i(fieldProgram.u('uMode'), mode);
-    gl.uniform2f(fieldProgram.u('uRes'), NX, NY);
+    gl.uniform2f(fieldProgram.u('uRes'), NX, NY); gl.uniform2f(fieldProgram.u('uTex'), TX, TY);
     gl.bindVertexArray(emptyVao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    if ($('show-tracers').checked) {
-      gl.useProgram(trailProgram); setView(trailProgram);
-      bind(0, trailTexture); gl.uniform1i(trailProgram.u('uTrail'), 0);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    }
-
-    drawn = [];
-    let count = 0;
-    for (let n = 0; n < N; n++) {
-      for (const b of pose(n, t)) {
-        const [length, width] = bodySize(b.index);
-        const founder = A.founder[b.index];
-        // The simulation has no solid collision: fade bodies whose centre is on a solid cell.
-        const onSolid = A.solid[Math.min(NY - 1, Math.floor(b.y * NY)) * NX + Math.min(NX - 1, Math.floor(b.x * NX))];
-        const alpha = b.alpha * (onSolid ? 0.3 : 1) * (isolate === null || isolate === (top.includes(founder) ? founder : -1) ? 1 : 0.16);
-        const isSelected = selected !== null && A.lineage[b.index] === selected;
-        drawn.push({ ...b, slot: n, length, width });
-        instances.set([b.x, b.y, b.angle, b.phase, length * b.scale, width * b.scale, alpha, isSelected ? 1 : 0,
-          ...rgbCache.get(colorOf(founder))], count * 11);
-        count++;
-      }
-    }
-    if ($('show-bodies').checked) {
-      gl.enable(gl.SCISSOR_TEST); // clip to the simulated domain
-      const sx = (x) => Math.round(w / 2 + (x - view.x) * ppu * dpr), sy = (y) => Math.round(h / 2 + (y - view.y) * ppu * dpr);
-      gl.scissor(sx(0), sy(0), Math.max(0, sx(1) - sx(0)), Math.max(0, sy(1) - sy(0)));
-      gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, instances.subarray(0, count * 11), gl.DYNAMIC_DRAW);
-      gl.useProgram(bodyProgram); setView(bodyProgram); gl.bindVertexArray(bodyVaos[0]);
-      gl.uniform1f(bodyProgram.u('uShadow'), 1);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
-      gl.useProgram(tailProgram); setView(tailProgram); gl.bindVertexArray(bodyVaos[1]);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 50, count);
-      gl.useProgram(bodyProgram); gl.bindVertexArray(bodyVaos[0]);
-      gl.uniform1f(bodyProgram.u('uShadow'), 0);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
-      gl.disable(gl.SCISSOR_TEST);
-    }
-    updateScaleBar(ppu);
+    gl.useProgram(meshProgram); setView(meshProgram);
+    if ($('show-tracers').checked) { const m = new Mesh(); drawTracers(m, t, px); flush(m, [-NX, 0, NX]); }
+    clip(-4.5, NY + 3);
+    const solids = new Mesh(); drawSolids(solids, px); flush(solids, [0]);
+    const swimmers = new Mesh();
+    meta.bodies.forEach((body, i) => {
+      const c = centroid(current, body), wrap = Math.floor((c[0] + 0.5) / NX) * NX;
+      const X = current.slice();
+      for (let k = body.start; k < body.start + body.count; k++) X[2 * k] -= wrap;
+      drawSwimmer(swimmers, X, body, selected === i, px);
+    });
+    flush(swimmers, [-NX, 0, NX]);
+    gl.disable(gl.SCISSOR_TEST);
+    updateScaleBar(ppc);
   }
 
   /* panel */
-  const fmt = (v, d = 3) => v.toFixed(d);
+  const LEGEND_MAX = 2; // legend span in reference levels
   function updateLegend() {
     const bar = $('colorbar').getContext('2d');
-    for (let x = 0; x < 560; x++) {
-      let v = x / 559;
-      if (mode === 0) { const s = 2 * v - 1; v = 0.5 + 0.5 * Math.sign(s) * Math.abs(s) ** 0.8; }
+    for (let x = 0; x < 400; x++) {
+      let v = x / 399;
+      const compress = (u) => { const y = (u * LEGEND_MAX / 0.55) ** 0.9; return y / Math.sqrt(1 + y * y); };
+      if (mode === 0) { const s = 2 * v - 1; v = 0.5 + 0.5 * Math.sign(s) * compress(Math.abs(s)); } else v = compress(v);
       const i = Math.round(v * 255) * 4;
       bar.fillStyle = `rgb(${lutData[mode][i]},${lutData[mode][i + 1]},${lutData[mode][i + 2]})`;
-      bar.fillRect(x, 0, 1, 20);
+      bar.fillRect(x, 0, 1, 8);
     }
-    const ticks = $('ticks').children;
-    const labels = mode === 0
-      ? [`≤ −${fmt(meta.vorticity_max, 4)}`, '0', `≥ +${fmt(meta.vorticity_max, 4)}`]
-      : ['0', fmt(meta.speed_max / 2), `≥ ${fmt(meta.speed_max)}`];
-    labels.forEach((l, i) => { ticks[i].textContent = l; });
+    const e = (v) => v.toExponential(1).replace('-', '−');
+    const top = LEGEND_MAX * (mode === 0 ? meta.vorticity_max : meta.speed_max);
+    const labels = mode === 0 ? [`−${e(top)}`, '0', `+${e(top)}`] : ['0', e(top / 2), e(top)];
+    labels.forEach((l, i) => { $('ticks').children[i].textContent = l; });
     $('unit').textContent = mode === 0
-      ? 'Vorticity, lattice units (1 / LBM step). Copper: counter-clockwise; blue: clockwise.'
-      : 'Flow speed, lattice units (cells / LBM step).';
+      ? 'Vorticity, per lattice step. Sand: counter-clockwise, blue: clockwise. Compressed colour scale.'
+      : 'Flow speed, cells per lattice step. Compressed colour scale.';
   }
-  const signalContext = $('signalbar').getContext('2d');
-  const gradient = signalContext.createLinearGradient(0, 0, 560, 0);
-  gradient.addColorStop(0, '#171b21'); gradient.addColorStop(1, '#9eedb3');
-  signalContext.fillStyle = gradient; signalContext.fillRect(0, 0, 560, 12);
-  $('signal-max').textContent = `≥ ${meta.signal_max.toPrecision(2)}`;
-  $('signal-mid').textContent = (meta.signal_max / 4).toPrecision(2);
-  $('subtitle').textContent = `${meta.scene === 'obstacle' ? 'Channel with cylinder' : 'Periodic box'}, ${NX}×${NY} cells, `
-    + `ν = ${meta.viscosity}, two-way ${meta.coupling} coupling. Recorded replay, seed ${meta.seed}. Untrained controllers.`;
+  $('subtitle').textContent = `Immersed boundary, lattice Boltzmann ${NX} × ${NY} · ${meta.bodies.length} prescribed-gait swimmers · 1 beat = ${meta.beat_steps} steps`;
+  const S = meta.stats;
+  $('about-stats').textContent = `Contact and walls are soft penalties. In this run, over ${S.frames} records the drawn swimmer shapes `
+    + `overlapped in ${S.drawn_body_overlap_frames} (smallest gap ${S.drawn_body_min_gap} cells), outlines crossed in ${S.outline_crossing_frames}, `
+    + `and a drawn shape entered a wall or the post in ${S.drawn_surface_penetration_frames} (smallest gap ${S.drawn_surface_min_gap} cells). `
+    + `The penalties barely engaged: over every step the closest boundary points of two swimmers were ${S.every_step_min_point_distance} cells apart `
+    + `(contact range ${meta.contact[0]}), and the closest approach to a wall or post was ${S.every_step_min_point_wall_gap} (wall range ${meta.wall[0]}). `
+    + 'This run therefore does not test them under strong forcing.';
 
-  const rows = [...top, -1].map((founder) => {
-    const li = document.createElement('li');
-    const dot = document.createElement('i'); dot.style.background = founder < 0 ? OTHER_COLOR : colorOf(founder);
-    const name = document.createElement('span'); name.textContent = founder < 0 ? 'All others' : `Founder ${founder}`;
-    const total = document.createElement('b');
-    li.append(dot, name, total); li.title = 'Click to isolate';
-    li.onclick = () => { isolate = isolate === founder ? null : founder; refresh(); };
-    $('lineages').append(li);
-    return { founder, li, total };
-  });
-
-  function selectedIndex() {
-    if (selected === null) return null;
-    const f = Math.min(STEPS, Math.round(t));
-    for (let n = 0; n < N; n++) if (A.alive[f * N + n] && A.lineage[f * N + n] === selected) return f * N + n;
-    return -1;
+  // Mean speed of the head hub over a centred 4-beat window, in cells per beat.
+  function swimSpeed(i) {
+    const k = meta.bodies[i].start, half = 2 * PER_BEAT;
+    const a = Math.max(0, Math.min(LAST - 2 * half, Math.round(t) - half)), b = Math.min(LAST, a + 2 * half);
+    const d = [0, 1].map((c) => (A.points[(b * NPOINTS + k) * 2 + c] - A.points[(a * NPOINTS + k) * 2 + c]) / meta.point_scale);
+    return Math.hypot(...d) / ((b - a) / PER_BEAT);
   }
   function updatePanel() {
-    const f = Math.min(STEPS, Math.round(t));
-    const counts = new Map();
-    let alive = 0;
-    for (let n = 0; n < N; n++) {
-      const i = f * N + n;
-      if (!A.alive[i]) continue;
-      alive++;
-      const key = top.includes(A.founder[i]) ? A.founder[i] : -1;
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    for (const row of rows) {
-      row.total.textContent = counts.get(row.founder) || 0;
-      row.li.classList.toggle('dim', isolate !== null && isolate !== row.founder);
-    }
-    $('clock').textContent = `step ${t.toFixed(0)} / ${STEPS}  ·  ${alive} alive`;
+    const beat = t / PER_BEAT;
+    $('clock').textContent = `beat ${beat.toFixed(1)} / ${(LAST / PER_BEAT).toFixed(0)}  ·  step ${(meta.first_step + t * meta.stride).toFixed(0)}`;
     $('scrub').value = t;
-    const index = selectedIndex();
-    $('follow').hidden = index === null || index < 0;
-    $('hint').hidden = index !== null;
-    // make room for the inspector; the note stays one click away
-    if (selected !== null && !provenanceClosed) { $('provenance').open = false; provenanceClosed = true; }
-    const details = $('details');
-    details.replaceChildren();
-    if (index === null) return;
-    const items = index < 0 ? [['Organism', `id ${selected}`], ['Status', 'not alive at this step']] : [
-      ['Organism', `id ${selected}`], ['Founder / parent', `${A.founder[index]} / ${A.parent[index] < 0 ? 'none' : A.parent[index]}`],
-      ['Generation depth', A.depth[index]], ['Age', `${A.age[index]} steps`], ['Energy', fmt(A.energy[index], 1)],
-      ['Body radius gene', fmt(A.radius[index], 2)], ['Body aspect gene', fmt(A.aspect[index], 2)],
-      ['Swim command', `${fmt(Math.hypot(A.swim[2 * index], A.swim[2 * index + 1]) * NX, 1)} cells/step`],
-      ['Emitting signal', A.emitting[index] ? 'yes' : 'no'],
-    ];
-    for (const [k, v] of items) {
+    $('card').hidden = selected === null;
+    if (selected === null) return;
+    const body = meta.bodies[selected];
+    $('card-title').textContent = `Swimmer ${selected + 1}`;
+    const c = centroid(pointsAt(t), body);
+    const speed = swimSpeed(selected);
+    const items = [['Head position', `${(((c[0] % NX) + NX) % NX).toFixed(1)}, ${c[1].toFixed(1)}`],
+      ['Speed, 4-beat mean', `${speed.toFixed(2)} cells/beat`], ['Net displacement, whole run', `${body.travel.toFixed(1)} cells`],
+      ['Boundary points', body.count]];
+    $('details').replaceChildren(...items.flatMap(([k, v]) => {
       const dt = document.createElement('dt'), dd = document.createElement('dd');
-      dt.textContent = k; dd.textContent = v; details.append(dt, dd);
-    }
+      dt.textContent = k; dd.textContent = v; return [dt, dd];
+    }));
+    $('follow').textContent = follow ? 'Stop following' : 'Follow';
   }
-  function updateScaleBar(ppu) {
-    const cells = [5, 10, 20, 50, 100].reverse().find((c) => c / NX * ppu <= 140) || 2;
-    $('scalebar').firstElementChild.style.width = `${cells / NX * ppu}px`;
-    $('scalebar').lastElementChild.textContent = `${cells} lattice cells  ·  flow →`;
+  function updateScaleBar(ppc) {
+    const cells = [100, 50, 20, 10, 5].find((c) => c * ppc <= 150) || 2;
+    $('scalebar').firstElementChild.style.width = `${cells * ppc}px`;
+    $('scalebar').lastElementChild.textContent = `${cells} lattice cells`;
+    const left = canvas.clientWidth / 2 + (-0.5 - view.x) * ppc;
+    $('scalebar').style.left = `${Math.max(12, left + 12)}px`;
   }
-  function refresh() { updatePanel(); draw(); }
+  function refresh() { draw(); updatePanel(); }
 
   /* controls */
-  $('scrub').max = STEPS;
-  $('scrub').oninput = (e) => { t = Number(e.target.value); needsTrailReset = true; };
+  $('scrub').max = LAST;
+  $('scrub').oninput = (e) => { t = Number(e.target.value); };
   const setPlaying = (v) => { playing = v; $('play').textContent = v ? 'Pause' : 'Play'; };
   $('play').onclick = () => setPlaying(!playing);
   setPlaying(playing);
-  const resetView = () => { Object.assign(view, { x: 0.5, y: 0.5, zoom: 1 }); follow = false; };
+  const resetView = () => { Object.assign(view, home); follow = false; };
   $('reset').onclick = resetView;
-  $('follow').onclick = () => { follow = !follow; if (follow) view.zoom = Math.max(view.zoom, 3); };
+  $('follow').onclick = () => { follow = !follow; if (follow) view.zoom = Math.max(view.zoom, 2.5); };
   const setMode = (m) => {
     mode = m;
     for (const b of $('field-mode').children) b.classList.toggle('on', Number(b.dataset.mode) === m);
@@ -696,21 +535,21 @@ async function main() {
   };
   for (const b of $('field-mode').children) b.onclick = () => setMode(Number(b.dataset.mode));
   setMode(mode);
-  if (params.get('signal') === '0') $('show-signal').checked = false;
   window.onkeydown = (e) => {
     if (e.target.matches('input,select,button')) return;
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      t = Math.max(0, Math.min(STEPS, Math.round(t) + (e.key === 'ArrowRight' ? 1 : -1))); needsTrailReset = true; setPlaying(false);
+      t = Math.max(0, Math.min(LAST, Math.round(t) + (e.key === 'ArrowRight' ? 1 : -1))); setPlaying(false);
     }
     if (e.key === '0') resetView();
+    if (e.key === 'Escape') { selected = null; follow = false; }
   };
-  const toWorld = (px, py) => [view.x + (px - canvas.clientWidth / 2) / pixelsPerUnit(),
-    view.y - (py - canvas.clientHeight / 2) / pixelsPerUnit()];
+  const toWorld = (x, y) => [view.x + (x - canvas.clientWidth / 2) / pixelsPerCell(),
+    view.y - (y - canvas.clientHeight / 2) / pixelsPerCell()];
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const [wx, wy] = toWorld(e.offsetX, e.offsetY);
-    const zoom = Math.max(0.8, Math.min(10, view.zoom * Math.exp(-e.deltaY * 0.0015)));
+    const zoom = Math.max(0.8, Math.min(12, view.zoom * Math.exp(-e.deltaY * 0.0015)));
     const k = view.zoom / zoom;
     view.x = wx + (view.x - wx) * k; view.y = wy + (view.y - wy) * k; view.zoom = zoom;
   }, { passive: false });
@@ -720,17 +559,19 @@ async function main() {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
-    if (drag.moved > 4) { canvas.classList.add('dragging'); follow = false; view.x -= dx / pixelsPerUnit(); view.y += dy / pixelsPerUnit(); }
+    if (drag.moved > 4) { canvas.classList.add('dragging'); follow = false; view.x -= dx / pixelsPerCell(); view.y += dy / pixelsPerCell(); }
   };
   function pick(wx, wy) {
-    let best = null, bestDistance = 1.8;
-    for (const b of drawn) {
-      const c = Math.cos(b.angle), s = Math.sin(b.angle), dx = wx - b.x, dy = wy - b.y;
-      const d = Math.hypot((c * dx + s * dy) / (b.length / 2), (-s * dx + c * dy) / Math.max(b.width / 2, 6 / pixelsPerUnit()));
-      if (d < bestDistance) { best = b; bestDistance = d; }
-    }
-    selected = best ? A.lineage[best.index] : null;
-    if (!best) follow = false;
+    let best = null, distance = Math.max(7, 9 / pixelsPerCell());
+    meta.bodies.forEach((body, i) => {
+      for (let k = body.start; k < body.start + body.count; k++) {
+        const dx = wx - current[2 * k];
+        const d = Math.hypot(dx - NX * Math.round(dx / NX), wy - current[2 * k + 1]);
+        if (d < distance) { best = i; distance = d; }
+      }
+    });
+    selected = best;
+    if (best === null) follow = false;
   }
   canvas.onpointerup = (e) => {
     if (drag && drag.moved <= 4) { pick(...toWorld(e.offsetX, e.offsetY)); refresh(); }
@@ -740,18 +581,8 @@ async function main() {
   /* loop */
   let last = null, panelClock = 0, frames = 0, fpsStart = performance.now();
   function advance(dt) {
-    const dSteps = playing ? dt * Number($('rate').value) : 0;
-    t += dSteps;
-    if (t >= STEPS) { t %= STEPS; needsTrailReset = true; } // loop, keeping the overshoot
-    if (needsTrailReset) { resetTrails(t); needsTrailReset = false; }
-    else if (dSteps > 0) {
-      const parts = Math.ceil(dSteps / 0.25);
-      for (let i = 0; i < parts; i++) stepTracers(t, dSteps / parts);
-    }
-    if (follow) {
-      const target = drawn.find((b) => A.lineage[b.index] === selected);
-      if (target) { view.x = target.x; view.y = target.y; }
-    }
+    if (playing) t += dt * Number($('rate').value) * PER_BEAT;
+    if (t > LAST) t %= LAST; // loop, keeping the overshoot
     draw();
   }
   function loop(now) {
@@ -768,17 +599,19 @@ async function main() {
     requestAnimationFrame(loop);
   }
   $('loading').hidden = true;
-  /* automation hooks used by the capture script */
+  /* automation hooks used by capture scripts */
   window.viewer = {
-    meta, fps: 0, steps: STEPS, advance: (dt) => { advance(dt); updatePanel(); },
-    selectSlot(n) { const i = Math.round(t) * N + n; selected = A.alive[i] ? A.lineage[i] : null; refresh(); return selected; },
-    bodies: () => drawn, setView: (v) => { Object.assign(view, v); refresh(); }, setMode: (m) => { setMode(m); refresh(); },
-    seek(v) { t = v; needsTrailReset = true; advance(0); updatePanel(); },
-    time: () => t,
+    meta, fps: 0, advance: (dt) => { advance(dt); updatePanel(); },
+    setView: (v) => { Object.assign(view, v); refresh(); }, setMode: (m) => { setMode(m); refresh(); },
+    select: (i) => { selected = i; refresh(); }, selected: () => selected,
+    seekBeat(b) { t = Math.max(0, Math.min(LAST, b * PER_BEAT)); refresh(); },
+    beat: () => t / PER_BEAT,
+    screen(i) { const c = centroid(current, meta.bodies[i]), r = canvas.getBoundingClientRect();
+      return [r.x + r.width / 2 + (c[0] - view.x) * pixelsPerCell(), r.y + r.height / 2 - (c[1] - view.y) * pixelsPerCell()]; },
     renderer: () => { const ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); },
     glError: () => gl.getError(),
   };
-  advance(0); updatePanel();
+  refresh();
   if (!params.has('manual')) requestAnimationFrame(loop);
   window.viewer.ready = true;
 }

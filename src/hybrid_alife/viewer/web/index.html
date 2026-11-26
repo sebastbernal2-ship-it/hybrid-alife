@@ -3,66 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>hybrid-alife flow viewer (prototype)</title>
+<title>hybrid-alife: immersed-boundary swimmers</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<header>
+  <div>
+    <h1>Flexible swimmers in a walled channel</h1>
+    <p id="subtitle"></p>
+  </div>
+  <p id="caveat"><b>2-D model.</b> Swim speeds are not grid-converged, and the Reynolds number is not bacterial (far higher). Lattice units.</p>
+</header>
 <main id="stage">
-  <canvas id="view" aria-label="Fluid field and organisms. Drag to pan, scroll to zoom, click to inspect."></canvas>
+  <canvas id="view" aria-label="Fluid field and swimmers. Drag to pan, scroll to zoom, click a swimmer to inspect."></canvas>
   <div id="scalebar"><i></i><span></span></div>
+  <aside id="card" hidden><h2 id="card-title"></h2><dl id="details"></dl><button id="follow">Follow</button></aside>
   <div id="loading">Loading replay&hellip;</div>
 </main>
-<aside id="panel">
-  <header>
-    <h1>Live lattice-Boltzmann flow</h1>
-    <p id="subtitle"></p>
-  </header>
-  <section>
-    <h2>Field</h2>
-    <div class="seg" id="field-mode">
-      <button data-mode="0" class="on">Vorticity</button><button data-mode="1">Speed</button>
-    </div>
-    <canvas id="colorbar" width="560" height="20"></canvas>
-    <div class="ticks" id="ticks"><span></span><span></span><span></span></div>
-    <p class="unit" id="unit"></p>
-  </section>
-  <section>
-    <h2>Layers</h2>
-    <label><input type="checkbox" id="show-signal" checked><span class="key signal"></span>Chemical signal</label>
-    <div class="signal-scale"><canvas id="signalbar" width="560" height="12"></canvas>
-      <div class="ticks"><span>0</span><span id="signal-mid"></span><span id="signal-max"></span></div>
-      <p class="unit">Sim concentration units, &radic; scale.</p></div>
-    <label><input type="checkbox" id="show-tracers" checked><span class="key tracer"></span>Passive tracers (fading trails)</label>
-    <label><input type="checkbox" id="show-bodies" checked><span class="key body"></span>Organisms</label>
-  </section>
-  <section>
-    <h2>Founder lineages <small>alive now</small></h2>
-    <ul id="lineages"></ul>
-  </section>
-  <section id="inspector">
-    <h2>Inspector</h2>
-    <p class="hint" id="hint">Click an organism.</p>
-    <dl id="details"></dl>
-    <button id="follow" hidden>Follow</button>
-  </section>
-  <footer><details open id="provenance"><summary>What is data, what is drawing</summary>
-    <p><b>From the simulation:</b> fluid velocity, signal, positions, swim command and heading, body radius and aspect genes, energy, age, lineage.</p>
-    <p><b>Illustrative only:</b> flagella (not simulated; beat rate follows swim speed), body drawing scale and shading, 2.2&times; base elongation, motion between recorded steps. Signal is lightly smoothed for display.</p>
-    <p>This simulation has no solid collision: organisms can pass through the cylinder and walls (drawn faded while inside).</p>
-  </details></footer>
-</aside>
-<div id="transport">
-  <button id="play" aria-label="Play or pause">Pause</button>
-  <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Time">
-  <output id="clock"></output>
-  <select id="rate" aria-label="Playback speed">
-    <option value="2">2 steps/s</option><option value="4">4 steps/s</option>
-    <option value="8" selected>8 steps/s</option><option value="16">16 steps/s</option>
-    <option value="32">32 steps/s</option>
-  </select>
-  <button id="reset">Reset view</button>
-  <span id="fps"></span>
-</div>
+<footer>
+  <div class="transport">
+    <button id="play" aria-label="Play or pause">Pause</button>
+    <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Time">
+    <output id="clock"></output>
+    <select id="rate" aria-label="Playback speed">
+      <option value="0.5">0.5 beat/s</option><option value="1">1 beat/s</option>
+      <option value="2" selected>2 beats/s</option><option value="4">4 beats/s</option>
+      <option value="8">8 beats/s</option>
+    </select>
+    <button id="reset">Reset view</button>
+    <span id="fps"></span>
+  </div>
+  <div class="legend">
+    <div class="seg" id="field-mode"><button data-mode="0" class="on">Vorticity</button><button data-mode="1">Speed</button></div>
+    <div class="scale"><canvas id="colorbar" width="400" height="8"></canvas>
+      <div class="ticks" id="ticks"><span></span><span></span><span></span></div></div>
+    <p id="unit"></p>
+    <label><input type="checkbox" id="show-tracers" checked> Tracers</label>
+    <details id="about"><summary>What is drawn</summary><div id="about-text">
+      <p><b>From the run:</b> every boundary point of each swimmer, the fluid velocity (stored on a 2-cell grid, smoothed by a cubic B-spline here), the wall and post surfaces. Tracers are massless points integrated through that velocity in the browser; each trail joins its positions once per beat over the last 8 beats, so it shows net drift, not the oscillation within a beat.</p>
+      <p><b>Drawing choices:</b> the head outline is the ring of points grown by 0.6 cell, the tail ribbon tapers from 2.3 to 0.7 cells wide, and positions and flow are interpolated between 8 records per beat. The method spreads each point force over 4 cells, so on the fluid a body acts about half a cell fatter than its boundary points.</p>
+      <p id="about-stats"></p>
+      <p>These are prescribed-gait bodies, not evolved agents. The fluid starts at rest; there is no background flow and no chemical signal. The box is periodic left to right.</p></div></details>
+  </div>
+</footer>
 <script src="viewer.js"></script>
 </body>
 </html>

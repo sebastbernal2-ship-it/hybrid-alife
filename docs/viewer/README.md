@@ -1,69 +1,58 @@
-# Live-LBM flow viewer (prototype)
+# Immersed-boundary swimmer viewer (prototype v2)
 
-A WebGL2 viewer for recorded `lbm_live` runs with dipole coupling. This is a visual
-prototype awaiting approval. It is not evidence for any research claim: controllers are
-random initial genomes, mutated at reproduction, and untrained.
+A WebGL2 viewer for one recorded immersed-boundary run
+([method and its limits](../extensions/immersed_boundary.md)): five flexible swimmers with
+a prescribed gait in a channel with a post. A visual prototype awaiting approval, not
+evidence for any research claim. The swimmers are not evolved agents.
 
 ## Run
 
     make -C native
     export PYTHONPATH=src JAX_PLATFORMS=cpu
-    python scripts/run_viewer.py export --scene obstacle      # or --scene periodic
-    python scripts/run_viewer.py serve                         # http://127.0.0.1:8765/
-    python scripts/run_viewer.py standalone --out viewer.html  # double-clickable, offline
+    python scripts/run_viewer.py export       # about 6 minutes on one core
+    python scripts/run_viewer.py serve        # http://127.0.0.1:8765/
+    python scripts/run_viewer.py standalone --out replay.html   # double-clickable, offline
 
-Controls: drag to pan, scroll to zoom, click to inspect, Space to pause, arrow keys to
-step, `0` to reset. URL options: `t`, `paused`, `field=speed`, `signal=0`, `particles`, `trail`.
+Controls: drag to pan, scroll to zoom, click a swimmer, Space to pause, arrows to step,
+`0` to reset. URL options: `beat`, `paused`, `field=speed`, `tracers=0`, `zoom`, `cx`,
+`cy`, `select`.
 
-## What maps to data
+## Scene
+
+384 x 224 cells, nu = 1/6, periodic left to right, walls top and bottom, one post. Fluid
+at rest, no background flow, no chemical signal. Swimmers are 1.5 times the default
+`ib.swimmer`, wave amplitude 3 before scaling, 2000 steps per beat, soft contact
+(range 3, k 0.1) and soft walls (range 4.5, k 0.1). 2 ramp beats, then 90 recorded beats
+at 8 records per beat.
+
+## What is drawn
 
 | Visual | Source |
 |---|---|
-| Vorticity or speed | live LBM velocity, 256x256, every 3rd sim step, lattice units |
-| Cylinder and walls | the LBM solid mask |
-| Signal haze | `world.concentration[..., 1]`, square-root scale, 9-tap display smoothing |
-| Tracers and trails | viewer-side GPU particles advected through the recorded velocity (`lbm_substeps` LBM steps per sim step); random respawn, not simulated particles |
-| Position, energy, age, lineage, genes | per-step agent state; founder follows `parent_id` |
-| Heading and inspector swim value | commanded swim displacement (action x 0.05) |
-| Body proportions and size | `body_radius` and `body_aspect` genes |
-| Color | founder lineage; the six most present, all others gray |
+| Vorticity or speed | fluid velocity, block-averaged 2x2, cubic B-spline in the shader, compressed colour scale |
+| Swimmers | every Lagrangian point; head = ring grown 0.6 cell, tail ribbon 2.3 to 0.7 cells wide |
+| Walls, post | the analytic surfaces used by the kernel |
+| Tracers | massless points integrated in the browser (RK2); trails sample once per beat over 8 beats |
+| Between records | Catmull-Rom for points, linear for velocity |
 
-## Illustrative only (not simulated)
+## Overlap and penetration, this scene
 
-- Flagella. Only the beat rate is tied to swim command magnitude.
-- Body drawing scale, the 2.2x base elongation (genes alone span nearly round shapes),
-  the egg taper, shading and shadows.
-- Motion between records: Catmull-Rom for positions, linear in time for fields.
-- Birth grow-in and death fade (the events are real, their animation is not).
-
-## Differences from the stock simulator config
-
-`export.viewer_config` is a visualization scene, not a study config: 256x256 grid,
-viscosity 0.008, cylinder radius N/12, parabolic initial profile with a weak perturbation
-and 30000 warm-up steps, 60 LBM substeps, drag 0.007, dipole length 6, toroidal agent
-world. Passive agent drift and signal advection are set to match the fluid displacement
-per sim step. Commanded swimming (up to 12.8 cells per step) is much faster than the flow.
+Measured on the drawn shapes at all 721 records: 0 frames with overlapping swimmers
+(smallest gap 1.53 cells), 0 with crossing outlines, 0 with a wall or post entered
+(smallest gap 3.56 cells). Over every time step, the closest points of two swimmers were
+2.977 cells apart (contact range 3) and the smallest point-to-surface gap was 4.452
+(wall range 4.5). The penalties barely engaged, so this scene does not test them under
+strong forcing; `tests/test_ib_walls.py` covers a forced wall case. Both are soft
+penalties, not hard constraints.
 
 ## Limits
 
-- No solid collision: organisms pass through the cylinder and walls (drawn faded inside).
-  The toroidal agent world also wraps across the channel walls.
-- Dipole forces are point forces on lattice cells, held for one sim step, so they show as
-  bead-like vorticity chains behind swimmers.
-- A founder color is not unique past six lineages; click a legend entry to isolate one.
-  The six colors pass the adjacent-pair check, not the all-pairs color-vision check.
-- The replay is recorded, about 13 MB for 240 steps (18 MB standalone HTML).
-- A long frame stall slows playback instead of skipping.
+- Swim speeds are not grid-converged (expect them low; see the IB document), the beat
+  period inflates stride by a few percent, and the Reynolds number is not bacterial. 2-D.
+- Motion is slow: 18 to 38 cells of net displacement in 90 beats.
+- Vorticity within about 2 cells of a body is a property of the smoothed kernel.
+- The replay is about 24 MB (about 33 MB as standalone HTML).
 
 ## Frame rate
 
-Measured on the obstacle replay:
-
-- NVIDIA RTX 5080 Laptop GPU (headless Windows Chrome, D3D11), 1106x750 canvas,
-  playing with 9000 tracers: 239.9 fps mean, 4.3 ms p95. This sits at the 240 Hz frame
-  pacing cap, so it shows headroom over 60 fps rather than a maximum.
-- Software GL (SwiftShader, 3 CPU cores) is far below real time: about 160 ms per frame
-  even at 720x450 with 2000 tracers. The GIF was stepped frame by frame, so its smoothness
-  does not reflect software frame rate.
-
-Linux headless Chromium inside WSL fell back to SwiftShader.
+See `FPS_LINE`.

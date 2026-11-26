@@ -9,8 +9,10 @@ import urllib.request
 import numpy as np
 import pytest
 
+from hybrid_alife.physics import ib
 from hybrid_alife.viewer.bundle import make_server, standalone
-from hybrid_alife.viewer.export import record, viewer_config
+from hybrid_alife.viewer.export import SWIMMERS, export
+from hybrid_alife.viewer.overlap import OverlapStats
 from hybrid_alife.viewer.replay import read_replay, write_replay
 
 
@@ -47,35 +49,40 @@ def test_replay_rejects_bad_magic(tmp_path):
         read_replay(path)
 
 
-def test_tiny_periodic_export_is_valid_and_deterministic():
-    cfg = viewer_config("periodic", grid=32, population=6, seed=17)
-    meta, arrays = record(cfg, "periodic", steps=4, field_every=2)
-    assert arrays["velocity"][0].shape == (3, 32, 32, 2)
-    assert arrays["signal"][0].shape == (3, 32, 32)
-    for name, (values, _) in arrays.items():
-        if name not in {"velocity", "signal", "solid"}:
-            assert values.shape[0:2] == (5, 6), name
-    np.testing.assert_array_equal(arrays["solid"][0], np.zeros((32, 32), np.uint8))
-    alive = arrays["alive"][0].astype(bool)
-    founder = arrays["founder"][0]
-    assert np.all(founder[alive] >= 0)
-    assert np.all(founder[alive] < 6)
-    assert meta["flow_movement_scale"] == pytest.approx(
-        cfg.world.lbm_peak_speed * cfg.world.lbm_substeps / cfg.world.width
-    )
-
-    meta2, arrays2 = record(cfg, "periodic", steps=4, field_every=2)
-    assert meta == meta2
-    assert arrays.keys() == arrays2.keys()
-    for name in arrays:
-        np.testing.assert_array_equal(arrays[name][0], arrays2[name][0])
+def test_short_scene_export_matches_the_viewer_layout(tmp_path):
+    meta, arrays = read_replay(export(tmp_path / "scene.hvr", beats=1, progress=lambda _: None))
+    frames = meta["frames"]
+    assert frames == meta["beat_steps"] // meta["stride"] + 1
+    total = sum(b["count"] for b in meta["bodies"])
+    assert arrays["points"].shape == (frames, total, 2)
+    assert arrays["velocity"].shape == (frames, meta["ny"] // 2, meta["nx"] // 2, 2)
+    # the first body starts at its configured hub, in lattice cells
+    hub = arrays["points"][0, 0] / meta["point_scale"]
+    np.testing.assert_allclose(hub, SWIMMERS[0][:2], atol=2)
+    assert np.any(arrays["velocity"][-1])
+    for body in meta["bodies"]:
+        assert body["ring"] % 2 == 0 and 1 + body["ring"] < body["count"]
+    assert meta["stats"]["frames"] == frames
+    assert meta["stats"]["drawn_body_overlap_frames"] == 0
+    assert meta["stats"]["drawn_surface_penetration_frames"] == 0
 
 
-@pytest.mark.parametrize("steps,field_every", [(0, 1), (3, 2), (4, 0)])
-def test_record_rejects_invalid_steps(steps, field_every):
-    cfg = viewer_config("periodic", grid=32, population=6, seed=17)
-    with pytest.raises(ValueError, match="need steps"):
-        record(cfg, "periodic", steps=steps, field_every=field_every)
+def test_overlap_stats_detect_drawn_overlap_crossing_and_wall_penetration():
+    def stats_for(second_x, second_y, heading=0.0):
+        bodies = [ib.swimmer((40.0, 20.0)), ib.swimmer((second_x, second_y), heading)]
+        structure = ib.Structure.from_bodies(
+            bodies, planes=[(0.0, 1.0, 0.5)], wall_range=1.0, wall_k=0.1
+        )
+        stats = OverlapStats(structure, np.zeros((96, 128), np.uint8))
+        stats.frame(structure.points)
+        return stats.summary()
+
+    apart = stats_for(40.0, 60.0)
+    assert apart["drawn_body_overlap_frames"] == apart["outline_crossing_frames"] == 0
+    assert apart["drawn_surface_penetration_frames"] == 0
+    crossed = stats_for(25.0, 20.5, np.pi / 2)  # head of one across the tail of the other
+    assert crossed["drawn_body_overlap_frames"] == crossed["outline_crossing_frames"] == 1
+    assert stats_for(40.0, 2.0)["drawn_surface_penetration_frames"] == 1
 
 
 def test_standalone_inlines_assets_and_server_is_restricted(tmp_path):

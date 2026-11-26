@@ -1,204 +1,127 @@
-"""Run the live LBM + embodied simulation and record it for the browser viewer.
+"""Record an immersed-boundary swimmer scene into an ``HVR1`` replay for the browser viewer.
 
-Display frame: screen x is world axis 0 (the channel's flow direction), screen y (pointing
-up) is world axis 1. Field arrays are recorded as [y, x]; vectors as (x, y). Velocities are
-in lattice units (cells per LBM step); one simulation step is ``lbm_substeps`` LBM steps.
-Recorded quantities come from simulator state. Two are derived: ``swim`` is the commanded
-displacement (movement action times the 0.05 maximum step) and ``founder`` follows parent ids.
+Everything drawn comes from this run: the fluid velocity (block-averaged 2x2), every
+Lagrangian point of every body, and the analytic wall and post surfaces. All lengths are
+lattice cells and all times lattice steps. The fluid starts at rest; no background flow.
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 
-from hybrid_alife.experiments.runner import initialize_sim, step_sim
-from hybrid_alife.physics import lbm
-from hybrid_alife.types import (
-    AvidaConfig,
-    EmbodiedConfig,
-    EvolutionConfig,
-    ExperimentConfig,
-    LoggingConfig,
-    WorldConfig,
-)
+from hybrid_alife.physics import ib
+from hybrid_alife.viewer.overlap import HEAD_PAD, TAIL_ROOT, TAIL_TIP, OverlapStats
 from hybrid_alife.viewer.replay import write_replay
 
-U_SCALE = 3e-5  # lattice units per int16 count
-SCENES = ("obstacle", "periodic")
+NX, NY = 384, 224
+BEAT = 2000  # steps per tail beat
+FRAMES_PER_BEAT = 8
+SCALE = 1.5  # linear size relative to the default ``ib.swimmer``
+WAVE_AMPLITUDE = 3.0  # ib.swimmer wave_amplitude, before scaling
+CONTACT_RADIUS, CONTACT_K = 3.0, 0.1
+WALL_RANGE, WALL_K = 4.5, 0.1
+POST = (262.0, 150.0, 17.0)  # centre x, y and radius of the solid lattice nodes
+POINT_SCALE = 64.0  # int16 units per cell
+VELOCITY_RANGE = 0.04  # lattice velocity at int16 full scale
+# (head centre x, y, heading in degrees, wave phase in radians). Chosen so that the run
+# contains a swimmer-swimmer encounter, a post encounter and a wall encounter.
+SWIMMERS = (
+    (90.0, 116.0, -22.0, 0.0),
+    (92.0, 99.0, 22.0, 2.1),
+    (228.0, 164.0, -12.0, 4.0),
+    (180.0, 17.0, -28.0, 1.0),
+    (340.0, 76.0, 166.0, 3.0),
+)
 
 
-def viewer_config(
-    scene: str = "obstacle", grid: int = 256, population: int = 40, seed: int = 3,
-    substeps: int = 60, drag: float = 0.007,
-) -> ExperimentConfig:
-    if scene not in SCENES:
-        raise ValueError(f"scene must be one of {SCENES}, got {scene!r}")
-    peak = 0.08
-    world = WorldConfig(
-        width=grid, height=grid, toroidal=True, resource_channels=3, hazard_channels=2,
-        max_agents=population, max_digital_organisms=0, flow_noise_std=0.0,
-        concentration_decay=0.955, concentration_diffusion=0.22,
-        # Semi-Lagrangian step in cells = strength * flow, so this value advects the signal
-        # exactly as far per sim step as the fluid moves (lbm_substeps lattice velocities).
-        flow_advection_strength=peak * substeps, flow_solver="lbm_live",
-        curvature_regime="obstacle" if scene == "obstacle" else "straight",
-        lbm_viscosity=0.008, lbm_peak_speed=peak, lbm_substeps=substeps,
-        lbm_agent_drag=drag, lbm_agent_coupling="dipole", lbm_dipole_length=6.0,
-        lbm_box="channel" if scene == "obstacle" else "periodic",
-        lbm_law_relax_steps=0.0 if scene == "obstacle" else 2000.0,
+def swimmer_body(x: float, y: float, degrees: float, phase: float) -> ib.Body:
+    r = SCALE
+    body = ib.swimmer(
+        (x, y), np.deg2rad(degrees), head_axes=(4 * r, 2.5 * r), tail_length=20 * r,
+        spacing=1.0, wave_amplitude=WAVE_AMPLITUDE, wavelength=20 * r, period=BEAT,
+        # Scaling of docs/extensions/immersed_boundary.md (fixed elastoviscous number).
+        stretch_k=0.05 * 2000 / (r * BEAT), bend_k=0.2 * r * 2000 / BEAT,
     )
-    embodied = EmbodiedConfig(
-        enabled=True, population_size=population, obs_radius=2, hidden_size=12,
-        message_size=4, genome_mutation_std=0.05, genome_mutation_prob=0.1,
-        initial_energy=24.0, reproduce_energy_threshold=27.0,
-        reproduction_energy_cost=10.0, basal_metabolic_cost=0.05,
-        body_morphology=True, chemical_signaling=True, signal_deposit=1.0,
-        stochastic_actions=True, action_temperature=0.5,
-        # Passive drift equals tracer drift: flow * scale = u * substeps / grid.
-        flow_movement_scale=peak * substeps / grid, max_energy=60.0,
-        initial_alive_fraction=0.45,
+    body.angle_phase[:] += phase * (body.angle_amp != 0)
+    return body
+
+
+def scene() -> tuple[ib.Structure, np.ndarray]:
+    mask = np.zeros((NY, NX), np.uint8)
+    mask[[0, -1]] = 1
+    yy, xx = np.mgrid[:NY, :NX]
+    px, py, radius = POST
+    mask[(xx - px) ** 2 + (yy - py) ** 2 <= radius**2] = 1
+    structure = ib.Structure.from_bodies(
+        [swimmer_body(*spec) for spec in SWIMMERS],
+        contact_radius=CONTACT_RADIUS, contact_k=CONTACT_K, ramp_steps=2 * BEAT,
+        # Drawn surfaces sit half a cell outside the outermost solid nodes (halfway
+        # bounce-back); the kernel requires points to stay 2 cells from solid nodes.
+        planes=[(0.0, 1.0, 0.5), (0.0, -1.0, -(NY - 1.5))],
+        discs=[(px, py, radius + 0.5)], wall_range=WALL_RANGE, wall_k=WALL_K,
     )
-    return ExperimentConfig(
-        seed=seed, run_name=f"viewer_{scene}", output_dir="outputs/viewer",
-        world=world, embodied=embodied,
-        avida=AvidaConfig(False, 1, 8, 16, 4, 8, 1, 0.0, 0.0, 0.0),
-        evolution=EvolutionConfig(1, 1, 0.1, 3, 2, False),
-        logging=LoggingConfig(1, 1, 1),
-    )
+    return structure, mask
 
 
-def obstacle_channel(cfg: WorldConfig, warm_steps: int) -> lbm.LiveLBM:
-    """Channel with a small cylinder, started from a parabolic profile plus a weak
-    transverse perturbation (to break symmetry) and relaxed with the live LBM kernel.
-
-    The stock ``new_live_lbm`` starts from rest with a wider cylinder; at this resolution
-    that takes far too long to develop a wake. Same kernel, different initial condition.
-    """
-    n, peak = cfg.width, cfg.lbm_peak_speed
-    mask = lbm.channel_mask(n, n, n / 12)  # [y, x]; cylinder at x = n/4
-    y = np.arange(n)
-    profile = peak * np.clip(4 * (y - 0.5) * (n - 1.5 - y) / (n - 2) ** 2, 0, None)
-    # The kernel's arrays are [y, x]: world axis 1 first, world axis 0 (streamwise) second.
-    u = np.ascontiguousarray(np.tile(profile[:, None], (1, n)), np.float64)
-    v = np.tile(0.05 * peak * np.sin(4 * np.pi * y / n), (n, 1))
-    u[mask > 0] = 0.0
-    v[mask > 0] = 0.0
-    f = np.zeros((n, n, 9))
-    lbm._load().lbm_init(n, n, 1.0, u, np.ascontiguousarray(v), f)
-    fluid = lbm.LiveLBM(
-        f, mask, cfg.lbm_viscosity, lbm.channel_body_force(n, cfg.lbm_viscosity, peak),
-        peak, u, v, np.ones((n, n)), np.zeros((n, n, 2)),
-    )
-    return fluid.advance(warm_steps)
+def _half(field: np.ndarray) -> np.ndarray:
+    return field.reshape(NY // 2, 2, NX // 2, 2).mean((1, 3))
 
 
-def record(
-    cfg: ExperimentConfig, scene: str, steps: int = 240, field_every: int = 3,
-    warm_steps: int = 30000,
-) -> tuple[dict, dict[str, tuple[np.ndarray, str]]]:
-    if steps < 1 or field_every < 1 or steps % field_every:
-        raise ValueError("need steps >= 1, field_every >= 1, steps divisible by field_every")
-    state = initialize_sim(cfg)
-    if scene == "obstacle":
-        state.lbm = obstacle_channel(cfg.world, warm_steps)
-    else:
-        state.lbm = lbm.LiveLBM.uniform(
-            cfg.world.height, cfg.world.width, nu=cfg.world.lbm_viscosity,
-            peak_speed=cfg.world.lbm_peak_speed, velocity=(0.04, 0.0),
-            relax_steps=cfg.world.lbm_law_relax_steps,
+def export(
+    path: str | Path, beats: int = 90, progress: Callable[[str], None] = print
+) -> Path:
+    """Run the scene: 2 ramp beats (not recorded), then ``beats`` recorded beats."""
+    if beats < 1:
+        raise ValueError("need beats >= 1")
+    structure, mask = scene()
+    sim = ib.ImmersedSim.create(structure, NY, NX, mask=mask).advance(2 * BEAT)
+    stats = OverlapStats(structure, mask)
+    stride = BEAT // FRAMES_PER_BEAT
+    frames = beats * FRAMES_PER_BEAT + 1
+    points = np.zeros((frames, len(structure.points), 2), np.int16)
+    velocity = np.zeros((frames, NY // 2, NX // 2, 2), np.int16)
+    start = [sim.centroid(i) for i in range(len(SWIMMERS))]
+    for frame in range(frames):
+        if frame:
+            sim = sim.advance(stride)
+            stats.step_report(sim.report)
+        stats.frame(sim.X)
+        scaled = np.rint(sim.X * POINT_SCALE)
+        if np.abs(scaled).max() > 32767:
+            raise ValueError("a swimmer travelled past the int16 point range")
+        points[frame] = scaled
+        flow = np.stack([_half(sim.u), _half(sim.v)], -1) / VELOCITY_RANGE
+        if np.abs(flow).max() > 1:
+            raise ValueError("flow speed exceeds VELOCITY_RANGE")
+        velocity[frame] = np.rint(flow * 32767)
+        if frame % (10 * FRAMES_PER_BEAT) == 0:
+            progress(f"beat {frame // FRAMES_PER_BEAT}/{beats}")
+    bodies, offset = [], 0
+    for number in range(len(SWIMMERS)):
+        count = int(np.sum(structure.body == number))
+        travel = float(np.linalg.norm(sim.centroid(number) - start[number]))
+        bodies.append(
+            {"start": offset, "count": count, "ring": stats.rings[number], "travel": travel}
         )
-    state.world = replace(
-        state.world,
-        flow=state.world.flow.at[...].set(state.lbm.flow()),
-        concentration=state.world.concentration * 0.0,
-    )
-    counter = cfg.embodied.population_size
-    founder: dict[int, int] = {}
-    fields: list[np.ndarray] = []
-    signals: list[np.ndarray] = []
-    rows: dict[str, list[np.ndarray]] = {}
-
-    def snapshot() -> None:
-        pop = state.embodied
-        alive = np.asarray(pop.alive)
-        ids, parents = np.asarray(pop.lineage_id), np.asarray(pop.parent_id)
-        for i in np.flatnonzero(alive):
-            lid = int(ids[i])
-            if lid not in founder:
-                founder[lid] = founder.get(int(parents[i]), lid)
-        action = np.asarray(pop.last_action, np.float32)
-        values = {
-            "position": np.asarray(pop.positions, np.float32),
-            # Commanded swim displacement, fraction of domain per sim step.
-            "swim": action[:, :2] * 0.05,
-            "alive": alive.astype(np.uint8),
-            "energy": np.asarray(pop.energy, np.float32),
-            "radius": np.clip(np.asarray(pop.genomes["body_radius"], np.float32), 0.6, 1.8),
-            "aspect": np.asarray(pop.genomes["body_aspect"], np.float32),
-            "lineage": ids.astype(np.int32),
-            "parent": parents.astype(np.int32),
-            "founder": np.array(
-                [founder.get(int(v), -1) for v in ids], np.int32
-            ),
-            "depth": np.asarray(pop.lineage_depth, np.int32),
-            "age": np.asarray(pop.age, np.int32),
-            "emitting": (alive & (action[:, 7] > cfg.embodied.message_gate_threshold)
-                         & (np.asarray(pop.age) > 0)).astype(np.uint8),
-        }
-        for key, value in values.items():
-            rows.setdefault(key, []).append(value.copy())
-
-    def snapshot_fields() -> None:
-        uv = state.lbm.velocity().transpose(1, 0, 2)  # -> [y, x, (ux, uy)]
-        fields.append(np.round(np.clip(uv / U_SCALE, -32767, 32767)).astype(np.int16))
-        signals.append(np.asarray(state.world.concentration[..., 1], np.float32).T)
-
-    snapshot()
-    snapshot_fields()
-    for step in range(1, steps + 1):
-        state, counter = step_sim(state, cfg, counter)
-        snapshot()
-        if step % field_every == 0:
-            snapshot_fields()
-
-    signal = np.maximum(np.stack(signals), 0.0)
-    positive = signal[signal > 1e-3]
-    signal_max = float(np.percentile(positive, 99.5)) if positive.size else 1.0
-    # Square-root encoding keeps resolution in the faint diffusion tails.
-    signal_u8 = np.round(255 * np.sqrt(np.clip(signal / signal_max, 0, 1))).astype(np.uint8)
-
-    velocity = np.stack(fields)
-    ux, uy = (velocity[..., 0] * U_SCALE), (velocity[..., 1] * U_SCALE)
-    solid = state.lbm.mask.astype(np.uint8)  # already [y, x]
-    fluid = (solid == 0)
-    interior = fluid & np.roll(fluid, 2, 0) & np.roll(fluid, -2, 0) \
-        & np.roll(fluid, 2, 1) & np.roll(fluid, -2, 1)
-    vorticity = (np.gradient(uy, axis=2) - np.gradient(ux, axis=1))[:, interior]
+        offset += count
+    sample = velocity[:: max(1, frames // 40)] * (VELOCITY_RANGE / 32767)
+    # derivative on the 2-cell display grid; the viewer's colour scale only
+    vorticity = (np.gradient(sample[..., 1], 2.0, axis=2)
+                 - np.gradient(sample[..., 0], 2.0, axis=1))
     meta = {
-        "scene": scene, "seed": cfg.seed, "grid": [cfg.world.width, cfg.world.height],
-        "steps": steps, "field_every": field_every, "u_scale": U_SCALE,
-        "lbm_substeps": cfg.world.lbm_substeps, "viscosity": cfg.world.lbm_viscosity,
-        "agent_drag": cfg.world.lbm_agent_drag, "coupling": cfg.world.lbm_agent_coupling,
-        "dipole_length": cfg.world.lbm_dipole_length,
-        "flow_movement_scale": cfg.embodied.flow_movement_scale,
-        "signal_max": signal_max, "population_slots": cfg.embodied.population_size,
-        "speed_max": float(np.percentile(np.hypot(ux, uy)[:, fluid], 99.5)),
-        "vorticity_max": float(np.percentile(np.abs(vorticity), 99.0)),
-        "controllers": "random initial genomes, mutated at reproduction; untrained",
+        "vorticity_max": float(np.percentile(np.abs(vorticity), 99.75)),
+        "speed_max": float(np.percentile(np.linalg.norm(sample, axis=-1), 99.7)),
+        "head_pad": HEAD_PAD, "tail_width": [TAIL_ROOT, TAIL_TIP],
+        "nx": NX, "ny": NY, "nu": sim.nu, "beat_steps": BEAT, "stride": stride,
+        "first_step": 2 * BEAT, "frames": frames, "point_scale": POINT_SCALE,
+        "velocity_range": VELOCITY_RANGE, "bodies": bodies,
+        "post": [POST[0], POST[1], POST[2] + 0.5], "walls": [0.5, NY - 1.5],
+        "contact": [CONTACT_RADIUS, CONTACT_K], "wall": [WALL_RANGE, WALL_K],
+        "stats": stats.summary(),
     }
-    arrays = {
-        "velocity": (velocity, "delta-shuffle"),
-        "signal": (signal_u8, "raw"),
-        "solid": (solid, "raw"),
-        **{key: (np.stack(value), "raw") for key, value in rows.items()},
-    }
-    return meta, arrays
-
-
-def export(path: str | Path, scene: str = "obstacle", **kwargs) -> Path:
-    config_keys = ("grid", "population", "seed", "substeps", "drag")
-    cfg = viewer_config(scene, **{k: kwargs.pop(k) for k in config_keys if k in kwargs})
-    return write_replay(path, *record(cfg, scene, **kwargs))
+    return write_replay(
+        path, meta, {"points": (points, "delta-shuffle"), "velocity": (velocity, "delta-shuffle")}
+    )

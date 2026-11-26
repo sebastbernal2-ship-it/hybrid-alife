@@ -22,10 +22,7 @@ def main() -> int:
     )
     commands = parser.add_subparsers(dest="command", required=True)
     export_args = commands.add_parser("export", help="run the simulation and record a replay")
-    export_args.add_argument("--scene", choices=("obstacle", "periodic"), default="obstacle")
-    export_args.add_argument("--steps", type=int, default=240)
-    export_args.add_argument("--seed", type=int, default=3)
-    export_args.add_argument("--grid", type=int, default=256)
+    export_args.add_argument("--beats", type=int, default=90, help="recorded tail beats")
     export_args.add_argument("--out", type=Path, default=Path("outputs/viewer/replay.hvr"))
     for name, text in (("serve", "serve the viewer over HTTP"),
                        ("standalone", "write one double-clickable HTML file")):
@@ -39,7 +36,7 @@ def main() -> int:
     if args.command == "export":
         from hybrid_alife.viewer.export import export
 
-        path = export(args.out, args.scene, steps=args.steps, seed=args.seed, grid=args.grid)
+        path = export(args.out, beats=args.beats)
         print(f"wrote {path} ({path.stat().st_size / 1e6:.1f} MB)")
     elif args.command == "serve":
         serve(args.replay, args.port)
