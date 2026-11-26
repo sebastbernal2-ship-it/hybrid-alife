@@ -254,6 +254,8 @@ class Structure:
         contact_k: float = 0.0,
         ramp_steps: float = 0.0,
     ) -> Structure:
+        if not bodies:
+            raise ValueError("a structure needs at least one body")
         cols: dict[str, list] = {k: [] for k in (
             "points", "body", "edges", "edge_rest", "edge_k", "edge_shift", "angles",
             "angle_base", "angle_amp", "angle_phase", "angle_omega", "angle_k",
@@ -330,6 +332,8 @@ def spread(shape: tuple[int, int], X: np.ndarray, F: np.ndarray) -> np.ndarray:
     """Spread point forces onto a [ny, nx, 2] force-density grid with the 4-point delta."""
     X = _array(X, np.float64, (-1, 2))
     F = _array(F, np.float64, X.shape)
+    if not np.all(np.abs(X) < 1e8):  # the kernel casts positions to int
+        raise ValueError("points must be finite and below 1e8 in magnitude")
     grid = np.zeros((*shape, 2))
     _load()[0].ib_spread(
         shape[0], shape[1], len(X), X.ctypes.data, F.ctypes.data, grid.ctypes.data
@@ -407,8 +411,13 @@ class ImmersedSim:
 
     def advance(self, steps: int) -> ImmersedSim:
         ny, nx = self.mask.shape
-        f, X = np.array(self.f, order="C"), np.array(self.X, order="C")
-        U = np.array(self.U, order="C")
+        points = (len(self.structure.points), 2)
+        for name, shape in (("f", (ny, nx, 9)), ("X", points), ("U", points)):
+            if np.shape(getattr(self, name)) != shape:  # the kernel would overrun it
+                raise ValueError(f"{name} must have shape {shape}")
+        if self.mask.dtype != np.uint8 or not self.mask.flags.c_contiguous:
+            raise ValueError("mask must be a C-contiguous uint8 array")
+        f, X, U = (np.array(a, np.float64, order="C") for a in (self.f, self.X, self.U))
         u, v, rho = (np.zeros((ny, nx)) for _ in range(3))
         report = _Report()
         rc = _load()[0].ib_advance(

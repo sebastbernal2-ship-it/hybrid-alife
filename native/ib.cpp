@@ -175,6 +175,8 @@ int ib_advance(int ny, int nx, const uint8_t* mask, double nu, double bx, double
   const IbStructure& s = *sp;
   const double tau = 3.0 * nu + 0.5;
   if (ny < 4 || nx < 4 || !(tau > 0.5) || steps < 0 || !valid(s)) return -1;
+  // Keeps cells * 9 well inside int, which the shared fluid step indexes with.
+  if (static_cast<long long>(ny) * nx > (1LL << 26)) return -1;
   const int n = s.n_points, cells = ny * nx;
   const bool contact_on = s.contact_radius > 0 && s.contact_k > 0;
   if (contact_on && !(nx > 2 * s.contact_radius && ny > 2 * s.contact_radius)) return -1;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -25,6 +26,11 @@ def test_spreading_preserves_total_force_and_torque():
     torque_grid = np.sum(xx * grid[..., 1] - yy * grid[..., 0])
     torque = np.sum(X[:, 0] * F[:, 1] - X[:, 1] * F[:, 0])
     np.testing.assert_allclose(torque_grid, torque, atol=1e-10)
+
+
+def test_spread_rejects_non_finite_points():
+    with pytest.raises(ValueError, match="finite"):
+        ib.spread((8, 8), np.full((1, 2), np.nan), np.zeros((1, 2)))
 
 
 def test_internal_forces_are_the_energy_gradient_and_force_and_torque_free():
@@ -110,6 +116,10 @@ def test_unstable_and_invalid_runs_raise_and_leave_state_alone():
     np.testing.assert_array_equal(sim.f, before)
     with pytest.raises(ValueError, match="invalid"):
         ib.ImmersedSim.create(sim.structure, 64, 96, nu=0.0).advance(1)
+    with pytest.raises(ValueError, match="shape"):
+        replace(sim, X=sim.X[:-1]).advance(1)
+    with pytest.raises(ValueError, match="at least one body"):
+        ib.Structure.from_bodies([])
     with pytest.raises(ValueError, match="mask"):
         ib.ImmersedSim.create(sim.structure, 64, 96, mask=np.zeros((3, 3)))
     with pytest.raises(ValueError, match="out of range"):
