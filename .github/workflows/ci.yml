@@ -19,8 +19,9 @@ jobs:
       MPLBACKEND: Agg
       PYTHONUTF8: "1"
     # Hard ceiling so a hung JAX compile / runaway test can't burn the day.
-    # The suite trains small JAX models for the gravity study and legitimately
-    # takes about 18 minutes on a shared runner, so 20 minutes was too tight.
+    # The suite trains small JAX models. Shared-runner speed varies by more than 2x
+    # between otherwise identical runs (either Python version can draw the slow
+    # machine), so the suite runs in parallel and the ceiling keeps headroom.
     timeout-minutes: 35
     strategy:
       # Report failures from every Python version even if one fails first.
@@ -49,6 +50,7 @@ jobs:
       - name: Show environment
         run: |
           python --version
+          lscpu
           pip list
 
       - name: Lint
@@ -57,4 +59,5 @@ jobs:
       - name: Run tests
         # -q for compactness; --durations surfaces slow tests when CI feels sluggish.
         run: |
-          pytest -q --durations=10 --cov=src/hybrid_alife --cov-report=term-missing --cov-fail-under=85
+          # Native kernels are built above, so workers never race on the import-time build.
+          pytest -q -n auto --dist worksteal --durations=10 --cov=src/hybrid_alife --cov-report=term-missing --cov-fail-under=85
