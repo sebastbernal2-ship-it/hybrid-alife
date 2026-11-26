@@ -29,6 +29,7 @@ dev = [
   "black>=23.0",
   "mypy>=1.10",
   "pytest-cov>=5.0",
+  "pytest-xdist>=3.5",
   "ipykernel>=6.29",
 ]
 
@@ -45,4 +46,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "src"]
+addopts = "--strict-markers"
+markers = ["slow: long JAX training runs; CI runs them in a separate job"]
 
