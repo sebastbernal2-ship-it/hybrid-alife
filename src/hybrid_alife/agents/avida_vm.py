@@ -220,8 +220,8 @@ def sample_env(
         env_a = (world.enrichment[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
         env_b = (world.concentration[grid[:, 0], grid[:, 1], 0] * 1000.0).astype(jnp.int32)
     else:
-        env_a = jnp.full((n,), int(jnp.mean(world.enrichment) * 1000.0), dtype=jnp.int32)
-        env_b = jnp.full((n,), int(jnp.mean(world.concentration) * 1000.0), dtype=jnp.int32)
+        env_a = jnp.full((n,), jnp.mean(world.enrichment) * 1000.0).astype(jnp.int32)
+        env_b = jnp.full((n,), jnp.mean(world.concentration) * 1000.0).astype(jnp.int32)
     return env_a, env_b
 
 
@@ -560,27 +560,24 @@ def step_avida_population(
     if cfg.native:
         from hybrid_alife.physics import avida_native
 
-        avida_native.require_concrete(pop.genomes, pop.merit, key)
         key, k_nat = jax.random.split(key)
         env_a, env_b = sample_env(world, positions, pop.alive.shape[0])
-        seed = int(jax.random.randint(k_nat, (), 0, 2**31 - 1, dtype=jnp.int32))
-        pop._divide_op_mask = avida_native.run_update(  # type: ignore[attr-defined]
-            pop, cfg, budget, env_a, env_b, _task_reward_vector(cfg), seed
+        seed = jax.random.randint(k_nat, (), 0, 2**31 - 1, dtype=jnp.int32)
+        _, k_div = jax.random.split(key)
+        seed_div = jax.random.randint(k_div, (), 0, 2**31 - 1, dtype=jnp.int32)
+        avida_native.step(
+            pop, world, cfg, budget, env_a, env_b, _task_reward_vector(cfg), seed, seed_div,
+            next_lineage_start, positions,
         )
-    else:
-        for c in range(int(cfg.max_cycles_per_update)):
-            key, k_cyc = jax.random.split(key)
-            cycle_mask = budget > c
-            pop = vm_cycle(pop, world, cfg, positions, k_cyc, cycle_mask)
+        return pop, next_lineage_start + pop.alive.shape[0]
+
+    for c in range(int(cfg.max_cycles_per_update)):
+        key, k_cyc = jax.random.split(key)
+        cycle_mask = budget > c
+        pop = vm_cycle(pop, world, cfg, positions, k_cyc, cycle_mask)
 
     key, k_div = jax.random.split(key)
-    if cfg.native:
-        from hybrid_alife.physics import avida_native
-
-        seed_div = int(jax.random.randint(k_div, (), 0, 2**31 - 1, dtype=jnp.int32))
-        avida_native.divide(pop, cfg, next_lineage_start, seed_div, pop._divide_op_mask)
-    else:
-        pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
+    pop = apply_h_divide(pop, cfg, next_lineage_start, k_div)
     if energy_enabled(cfg):
         pop.alive = pop.alive & (pop.energy > 0.0)  # out of energy: die at update end
     pop.age = pop.age + pop.alive.astype(jnp.int32)
@@ -589,11 +586,7 @@ def step_avida_population(
     # mapped position and deposit a fraction back as concentration. This
     # creates an actual resource-loop between the two branches.
     coupled = positions is not None and positions.shape[0] == pop.alive.shape[0]
-    if coupled and cfg.native:
-        from hybrid_alife.physics import avida_native
-
-        avida_native.couple(pop, world, cfg, positions)
-    elif coupled:
+    if coupled:
         h, w = world.metabolites.shape[0], world.metabolites.shape[1]
         if cfg.metabolite_uptake > 0.0:
             grid = positions_to_grid(positions, h, w)

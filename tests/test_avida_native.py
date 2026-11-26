@@ -234,22 +234,6 @@ def test_native_and_jax_agree_on_energy_without_mutation():
             _same(getattr(ref, f), getattr(nat, f), err_msg=f"{f} seed={seed}")
         np.testing.assert_allclose(float(ref.heat), float(nat.heat), rtol=1e-4)
         np.testing.assert_allclose(float(ref.energy_in), float(nat.energy_in), rtol=1e-4)
-def test_native_under_jit_fails_with_a_clear_error():
-    import pytest
-
-    cfg, world, pop, positions = _setup(0.0)
-    cfg = dataclasses.replace(cfg, native=True)
-
-    @jax.jit
-    def step(genomes, merit):
-        p = dataclasses.replace(pop, genomes=genomes, merit=merit)
-        out, _ = avida_vm.step_avida_population(p, world, cfg, 0, jax.random.PRNGKey(0), positions)
-        return out.merit
-
-    with pytest.raises(RuntimeError, match="cannot run under jax.jit"):
-        step(pop.genomes, pop.merit)
-
-
 def test_native_rejects_states_that_would_index_out_of_bounds():
     import pytest
 
@@ -290,21 +274,24 @@ def test_avida_config_validates_energy_and_native_registers():
     AvidaConfig(**base, instruction_energy_cost=0.1)  # valid config still constructs
 
 
-def test_native_divide_and_couple_reject_bad_grids_and_tracers():
+def test_native_rejects_mismatched_grids_and_traced_low_level_calls():
     import pytest
 
     from hybrid_alife.physics import avida_native
 
     cfg, world, pop, positions = _setup(0.0)
-    with pytest.raises(ValueError, match="one row per organism"):
-        avida_native.couple(pop, world, dataclasses.replace(cfg, metabolite_uptake=0.1),
-                            positions[:10])
+    cfg = dataclasses.replace(cfg, native=True, metabolite_uptake=0.1)
+    bad = dataclasses.replace(world, concentration=world.concentration[:6])
+    with pytest.raises(ValueError, match="same grid"):
+        avida_vm.step_avida_population(
+            _clone(pop), bad, cfg, 0, jax.random.PRNGKey(0), positions)
 
     @jax.jit
     def traced(g):
         p = dataclasses.replace(pop, genomes=g)
-        avida_native.divide(p, cfg, 0, 1, jnp.zeros(64, bool))
-        return p.genomes
+        zeros = jnp.zeros(64, jnp.int32)
+        return avida_native.run_update(
+            p, cfg, zeros, zeros, zeros, avida_vm._task_reward_vector(cfg), seed=0)
 
     with pytest.raises(RuntimeError, match="cannot run under jax.jit"):
         traced(pop.genomes)

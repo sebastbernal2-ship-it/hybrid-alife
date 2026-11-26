@@ -271,7 +271,7 @@ class AvidaConfig:
     metabolite_uptake: float = 0.0
     metabolite_deposit: float = 0.0
     # Run the whole update (cycles, division, metabolite coupling) in the native C++
-    # kernel (make -C native). Not supported under jax.jit.
+    # kernel (make -C native). Under jax.jit it runs through jax.pure_callback.
     native: bool = False
     # Opt-in energy economy, enabled when instruction_energy_cost > 0. Every executed
     # instruction costs this much energy, merit gained by an instruction is converted to

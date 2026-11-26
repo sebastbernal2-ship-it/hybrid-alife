@@ -12,10 +12,15 @@ uptake/deposit coupling (`avida_couple`).
   splitmix64 stream, so only the distribution matches JAX.
 - Speed: a full native update at 1024 organisms takes about 0.004 s against 0.27-0.32 s for JAX
   (cycles only: 0.016 s against 0.19 s).
-- Guards: `native=True` under `jax.jit`/`vmap`/`grad` raises `RuntimeError` (the POET
-  jit-compiles the Avida step, so use `native=False` there). The bridge rejects genome lengths
-  above `max_genome_length` and fewer than 2 registers (the kernel would index out of bounds),
-  and refuses to load a kernel whose opcode count differs from the Python VM.
+- Under `jax.jit` (as the POET compiles the step) and inside `lax.scan`, each update is one
+  `jax.pure_callback` into the same host function eager calls use. Budgets, environment inputs
+  and int32 kernel seeds come from XLA, so jitted and eager native runs agree, mutation
+  included. `vmap` runs the batch sequentially; there are no gradients. The callback copies
+  every buffer and calls only NumPy and C++ (JAX calls inside a callback can deadlock).
+- Guards: the bridge rejects genome lengths above `max_genome_length` and fewer than 2
+  registers (the kernel would index out of bounds), and refuses to load a kernel whose opcode
+  count differs from the Python VM. Under jit these checks surface as JAX runtime errors.
+  The cycle-only `run_update` entry point is eager-only.
 - Run: `configs/ablation_native_avida.yaml`.
 
 ## Division quirk (kept on purpose)
