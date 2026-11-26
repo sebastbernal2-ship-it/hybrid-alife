@@ -127,10 +127,10 @@ def serpentine_mask(h: int, w: int, waves: int = 1, amplitude: float = 0.2) -> n
     number so the channel closes on itself across the periodic boundary. The first and last
     rows are always solid.
     """
-    if waves < 1 or int(waves) != waves:
+    if not np.isfinite(waves) or waves < 1 or int(waves) != waves:
         raise ValueError("serpentine waves must be a positive whole number (periodic channel)")
     half = h / 2 - 1 - amplitude * h
-    if not 0.0 <= amplitude or half < 1.5:
+    if not np.isfinite(amplitude) or amplitude < 0.0 or half < 1.5:
         raise ValueError(
             f"serpentine amplitude {amplitude} leaves half-width {half:.2f} < 1.5 cells in "
             f"{h} rows; lower the amplitude or widen the channel"

@@ -132,6 +132,11 @@ def test_serpentine_mask_is_a_connected_meandering_channel():
         serpentine_mask(16, 18, waves=1.5)
     with pytest.raises(ValueError, match="half-width"):
         serpentine_mask(8, 18, amplitude=0.3)
+    for bad in (np.nan, np.inf):
+        with pytest.raises(ValueError, match="whole number"):
+            serpentine_mask(16, 18, waves=bad)
+        with pytest.raises(ValueError, match="half-width"):
+            serpentine_mask(16, 18, amplitude=bad)
     with pytest.raises(ValueError, match="mask must have shape"):
         LiveLBM.channel(H, W, mask=mask.T)
 
