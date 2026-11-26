@@ -7,7 +7,7 @@ is the concatenation of all six. The layout is fixed (callers depend on it):
   2. Shear gradient vector                            [N, 2]
   3. Margination / enrichment scalar                  [N, 1]
   4. Inertial lift vector                             [N, 2]
-  5. Concentration-wave channels                      [N, 2]
+  5. Concentration-wave channels                      [N, C] (C = 2 by default)
   6. Hemodynamic / crowding context                   [N, 3]
        (local density, mean flow speed, neighbor msg energy)
 
@@ -43,8 +43,8 @@ SIXTH_SENSE_WIDTHS = (1, 2, 1, 2, 2, 3)
 
 
 def sixth_sense_dim(world_cfg: WorldConfig) -> int:
-    """1 + 2 + 1 + 2 + 2 + 3 = 11."""
-    return sum(SIXTH_SENSE_WIDTHS)
+    """1 + 2 + 1 + 2 + 2 + 3 = 11 with the default two concentration channels."""
+    return sum(SIXTH_SENSE_WIDTHS) + world_cfg.concentration_channels - 2
 
 
 def sample_field_at(field: jax.Array, positions: jax.Array, h: int, w: int) -> jax.Array:

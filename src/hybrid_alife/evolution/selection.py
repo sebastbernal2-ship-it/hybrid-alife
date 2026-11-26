@@ -9,6 +9,7 @@ from hybrid_alife.agents.embodied import (
     initialize_embodied_genomes,
     mutate_embodied_genomes,
 )
+from hybrid_alife.metrics.energy_ledger import book_reset
 from hybrid_alife.types import (
     AvidaPopulationState,
     EmbodiedConfig,
@@ -45,6 +46,7 @@ def reseed_embodied(
     # If everyone is dead, fully reset.
     # We can't branch on traced values cleanly; do it eagerly via .item()? It's a scalar.
     if int(alive_count) == 0:
+        energy_before = pop.energy
         k_pos, k_genome = jax.random.split(key)
         genomes = initialize_embodied_genomes(cfg, world_cfg, k_genome)
         pop.genomes = genomes
@@ -59,6 +61,9 @@ def reseed_embodied(
         if pop.previous_thrust is not None:
             pop.previous_thrust = jnp.zeros_like(pop.previous_thrust)
         pop.lineage_depth = jnp.zeros((n,), dtype=jnp.int32)
+        book_reset(pop, energy_before)
+        if pop.body_axis is not None:
+            pop.body_axis = jnp.zeros_like(pop.body_axis)
     _ = fitness
     return pop
 
@@ -111,7 +116,11 @@ def _rank_replace_embodied(
 
     replaced = ~is_elite
     pop.genomes = new_genomes
+    energy_before = pop.energy
     pop.energy = jnp.where(replaced, cfg.initial_energy * 0.5, pop.energy)
+    book_reset(pop, energy_before)
+    if pop.body_axis is not None:
+        pop.body_axis = jnp.where(replaced[:, None], 0.0, pop.body_axis)
     pop.alive = jnp.ones((n,), dtype=bool)
     pop.age = jnp.where(replaced, 0, pop.age)
     pop.hidden = jnp.where(replaced[:, None], jnp.zeros_like(pop.hidden), pop.hidden)
@@ -177,7 +186,11 @@ def select_and_mutate_embodied(
 
     # Revive dead with starter state
     n = pop.alive.shape[0]
+    energy_before = pop.energy
     pop.energy = jnp.where(dead, cfg.initial_energy * 0.5, pop.energy)
+    book_reset(pop, energy_before)
+    if pop.body_axis is not None:
+        pop.body_axis = jnp.where(dead[:, None], 0.0, pop.body_axis)
     pop.alive = jnp.where(dead, jnp.ones((n,), dtype=bool), pop.alive)
     pop.age = jnp.where(dead, 0, pop.age)
     pop.hidden = jnp.where(dead[:, None], jnp.zeros_like(pop.hidden), pop.hidden)

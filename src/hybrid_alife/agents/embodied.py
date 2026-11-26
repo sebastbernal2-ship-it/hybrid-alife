@@ -37,6 +37,8 @@ from hybrid_alife.agents.controller import (
 from hybrid_alife.agents.controller import (
     forward as controller_forward,
 )
+from hybrid_alife.metrics.energy_ledger import book, new_ledger
+from hybrid_alife.physics.spheroid_drag import drag_factors
 from hybrid_alife.types import (
     EmbodiedConfig,
     EmbodiedPopulationState,
@@ -78,7 +80,7 @@ def patch_channels(world_cfg: WorldConfig) -> int:
         + 2  # shear_grad
         + 1  # enrichment
         + 2  # lift
-        + 2  # concentration
+        + world_cfg.concentration_channels
         + world_cfg.metabolite_channels
     )
 
@@ -109,10 +111,15 @@ def embodied_action_dim(cfg: EmbodiedConfig) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _validate_chemical_signaling(cfg: EmbodiedConfig) -> None:
+def _validate_chemical_signaling(cfg: EmbodiedConfig, world_cfg: WorldConfig) -> None:
     """Reject configs where the chemical signal would be silently useless or invalid."""
+    if cfg.signal_content and not cfg.chemical_signaling:
+        raise ValueError("signal_content needs chemical_signaling=True")
     if not cfg.chemical_signaling:
         return
+    if cfg.signal_content:
+        if cfg.message_size < world_cfg.concentration_channels - 1:
+            raise ValueError("signal_content needs message_size >= concentration_channels - 1")
     if cfg.signal_deposit < 0.0:
         raise ValueError("signal_deposit must be >= 0")
     if not cfg.use_comms:
@@ -128,7 +135,7 @@ def initialize_embodied_population(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> EmbodiedPopulationState:
     """Initialize positions, energies, recurrent state, messages, and genome params."""
-    _validate_chemical_signaling(cfg)
+    _validate_chemical_signaling(cfg, world_cfg)
     k_pos, k_genome = jax.random.split(key)
     n = cfg.population_size
     positions = jax.random.uniform(k_pos, (n, 2), minval=0.0, maxval=1.0)
@@ -179,6 +186,7 @@ def initialize_embodied_population(
         ),
         previous_velocity=previous_velocity,
         previous_thrust=previous_thrust,
+        ledger=new_ledger(energy) if cfg.energy_ledger else None,
     )
 
 
@@ -494,8 +502,32 @@ def apply_embodied_actions(
         if embodied_cfg.probe_enabled
         else None
     )
+    body_axis = pop.body_axis
+    axial_sq = None  # (drag along - drag across) * (swim speed along the body axis)^2
     if embodied_cfg.stokes_mechanics:
+        thrust = move
         move = move / body_radius[:, None]  # Stokes drag: swim speed = thrust / radius
+    if embodied_cfg.aspect_drag:
+        aspect = jnp.clip(
+            pop.genomes.get("body_aspect", jnp.ones_like(pop.energy)), 0.7, 1.4
+        )
+        along, across = drag_factors(aspect)
+        norm = jnp.linalg.norm(thrust, axis=-1, keepdims=True)
+        direction = jnp.where(norm > 0.0, thrust / jnp.where(norm > 0.0, norm, 1.0), 0.0)
+        if body_axis is None:
+            body_axis = jnp.zeros_like(thrust)
+        # The body keeps the axis set by its previous thrust; a body without one yet
+        # (zero vector) starts aligned with the current thrust.
+        has_axis = jnp.linalg.norm(body_axis, axis=-1, keepdims=True) > 0.0
+        axis = jnp.where(has_axis, body_axis, direction)
+        # v = F_across / (r * across) + F_along / (r * along). Written as the isotropic
+        # response plus a correction so that aspect 1 reduces exactly to the radius law.
+        iso = move / across[:, None]
+        thrust_along = jnp.sum(move * axis, axis=-1, keepdims=True)
+        move = iso + (thrust_along * (1.0 / along - 1.0 / across)[:, None]) * axis
+        axial_sq = (along - across) * jnp.sum(move * axis, axis=-1) ** 2
+        # Then the body turns to follow its thrust (kept when it does not thrust).
+        body_axis = jnp.where((norm > 0.0) & pop.alive[:, None], direction, body_axis)
     commanded_move = move
     swim_speed = jnp.linalg.norm(move, axis=-1)
     move = move + embodied_cfg.flow_movement_scale * local_flow
@@ -533,6 +565,8 @@ def apply_embodied_actions(
     new_resources = jnp.clip(new_resources, 0.0, 1.0)
     eaten_mass = jnp.sum(take_per_channel, axis=-1)
     energy_gained = eaten_mass * 5.0 * (thermo if thermo > 0.0 else 1.0)  # scaling
+    intake = energy_gained
+    predation_loss = jnp.zeros_like(energy_gained)
     flow_alignment = jnp.maximum(
         jnp.sum(actions[..., 0:2] * local_flow, axis=-1), 0.0
     )
@@ -545,14 +579,18 @@ def apply_embodied_actions(
     )
     displacement = jnp.sum(commanded_move * unit_flow, axis=-1)
     energy_gained = energy_gained + embodied_cfg.displacement_reward * displacement
+    external_work = (
+        embodied_cfg.flow_alignment_reward * flow_alignment
+        + embodied_cfg.displacement_reward * displacement
+    )
 
     # Hazard damage (always applies, gated by attack to "fight"=halve damage)
     haz = hazard_damage(world.hazards, new_pos, pop.alive, h, w)
     damage = haz * (1.0 - 0.5 * attack)
 
     # Terraform: deposit positive concentration if terra_r, negative if terra_h
-    deposit = jnp.stack(
-        [(terra_r - terra_h) * 0.5 * alive_f, jnp.zeros_like(terra_r)], axis=-1
+    deposit = jnp.zeros((alive_f.shape[0], world.concentration.shape[-1])).at[:, 0].set(
+        (terra_r - terra_h) * 0.5 * alive_f
     )
     new_conc = scatter_add_to_grid(world.concentration, new_pos, deposit, pop.alive, h, w)
 
@@ -585,7 +623,12 @@ def apply_embodied_actions(
         new_msg = jnp.zeros_like(new_msg)
     elif embodied_cfg.chemical_signaling:
         pulse = embodied_cfg.signal_deposit * emit_hard * alive_f
-        signal = jnp.stack([jnp.zeros_like(pulse), pulse], axis=-1)
+        signal = jnp.zeros_like(deposit)
+        if embodied_cfg.signal_content:
+            n_signal = signal.shape[-1] - 1
+            signal = signal.at[:, 1:].set(pulse[:, None] * msg_vec[:, :n_signal])
+        else:
+            signal = signal.at[:, 1].set(pulse)
         new_conc = scatter_add_to_grid(new_conc, new_pos, signal, pop.alive, h, w)
 
     # Predation: an attacking organism drains the nearest neighbour inside the
@@ -608,7 +651,8 @@ def apply_embodied_actions(
             * pop.energy[prey]
             * attackers.astype(jnp.float32)
         )
-        transfer_in = transfer
+        transfer_in = embodied_cfg.predation_efficiency * transfer
+        predation_loss = transfer - transfer_in
         transfer_out = jnp.zeros((n,), dtype=jnp.float32).at[prey].add(
             jnp.where(attackers, transfer, 0.0)
         )
@@ -647,7 +691,10 @@ def apply_embodied_actions(
     if embodied_cfg.stokes_mechanics:
         # Dissipated swimming power = drag * speed^2, relative to the legacy cost at
         # radius 1 and the 0.05 maximum step (so legacy-scale configs stay comparable).
-        move_cost = embodied_cfg.cost_move_scale * body_radius * swim_speed**2 / 0.05
+        drag_speed_sq = swim_speed**2
+        if embodied_cfg.aspect_drag:  # force . velocity for the anisotropic drag
+            drag_speed_sq = across * drag_speed_sq + axial_sq
+        move_cost = embodied_cfg.cost_move_scale * body_radius * drag_speed_sq / 0.05
     else:
         move_cost = (
             jnp.linalg.norm(move, axis=-1)
@@ -674,7 +721,24 @@ def apply_embodied_actions(
         - embodied_cfg.basal_metabolic_cost * body_factor
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
+    ledger = pop.ledger
+    if embodied_cfg.energy_ledger:
+        if ledger is None:  # resumed from a state saved without a ledger
+            ledger = new_ledger(pop.energy)
+        ledger = book(
+            ledger,
+            intake=intake * alive_f,
+            external_work=external_work * alive_f,
+            predation_loss=predation_loss,
+            discarded=pop.energy * (1.0 - alive_f),  # empty slots are reset to zero below
+            damage=damage * alive_f,
+            costs=(move_cost + embodied_cfg.basal_metabolic_cost * body_factor + action_cost)
+            * alive_f,
+        )
     if embodied_cfg.max_energy > 0.0:
+        if embodied_cfg.energy_ledger:  # empty slots are already counted as discarded
+            over = jnp.maximum(new_energy - embodied_cfg.max_energy, 0.0)
+            ledger = book(ledger, cap_loss=over * alive_f)
         new_energy = jnp.minimum(new_energy, embodied_cfg.max_energy)
 
     # Reproduction is handled in apply_reproduction; here we only zero-out
@@ -682,7 +746,11 @@ def apply_embodied_actions(
 
     # Mark dead (energy<=0)
     new_alive = pop.alive & (new_energy > 0.0)
+    if embodied_cfg.energy_ledger:
+        # Only dying agents can be below zero here: their unpaid losses are not heat.
+        ledger = book(ledger, shortfall=jnp.where(pop.alive, jnp.maximum(-new_energy, 0.0), 0.0))
     new_energy = jnp.where(new_alive, new_energy, 0.0)
+    pop.ledger = ledger
     new_age = pop.age + new_alive.astype(jnp.int32)
 
     # Behavior descriptor: running mean of (mean speed, eat rate)
@@ -731,6 +799,7 @@ def apply_embodied_actions(
         time=world.time,
     )
 
+    pop.body_axis = body_axis
     pop.positions = new_pos
     pop.energy = new_energy
     pop.alive = new_alive
@@ -777,8 +846,13 @@ def apply_reproduction(
 
     match_range = jnp.arange(n)
     use = match_range < num_matches
-    parents = jnp.where(use, parent_order, 0)
-    children = jnp.where(use, dead_order, 0)
+    # Unused entries normally point at slot 0, so their "keep the old value" writes can
+    # undo a real write to slot 0 (a parent then pays nothing). With the ledger on they
+    # point at index n instead: JAX drops out-of-bounds writes (reads are clamped and
+    # then discarded by `use`).
+    unused = n if cfg.energy_ledger else 0
+    parents = jnp.where(use, parent_order, unused)
+    children = jnp.where(use, dead_order, unused)
 
     # Mutate parent's genomes per-slot and write into child slots.
     keys = jax.random.split(key, len(pop.genomes))
@@ -856,6 +930,11 @@ def apply_reproduction(
             )
         )
 
+    if pop.body_axis is not None:  # newborns have no axis yet
+        pop.body_axis = pop.body_axis.at[children].set(
+            jnp.where(use[:, None], 0.0, pop.body_axis[children])
+        )
+
     # Lineage
     new_lineage_ids = next_lineage_start + jnp.arange(n, dtype=jnp.int32)
     new_lineage_id = pop.lineage_id.at[children].set(
@@ -868,6 +947,17 @@ def apply_reproduction(
         jnp.where(use, pop.lineage_depth[parents] + 1, pop.lineage_depth[children])
     )
 
+    if cfg.energy_ledger:
+        ledger = pop.ledger if pop.ledger is not None else new_ledger(pop.energy)
+        born = use.astype(jnp.float32)
+        pop.ledger = book(
+            ledger,
+            # A parent that cannot afford the cost goes negative until the next step,
+            # which books the unpaid part as shortfall.
+            reproduction_cost=born * cfg.reproduction_energy_cost,
+            injected=born * child_energy,
+            discarded=born * pop.energy[children],  # overwritten empty-slot energy
+        )
     pop.genomes = new_genomes
     pop.positions = new_positions
     pop.energy = new_energy

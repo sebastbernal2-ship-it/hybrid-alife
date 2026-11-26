@@ -10,20 +10,46 @@ uptake/deposit coupling (`avida_couple`).
   loop exactly (merit within float tolerance); `tests/test_avida_native.py` checks it on
   random genomes that exercise all opcodes. With mutation on, copy mutations use a native
   splitmix64 stream, so only the distribution matches JAX.
-- Speed: a full native update at 1024 organisms takes about 0.004 s against 0.27-0.32 s for JAX
-  (cycles only: 0.016 s against 0.19 s).
-- Guards: `native=True` under `jax.jit`/`vmap`/`grad` raises `RuntimeError` (the POET
-  jit-compiles the Avida step, so use `native=False` there). The bridge rejects genome lengths
-  above `max_genome_length` and fewer than 2 registers (the kernel would index out of bounds),
-  and refuses to load a kernel whose opcode count differs from the Python VM.
+- Speed (`benchmarks/bench_avida_native.py`, CPU, median ms per update, 4 cores on a
+  shared machine, so expect noise). Native is not automatically faster:
+
+  | workload, organisms | jit JAX | jit native | eager JAX | eager native |
+  |---|---|---|---|---|
+  | POET config, 8 | 0.28 | 0.89 | 49 | 3.7 |
+  | POET config, 4096 | 0.81 | 1.55 | 49 | 4.8 |
+  | heavy VM, 8 | 0.76 | 0.90 | 214 | 3.6 |
+  | heavy VM, 256 | 1.62 | 1.11 | 210 | 3.4 |
+  | heavy VM, 4096 | 7.38 | 3.54 | 234 | 5.3 |
+
+  Eager (the experiment runner) gains over 10x. Under jit the callback has a fixed cost, so on
+  the POET config compiled JAX wins at every size measured, and a 16-step POET rollout was
+  slower with native (145 ms against 102 ms). Keep `native: false` for stock POET runs. The
+  heavy VM (32 max cycles, genome capacity 128) gains up to about 2x from 64 organisms up.
+- Under `jax.jit` (as the POET compiles the step) and inside `lax.scan`, each update is one
+  `jax.pure_callback` into the same host function eager calls use. Budgets, environment inputs
+  and int32 kernel seeds come from XLA, so jitted and eager native runs agree, mutation
+  included. `vmap` runs the batch sequentially; there are no gradients. The callback copies
+  every buffer and calls only NumPy and C++ (JAX calls inside a callback can deadlock).
+- Guards: the bridge rejects genome lengths above `max_genome_length` and fewer than 2
+  registers (the kernel would index out of bounds), and refuses to load a kernel whose opcode
+  count differs from the Python VM. Under jit these checks surface as JAX runtime errors.
+  The cycle-only `run_update` entry point is eager-only.
 - Run: `configs/ablation_native_avida.yaml`.
 
-## Division quirk (kept on purpose)
+## Division quirk
 
-In JAX `apply_h_divide`, rows with no parent/child match all scatter to index 0, so when there
-are fewer matches than organisms the slot-0 child write and the slot-0 parent buffer reset are
-undone. `avida_divide` reproduces this so the two paths stay bit-exact (a test fails without
-it). It is a latent JAX bug; fixing it changes legacy behaviour and must be done in both paths.
+By default, JAX `apply_h_divide` rows with no parent/child match scatter to index 0. When there
+are fewer matches than organisms, this undoes a slot-0 child write or parent buffer reset.
+`AvidaConfig.divide_scatter_fix=True` sends unmatched rows out of bounds with dropped scatters
+in JAX and skips the matching restores in native code. The default remains `False` to preserve
+legacy results. The native bridge checks its ABI version and requires `make -B -C native` to
+rebuild an incompatible shared library.
+
+How often it fires (JAX path, seeds 7-9): in `base.yaml` (48 updates) and `smoke200.yaml`
+(800 updates, one seed) no digital organism dies, so no birth is ever matched and it never
+fires. In `ablation_avida_energy.yaml` with `native: false` it fired in 36 of 192 updates (36
+of the 47 with a matched birth): 32 of 84 matched offspring were lost, and a slot-0 parent
+buffer reset was undone 4 times. These count the legacy path's own trajectory.
 
 ## Energy and heat (`instruction_energy_cost > 0`)
 
