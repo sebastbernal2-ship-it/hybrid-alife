@@ -15,6 +15,7 @@ Each lives on its own `feat/*` branch; its feature doc (named below) exists on t
 | Energy ledger, heat metric, lossy predation | `EmbodiedConfig.energy_ledger`, `predation_efficiency` | no | `energy_matter_conservation.md` | - |
 | Multi-channel signal content | `EmbodiedConfig.signal_content`, `WorldConfig.concentration_channels` | no | `chemical_signaling.md` | - |
 | Live two-way LBM | `WorldConfig.flow_solver: lbm_live` | yes | `lbm_live.md` | `configs/ablation_lbm_live.yaml` |
+| Immersed-boundary bodies and contact | none: import `hybrid_alife.physics.ib` | yes (`native/ib.cpp`, `contact.cpp`) | `immersed_boundary.md` | none (standalone) |
 
 ## Native kernels
 

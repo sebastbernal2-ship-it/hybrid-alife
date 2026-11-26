@@ -59,4 +59,5 @@ sanitize-build:
 # -s keeps a sanitizer report visible: it aborts the process before pytest can print captures.
 sanitize-test:
 	$(SAN_ENV) $(PYTHON) -c "$(SAN_CANARY)" 2>&1 | grep -q "AddressSanitizer: heap-buffer-overflow"
-	$(SAN_ENV) $(PYTHON) -m pytest -q -s tests/test_avida_*.py tests/test_lbm_*.py
+	$(SAN_ENV) $(PYTHON) -m pytest -q -s tests/test_avida_*.py tests/test_lbm_*.py \
+		tests/test_immersed_boundary.py
