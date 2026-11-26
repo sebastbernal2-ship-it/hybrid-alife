@@ -329,13 +329,21 @@ def advect_field(
 
 
 def new_live_lbm(cfg: WorldConfig):
-    """Warmed-up live LBM channel for a world config (obstacle if curvature_regime says so)."""
-    from hybrid_alife.physics.lbm import LiveLBM
+    """Warmed-up live LBM fluid for a world config: periodic box, serpentine channel, or a
+    straight channel (with an obstacle if curvature_regime says so)."""
+    from hybrid_alife.physics.lbm import LiveLBM, serpentine_mask
 
     if cfg.lbm_box == "periodic":
         return LiveLBM.uniform(
             cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
             relax_steps=cfg.lbm_law_relax_steps,
+        )
+    if cfg.lbm_geometry == "serpentine":
+        return LiveLBM.channel(
+            cfg.height, cfg.width, nu=cfg.lbm_viscosity, peak_speed=cfg.lbm_peak_speed,
+            mask=serpentine_mask(  # solver frame [W, H]
+                cfg.width, cfg.height, cfg.lbm_serpentine_waves, cfg.lbm_serpentine_amplitude
+            ),
         )
     radius = min(cfg.height, cfg.width) / 6 if cfg.curvature_regime == "obstacle" else 0.0
     return LiveLBM.channel(

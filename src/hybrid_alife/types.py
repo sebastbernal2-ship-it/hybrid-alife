@@ -91,6 +91,14 @@ class WorldConfig:
     # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
     # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
     lbm_agent_coupling: str = "monopole"
+    # Live channel walls: "auto" (straight channel, plus an obstacle when curvature_regime is
+    # "obstacle") or "serpentine" (meandering lumen, see physics.lbm.serpentine_mask).
+    lbm_geometry: str = "auto"
+    lbm_serpentine_waves: int = 1
+    lbm_serpentine_amplitude: float = 0.15
+    # Agent force landing on a solid cell: "drop" (recorded behaviour; that momentum is lost)
+    # or "redistribute" (moved to the nearest fluid cells, total unchanged).
+    lbm_solid_force: str = "drop"
     # "periodic": wall-free box carrying a uniform law (see LiveLBM.uniform); "channel" default.
     lbm_box: str = "channel"
     # Periodic box only: relaxation time (LBM steps) of the mean flow toward the imposed law.
@@ -111,6 +119,16 @@ class WorldConfig:
             raise ValueError(
                 f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
             )
+        if self.lbm_geometry not in ("auto", "serpentine"):
+            raise ValueError(f"unknown lbm_geometry={self.lbm_geometry!r} (auto or serpentine)")
+        if self.lbm_solid_force not in ("drop", "redistribute"):
+            raise ValueError(
+                f"unknown lbm_solid_force={self.lbm_solid_force!r} (drop or redistribute)"
+            )
+        if self.lbm_geometry == "serpentine" and (
+            self.flow_solver != "lbm_live" or self.lbm_box != "channel"
+        ):
+            raise ValueError("lbm_geometry=serpentine needs flow_solver=lbm_live, lbm_box=channel")
         if self.flow_solver != "lbm_live":
             return
         if self.lbm_viscosity <= 0.0:

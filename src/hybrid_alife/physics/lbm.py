@@ -119,6 +119,28 @@ def channel_flow(
     return (uv / peak if peak > 0 else uv).astype(np.float32)
 
 
+def serpentine_mask(h: int, w: int, waves: int = 1, amplitude: float = 0.2) -> np.ndarray:
+    """Sinusoidal channel in the solver frame [h, w]: solid outside a meandering lumen.
+
+    The centreline is ``(h - 1) / 2 + amplitude * h * sin(2 pi waves x / w)``; the lumen is
+    every cell within half-width ``h / 2 - 1 - amplitude * h`` of it. ``waves`` is a whole
+    number so the channel closes on itself across the periodic boundary. The first and last
+    rows are always solid.
+    """
+    if waves < 1 or int(waves) != waves:
+        raise ValueError("serpentine waves must be a positive whole number (periodic channel)")
+    half = h / 2 - 1 - amplitude * h
+    if not 0.0 <= amplitude or half < 1.5:
+        raise ValueError(
+            f"serpentine amplitude {amplitude} leaves half-width {half:.2f} < 1.5 cells in "
+            f"{h} rows; lower the amplitude or widen the channel"
+        )
+    centre = (h - 1) / 2 + amplitude * h * np.sin(2.0 * np.pi * waves * np.arange(w) / w)
+    mask = (np.abs(np.arange(h)[:, None] - centre[None, :]) > half).astype(np.uint8)
+    mask[0, :] = mask[-1, :] = 1
+    return mask
+
+
 def to_world_frame(field: np.ndarray) -> np.ndarray:
     """Solver-frame [rows, cols, ...] field as a world-frame field (see module docstring)."""
     return np.ascontiguousarray(np.swapaxes(field, 0, 1))
@@ -178,9 +200,20 @@ class LiveLBM:
         peak_speed: float = 0.05,
         obstacle_radius: float = 0.0,
         warm_steps: int = 3000,
+        mask: np.ndarray | None = None,
     ) -> LiveLBM:
-        """Channel along world axis 0, warmed up to (near) steady flow."""
-        mask = channel_mask(width, height, obstacle_radius)  # LBM frame is [W, H]
+        """Channel along world axis 0, warmed up to (near) steady flow.
+
+        ``mask`` (solver frame [width, height]) replaces the straight or obstacle channel.
+        The body force is always the straight channel's for ``peak_speed``, so a narrower or
+        meandering lumen peaks below ``peak_speed``.
+        """
+        if mask is None:
+            mask = channel_mask(width, height, obstacle_radius)  # LBM frame is [W, H]
+        else:
+            if np.shape(mask) != (width, height):
+                raise ValueError(f"mask must have shape {(width, height)}, got {np.shape(mask)}")
+            mask = np.ascontiguousarray(np.asarray(mask) != 0, dtype=np.uint8)
         u, v, rho = np.zeros(mask.shape), np.zeros(mask.shape), np.ones(mask.shape)
         f = np.zeros((*mask.shape, 9))
         _load().lbm_init(mask.shape[0], mask.shape[1], 1.0, u, v, f)
@@ -276,6 +309,42 @@ class LiveLBM:
         return np.array([px, py])
 
 
+SOLID_FORCE_POLICIES = ("drop", "redistribute")
+
+
+def redistribute_solid_forces(force: np.ndarray, solid: np.ndarray) -> np.ndarray:
+    """Move force sitting on solid cells to nearby fluid cells; the total is unchanged.
+
+    ``force`` is [H, W, 2] and ``solid`` [H, W], same frame. Each solid cell's force is split
+    equally among the fluid cells on the nearest square ring (Chebyshev distance 1, then 2,
+    ...) that holds any, wrapping periodically as the LBM grid does. Fluid-cell forces stay.
+    """
+    solid = np.asarray(solid) != 0
+    if solid.all():
+        raise ValueError("no fluid cell to receive the force")
+    h, w = solid.shape
+    out = np.where(solid[..., None], 0.0, force)
+    for y, x in zip(*np.nonzero(solid & np.any(force != 0, axis=-1)), strict=True):
+        for r in range(1, max(h, w) + 1):
+            span = range(-r, r + 1)
+            # A set: on small grids several offsets wrap to the same cell.
+            ring = sorted({
+                ((y + dy) % h, (x + dx) % w)
+                for dy in span for dx in span if max(abs(dy), abs(dx)) == r
+            })
+            targets = [c for c in ring if not solid[c]]
+            if targets:
+                for c in targets:
+                    out[c] += force[y, x] / len(targets)
+                break
+    return out
+
+
+def _check_policy(solid_policy: str) -> None:
+    if solid_policy not in SOLID_FORCE_POLICIES:
+        raise ValueError(f"unknown solid_policy={solid_policy!r} (drop or redistribute)")
+
+
 def agent_reaction_forces(
     positions: np.ndarray,
     swim_velocities: np.ndarray,
@@ -283,6 +352,7 @@ def agent_reaction_forces(
     alive: np.ndarray,
     solid_world: np.ndarray,
     coeff: float,
+    solid_policy: str = "drop",
 ) -> np.ndarray:
     """Per-cell force density the agents exert on the fluid (world frame, [H, W, 2]).
 
@@ -290,17 +360,23 @@ def agent_reaction_forces(
     (cells per LBM step), so passive advection carries no slip. Each agent feels Stokes
     drag -coeff * radius * v_swim; by Newton's third law it pushes the fluid with
     +coeff * radius * v_swim at its cell. Slip is clipped to MAX_RELATIVE_SPEED for
-    stability. Dead agents and agents on solid cells deposit nothing.
+    stability. Dead agents deposit nothing. Agents on solid cells (movement does not collide
+    with walls) deposit nothing under ``solid_policy="drop"``; under ``"redistribute"`` their
+    force goes to the nearest fluid cells (see ``redistribute_solid_forces``).
     """
+    _check_policy(solid_policy)
     h, w = solid_world.shape
     ry = np.clip(np.floor(positions[:, 0] * h).astype(int), 0, h - 1)
     cx = np.clip(np.floor(positions[:, 1] * w).astype(int), 0, w - 1)
     slip = np.clip(swim_velocities, -MAX_RELATIVE_SPEED, MAX_RELATIVE_SPEED)
     force = coeff * radii[:, None] * slip
-    force = force * (np.asarray(alive, bool) & (solid_world[ry, cx] == 0))[:, None]
+    keep = np.asarray(alive, bool)
+    if solid_policy == "drop":
+        keep = keep & (solid_world[ry, cx] == 0)
+    force = force * keep[:, None]
     out = np.zeros((h, w, 2))
     np.add.at(out, (ry, cx), force)
-    return out
+    return out if solid_policy == "drop" else redistribute_solid_forces(out, solid_world)
 
 
 def agent_dipole_forces(
@@ -312,6 +388,7 @@ def agent_dipole_forces(
     coeff: float,
     length: float,
     toroidal: bool,
+    solid_policy: str = "drop",
 ) -> np.ndarray:
     """Force-free (pusher) dipole version of `agent_reaction_forces`, [H, W, 2].
 
@@ -328,7 +405,11 @@ def agent_dipole_forces(
     Agents are skipped entirely (never half-deposited, which would break the zero net
     force) when either point lands on a solid cell or outside a non-toroidal domain, when
     n rounds to zero (both points on the agent's cell cancel), or when not swimming.
+    With ``solid_policy="redistribute"`` a solid end no longer skips the agent: both ends are
+    deposited and any force on a solid cell moves to the nearest fluid cells, which keeps the
+    net force zero (the pair's separation is then no longer guaranteed even).
     """
+    _check_policy(solid_policy)
     h, w = solid_world.shape
     out = np.zeros((h, w, 2))
     slip = np.clip(swim_velocities, -MAX_RELATIVE_SPEED, MAX_RELATIVE_SPEED)
@@ -346,13 +427,12 @@ def agent_dipole_forces(
         inside &= np.all((point >= 0) & (point < [h, w]), axis=1)
         ends.append(np.clip(point, 0, [h - 1, w - 1]))
     front, rear = ends
-    ok = (
-        np.asarray(alive, bool) & (speed > 0) & inside
-        & (solid_world[front[:, 0], front[:, 1]] == 0)
-        & (solid_world[rear[:, 0], rear[:, 1]] == 0)
-        & np.any(offset != 0, axis=1)
-    )
+    ok = np.asarray(alive, bool) & (speed > 0) & inside & np.any(offset != 0, axis=1)
+    if solid_policy == "drop":
+        ok &= (solid_world[front[:, 0], front[:, 1]] == 0) & (
+            solid_world[rear[:, 0], rear[:, 1]] == 0
+        )
     push = (magnitude[:, None] * unit) * ok[:, None]
     np.add.at(out, (front[:, 0], front[:, 1]), push)
     np.add.at(out, (rear[:, 0], rear[:, 1]), -push)
-    return out
+    return out if solid_policy == "drop" else redistribute_solid_forces(out, solid_world)
