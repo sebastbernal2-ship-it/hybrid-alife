@@ -136,3 +136,79 @@ def test_a_neighbour_senses_the_diffused_signal_through_the_sixth_sense():
     hidden = replace(cfg.embodied, hidden_field_groups=("concentration",))
     blind = sample_sixth_sense(state.world, positions, alive, msgs, world_cfg, hidden, key)
     assert float(blind[1, 7]) == 0.0  # why construction rejects this combination
+
+
+def test_a_receiver_decodes_message_content_after_diffusion_and_advection():
+    from hybrid_alife.world.sensing import sample_sixth_sense, sixth_sense_dim
+
+    base = _config(True)
+    world_cfg = replace(base.world, concentration_channels=4, sensory_noise_std=0.0,
+                        concentration_decay=0.95, flow_advection_strength=0.5)
+    emb = replace(base.embodied, signal_content=True, message_size=3)
+    cfg = replace(base, world=world_cfg, embodied=emb)
+    cell = (SIZE // 2 + 0.5) / SIZE
+    listener = jnp.array([[cell, cell], [(SIZE // 2 + 2.5) / SIZE, cell]], dtype=jnp.float32)
+    start = 8 + int(cfg.embodied.probe_enabled)
+    assert sixth_sense_dim(world_cfg) == 13
+    for message in ([1.0, 0.0, 0.0], [0.2, -0.7, 0.4], [-0.5, 0.5, 1.0]):
+        state = initialize_sim(cfg)
+        pop = state.embodied
+        pop.positions = jnp.array([[cell, cell], [0.05, 0.05]], dtype=jnp.float32)
+        pop.alive = jnp.array([True, False])
+        state.world.concentration = jnp.zeros_like(state.world.concentration)
+        state.world.flow = jnp.broadcast_to(jnp.array([0.4, -0.2]), state.world.flow.shape)
+        actions = jnp.zeros((2, embodied_action_dim(cfg.embodied)), dtype=jnp.float32)
+        actions = actions.at[0, 7].set(1.0).at[0, start : start + 3].set(jnp.array(message))
+        _, state.world, _ = apply_embodied_actions(
+            pop, actions, state.world, cfg.embodied, world_cfg, jax.random.PRNGKey(0))
+        for _ in range(4):
+            state = step_world(state, world_cfg)
+        sense = sample_sixth_sense(
+            state.world, listener, jnp.array([True, True]),
+            jnp.zeros((2, cfg.embodied.message_size)), world_cfg, cfg.embodied,
+            jax.random.PRNGKey(0))
+        # Layout: curvature 1, shear_grad 2, enrichment 1, lift 2, then concentration.
+        heard = np.asarray(sense[1, 6:10])
+        assert heard[0] == 0.0  # channel 0 is not part of the message
+        got = heard[1:]
+        assert np.linalg.norm(got) > 1e-4
+        # Diffusion and advection attenuate every channel alike, so direction survives.
+        np.testing.assert_allclose(
+            got / np.linalg.norm(got), np.array(message) / np.linalg.norm(message), atol=1e-4)
+
+
+def test_extra_channels_run_end_to_end_and_content_is_validated():
+    import pytest
+
+    from hybrid_alife.agents.embodied import (
+        initialize_embodied_population,
+        observe_embodied,
+    )
+    from hybrid_alife.experiments.runner import step_sim, validate_runtime_invariants
+
+    base = _config(True)
+    world_cfg = replace(base.world, concentration_channels=4)
+    emb = replace(base.embodied, signal_content=True, message_size=3)
+    cfg = replace(base, world=world_cfg, embodied=emb)
+    base = replace(base, embodied=replace(base.embodied, message_size=3))
+    state = initialize_sim(cfg)
+    default_state = initialize_sim(base)
+    side = 2 * cfg.embodied.obs_radius + 1
+
+    def width(s, c):
+        key = jax.random.PRNGKey(0)
+        return observe_embodied(s.embodied, s.world, c.embodied, c.world, key).shape[1]
+
+    assert width(state, cfg) - width(default_state, base) == 2 * side * side + 2
+    for _ in range(2):
+        state, _ = step_sim(state, cfg, 2)
+    validate_runtime_invariants(state, cfg)
+    key = jax.random.PRNGKey(0)
+    for emb, wc, match in (
+        (replace(cfg.embodied, chemical_signaling=False), world_cfg, "chemical_signaling"),
+        (replace(cfg.embodied, message_size=2), world_cfg, "message_size"),
+    ):
+        with pytest.raises(ValueError, match=match):
+            initialize_embodied_population(emb, wc, key)
+    with pytest.raises(ValueError, match="concentration_channels"):
+        replace(world_cfg, concentration_channels=1)

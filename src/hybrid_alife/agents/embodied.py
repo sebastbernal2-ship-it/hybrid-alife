@@ -79,7 +79,7 @@ def patch_channels(world_cfg: WorldConfig) -> int:
         + 2  # shear_grad
         + 1  # enrichment
         + 2  # lift
-        + 2  # concentration
+        + world_cfg.concentration_channels
         + world_cfg.metabolite_channels
     )
 
@@ -110,10 +110,15 @@ def embodied_action_dim(cfg: EmbodiedConfig) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _validate_chemical_signaling(cfg: EmbodiedConfig) -> None:
+def _validate_chemical_signaling(cfg: EmbodiedConfig, world_cfg: WorldConfig) -> None:
     """Reject configs where the chemical signal would be silently useless or invalid."""
+    if cfg.signal_content and not cfg.chemical_signaling:
+        raise ValueError("signal_content needs chemical_signaling=True")
     if not cfg.chemical_signaling:
         return
+    if cfg.signal_content:
+        if cfg.message_size < world_cfg.concentration_channels - 1:
+            raise ValueError("signal_content needs message_size >= concentration_channels - 1")
     if cfg.signal_deposit < 0.0:
         raise ValueError("signal_deposit must be >= 0")
     if not cfg.use_comms:
@@ -129,7 +134,7 @@ def initialize_embodied_population(
     cfg: EmbodiedConfig, world_cfg: WorldConfig, key: PRNGKey
 ) -> EmbodiedPopulationState:
     """Initialize positions, energies, recurrent state, messages, and genome params."""
-    _validate_chemical_signaling(cfg)
+    _validate_chemical_signaling(cfg, world_cfg)
     k_pos, k_genome = jax.random.split(key)
     n = cfg.population_size
     positions = jax.random.uniform(k_pos, (n, 2), minval=0.0, maxval=1.0)
@@ -559,8 +564,8 @@ def apply_embodied_actions(
     damage = haz * (1.0 - 0.5 * attack)
 
     # Terraform: deposit positive concentration if terra_r, negative if terra_h
-    deposit = jnp.stack(
-        [(terra_r - terra_h) * 0.5 * alive_f, jnp.zeros_like(terra_r)], axis=-1
+    deposit = jnp.zeros((alive_f.shape[0], world.concentration.shape[-1])).at[:, 0].set(
+        (terra_r - terra_h) * 0.5 * alive_f
     )
     new_conc = scatter_add_to_grid(world.concentration, new_pos, deposit, pop.alive, h, w)
 
@@ -593,7 +598,12 @@ def apply_embodied_actions(
         new_msg = jnp.zeros_like(new_msg)
     elif embodied_cfg.chemical_signaling:
         pulse = embodied_cfg.signal_deposit * emit_hard * alive_f
-        signal = jnp.stack([jnp.zeros_like(pulse), pulse], axis=-1)
+        signal = jnp.zeros_like(deposit)
+        if embodied_cfg.signal_content:
+            n_signal = signal.shape[-1] - 1
+            signal = signal.at[:, 1:].set(pulse[:, None] * msg_vec[:, :n_signal])
+        else:
+            signal = signal.at[:, 1].set(pulse)
         new_conc = scatter_add_to_grid(new_conc, new_pos, signal, pop.alive, h, w)
 
     # Predation: an attacking organism drains the nearest neighbour inside the

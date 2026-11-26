@@ -263,7 +263,7 @@ def validate_runtime_invariants(state: SimState, cfg: ExperimentConfig) -> None:
         "world.shear_grad": (h, w, 2),
         "world.enrichment": (h, w, 1),
         "world.lift": (h, w, 2),
-        "world.concentration": (h, w, 2),
+        "world.concentration": (h, w, cfg.world.concentration_channels),
         "world.metabolites": (h, w, cfg.world.metabolite_channels),
         "world.occupancy": (h, w),
     }

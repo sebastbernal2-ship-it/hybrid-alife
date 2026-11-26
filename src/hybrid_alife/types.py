@@ -92,8 +92,13 @@ class WorldConfig:
     # Periodic box only: relaxation time (LBM steps) of the mean flow toward the imposed law.
     lbm_law_relax_steps: float = 0.0
     lbm_dipole_length: float = 2.0
+    # Chemical species in `concentration`. Channel 0 carries terraforming and the Avida
+    # coupling; channels 1.. are free for chemical signals. Changes observation widths.
+    concentration_channels: int = 2
 
     def __post_init__(self) -> None:
+        if self.concentration_channels < 2:
+            raise ValueError("concentration_channels must be >= 2")
         if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
             raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
         if self.lbm_agent_coupling not in ("monopole", "dipole"):
@@ -199,6 +204,9 @@ class EmbodiedConfig:
     # also senses its own deposit; with concentration_decay == 1 it accumulates without bound.
     chemical_signaling: bool = False
     signal_deposit: float = 1.0
+    # With chemical_signaling: each signal channel k >= 1 receives
+    # signal_deposit * message[k - 1] instead of a bare intensity in channel 1.
+    signal_content: bool = False
     # Thermodynamic closure when > 0: fraction of eaten mass converted to energy; the rest
     # returns to the world as metabolite waste, and shared-cell eating cannot overdraw. The
     # closure covers eating only: reward terms, predation transfers, max_energy clipping and

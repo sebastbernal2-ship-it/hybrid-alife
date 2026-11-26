@@ -59,7 +59,9 @@ def initialize_world(cfg: WorldConfig, key: PRNGKey) -> WorldState:
     shear_grad = _compute_shear_gradient(shear)
     lift = _compute_lift_proxy(flow, shear, curvature, cfg)
     enrichment = _compute_enrichment_proxy(resources, hazards, lift, None, cfg)
-    concentration = jax.random.normal(k4, (h, w, 2), dtype=jnp.float32) * 0.01
+    concentration = (
+        jax.random.normal(k4, (h, w, cfg.concentration_channels), dtype=jnp.float32) * 0.01
+    )
     metabolites = jnp.zeros((h, w, cfg.metabolite_channels), dtype=jnp.float32)
     occupancy = -jnp.ones((h, w), dtype=jnp.int32)
 
