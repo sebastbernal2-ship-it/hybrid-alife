@@ -37,6 +37,7 @@ from hybrid_alife.agents.controller import (
 from hybrid_alife.agents.controller import (
     forward as controller_forward,
 )
+from hybrid_alife.metrics.energy_ledger import book, new_ledger
 from hybrid_alife.types import (
     EmbodiedConfig,
     EmbodiedPopulationState,
@@ -179,6 +180,7 @@ def initialize_embodied_population(
         ),
         previous_velocity=previous_velocity,
         previous_thrust=previous_thrust,
+        ledger=new_ledger(energy) if cfg.energy_ledger else None,
     )
 
 
@@ -674,6 +676,16 @@ def apply_embodied_actions(
         - embodied_cfg.basal_metabolic_cost * body_factor
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
+    ledger = pop.ledger
+    if embodied_cfg.energy_ledger:
+        if ledger is None:  # resumed from a state saved without a ledger
+            ledger = new_ledger(pop.energy)
+        ledger = book(
+            ledger,
+            damage=damage * alive_f,
+            costs=(move_cost + embodied_cfg.basal_metabolic_cost * body_factor + action_cost)
+            * alive_f,
+        )
     if embodied_cfg.max_energy > 0.0:
         new_energy = jnp.minimum(new_energy, embodied_cfg.max_energy)
 
@@ -682,7 +694,11 @@ def apply_embodied_actions(
 
     # Mark dead (energy<=0)
     new_alive = pop.alive & (new_energy > 0.0)
+    if embodied_cfg.energy_ledger:
+        # Only dying agents can be below zero here: their unpaid losses are not heat.
+        ledger = book(ledger, shortfall=jnp.where(pop.alive, jnp.maximum(-new_energy, 0.0), 0.0))
     new_energy = jnp.where(new_alive, new_energy, 0.0)
+    pop.ledger = ledger
     new_age = pop.age + new_alive.astype(jnp.int32)
 
     # Behavior descriptor: running mean of (mean speed, eat rate)

@@ -204,6 +204,9 @@ class EmbodiedConfig:
     # closure covers eating only: reward terms, predation transfers, max_energy clipping and
     # Avida metabolite uptake are outside the matter-plus-energy ledger.
     thermo_efficiency: float = 0.0
+    # Keep cumulative energy totals (dissipated heat etc.) on the population state; see
+    # metrics.energy_ledger. Bookkeeping only.
+    energy_ledger: bool = False
     # Flow head only: a constant eat gate, so a movement-only brain can survive in
     # a world where it must eat. 0 keeps the legacy flow-head behavior.
     flow_head_eat_gate: float = 0.0
@@ -386,6 +389,8 @@ class EmbodiedPopulationState:
     # Predation events for the renderer: attacker mask and target index.
     last_attack: Array | None = None
     last_attack_target: Array | None = None
+    # Cumulative energy totals (metrics.energy_ledger), None unless energy_ledger is on.
+    ledger: dict[str, Array] | None = None
 
 
 @dataclass

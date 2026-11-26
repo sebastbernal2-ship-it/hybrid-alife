@@ -33,6 +33,7 @@ from hybrid_alife.evolution.selection import (
 )
 from hybrid_alife.logging.jsonl import JsonlWriter
 from hybrid_alife.metrics.core import collect_full_metrics
+from hybrid_alife.metrics.energy_ledger import heat_metrics
 from hybrid_alife.metrics.qd import archive_entropy, qd_score
 from hybrid_alife.metrics.qd import coverage as qd_coverage
 from hybrid_alife.replay.checkpoint import save_checkpoint
@@ -328,6 +329,7 @@ def run_experiment(cfg: ExperimentConfig) -> SimState:
                     metrics["embodied_deaths_per_generation"] = int(
                         state.embodied_deaths_this_gen
                     )
+                    metrics.update(heat_metrics(state))
                     state.metrics = metrics
                     writer.write(metrics)
 
