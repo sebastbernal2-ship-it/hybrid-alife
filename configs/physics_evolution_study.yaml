@@ -30,7 +30,7 @@ embodied:
   reproduce_energy_threshold: 16.0
   reproduction_energy_cost: 8.0
   repro_gate_threshold: 0.4
-  basal_metabolic_cost: 0.5
+  basal_metabolic_cost: 1.1
   body_morphology: true
   flow_movement_scale: 0.01
 avida:
@@ -51,6 +51,7 @@ avida:
   divide_scatter_fix: true
   energy_initial: 10.0
   energy_efficiency: 0.5
+  instruction_energy_cost: 0.001
 evolution:
   generations: 20
   steps_per_generation: 50

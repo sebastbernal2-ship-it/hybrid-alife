@@ -27,7 +27,7 @@ BASE = ROOT / "configs" / "physics_evolution_study.yaml"
 THERMO = {"embodied": {"thermo_efficiency": 0.5}}
 SIGNAL = {"embodied": {"chemical_signaling": True, "signal_content": True}}
 STOKES = {"embodied": {"stokes_mechanics": True, "aspect_drag": True}}
-AVIDA_ENERGY = {"avida": {"instruction_energy_cost": 0.1}}
+AVIDA_ENERGY = {"avida": {"instruction_energy_cost": 0.002}}  # double the base cost
 LBM = {"world": {"flow_solver": "lbm_live", "lbm_agent_drag": 0.5,
                  "lbm_agent_coupling": "dipole"}}
 LBM_ONEWAY = {"world": {"flow_solver": "lbm_live", "lbm_agent_drag": 0.0}}
@@ -54,6 +54,7 @@ CONDITIONS = {
     "ledger": {"embodied": {"energy_ledger": True}},
     "legacy_divide": {"avida": {"divide_scatter_fix": False}},
     "lbm_oneway": LBM_ONEWAY,
+    "avida_nocost": {"avida": {"instruction_energy_cost": 0.0}},
 }
 
 
