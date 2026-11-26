@@ -1,5 +1,11 @@
 # Flow-head law study with a live, agent-coupled fluid
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **bounded pilot, 15 seeds per condition. Strong monopole coupling (drag 2.0) lowers
 the measured margin by 0.13 on 13 of 15 seeds (paired Wilcoxon p = 0.012) and fails 5 seeds; a
 dipole at the same strength has no effect. Weaker coupling (drag 0.5) is unresolved. Follow-up
@@ -99,7 +105,7 @@ in any condition (mean change within 0.04, all p > 0.6).
 - **Resolved:** strong monopole coupling (E) lowers the margin, consistently across seeds
   (13 of 15 worse, mean -0.13, p = 0.0125; 4 comparisons against A, so p = 0.050 after
   Bonferroni, i.e. exactly borderline), and the dipole at the same strength (F) does not (p = 0.003 for E against F).
-  The reversed-law floor is unaffected, so E's failures are margin failures (seed 4 fails
+  The minimum evolved alignment (stored as min_reversed) is unaffected, so E's failures are margin failures (seed 4 fails
   hard, -0.047), not a switch to a fixed action.
 - **Not resolved:** moderate coupling (C, D). Both lower median min_delta by about 0.06 but
   p = 0.36 to 0.49, and C passes 15/15. Do not read the C = 15/15 as improvement.

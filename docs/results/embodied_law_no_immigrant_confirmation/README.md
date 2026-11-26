@@ -1,5 +1,11 @@
 # No-immigrant confirmation: results
 
+> **Audit correction (2026-11-26).** The "reversed-law control" is not an independent
+> control: the held-out diagonals are closed under negation, so `reversed[d]` is the same
+> rollout as `evolved[-d]`. The clause only requires `evolved >= 0.2` on every diagonal, and
+> `min_reversed` is `min_evolved`. Recorded numbers are unchanged. Wording below that treats
+> it as separate evidence is superseded. See [the audit](../embodied_law_null_selection/README.md).
+
 Status: **5/5 seeds. The preregistered threshold was met, so the claim upgrades to
 a five-seed bounded claim.**
 
@@ -46,9 +52,11 @@ Training alignment rises and stays high, for example seed 0:
 0.96, 0.92, 0.98, 0.97, 0.95, 0.94, 0.94, 0.96, 0.95, 0.96
 ```
 
-Reversed-law alignment is positive in every seed (`+0.551` to `+0.830`) and equals
-the evolved alignment, so the policy re-infers the reversed flow instead of holding
-a fixed action.
+Evolved alignment is positive on all four diagonals in every seed (worst `+0.551` to
+`+0.830`). A fixed action cannot be positive on both members of an antipodal pair, so
+this rules one out. The "reversed-law" values repeat these numbers by construction
+and add nothing. The separate null-selection control for this configuration is in
+`../embodied_law_null_selection/`.
 
 ## Claim, upgraded
 
