@@ -1,0 +1,66 @@
+# Shared base of the physics evolution study. Everything a feature flag requires
+# (body genes, 3 concentration channels, no flow noise, flow advection of agents) is on
+# in every arm, so genome shapes and initial draws match across paired seeds.
+seed: 0
+run_name: physics_evolution_study
+output_dir: outputs/runs
+world:
+  width: 16
+  height: 16
+  toroidal: true
+  resource_channels: 3
+  hazard_channels: 2
+  max_agents: 32
+  max_digital_organisms: 32
+  flow_noise_std: 0.0
+  concentration_decay: 0.97
+  concentration_diffusion: 0.08
+  concentration_channels: 3
+  resource_regen: 0.02
+embodied:
+  enabled: true
+  population_size: 32
+  initial_alive_fraction: 0.5
+  obs_radius: 2
+  hidden_size: 16
+  message_size: 4
+  genome_mutation_std: 0.05
+  genome_mutation_prob: 0.1
+  initial_energy: 20.0
+  reproduce_energy_threshold: 16.0
+  reproduction_energy_cost: 8.0
+  repro_gate_threshold: 0.4
+  basal_metabolic_cost: 1.1
+  body_morphology: true
+  flow_movement_scale: 0.01
+avida:
+  enabled: true
+  population_size: 32
+  genome_length: 24
+  max_genome_length: 64
+  registers: 4
+  memory_size: 8
+  cycles_per_update: 8
+  max_cycles_per_update: 16
+  point_mutation_prob: 0.0025
+  insertion_prob: 0.0005
+  deletion_prob: 0.0005
+  metabolite_uptake: 0.05
+  metabolite_deposit: 0.0
+  native: true
+  divide_scatter_fix: true
+  energy_initial: 10.0
+  energy_efficiency: 0.5
+  instruction_energy_cost: 0.001
+evolution:
+  generations: 20
+  steps_per_generation: 50
+  elite_fraction: 0.1
+  tournament_size: 3
+  extinction_min_population: 3
+  novelty_enabled: false
+  reseed_on_extinction: true
+logging:
+  metrics_every: 50
+  checkpoint_every_generations: 1000
+  replay_every_generations: 1000
