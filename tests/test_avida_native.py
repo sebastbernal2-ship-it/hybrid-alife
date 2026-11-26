@@ -281,6 +281,13 @@ def test_native_rejects_mismatched_grids_and_traced_low_level_calls():
 
     cfg, world, pop, positions = _setup(0.0)
     cfg = dataclasses.replace(cfg, native=True, metabolite_uptake=0.1)
+    # step() skips coupling when positions and population differ in length, so check the
+    # kernel wrapper directly. lib=None: the guard must raise before the library is touched.
+    short = np.zeros(10, np.int32)
+    with pytest.raises(ValueError, match="one row per organism"):
+        avida_native._call_couple(None, cfg, short, short, np.ones(64, np.uint8),
+                                  np.array(world.metabolites), np.array(world.concentration),
+                                  np.array(pop.merit))
     bad = dataclasses.replace(world, concentration=world.concentration[:6])
     with pytest.raises(ValueError, match="same grid"):
         avida_vm.step_avida_population(
