@@ -76,6 +76,10 @@ class WorldConfig:
     # "proxy" keeps the stylised Dean-like flow; "lbm" solves channel flow with the
     # native D2Q9 lattice-Boltzmann kernel (obstacle if curvature_regime == "obstacle").
     flow_solver: str = "proxy"
+    # Frame of the static "lbm" field (physics.lbm module docstring). "legacy" (recorded
+    # behaviour): component 0 is x, walls on the first and last row. "world": the lbm_live
+    # convention, component 0 along rows (the axis agents move on), walls on the columns.
+    lbm_frame: str = "legacy"
     # "lbm_live" (flow_solver): a stateful LBM fluid advanced `lbm_substeps` steps per world
     # step, flow = lattice velocity / lbm_peak_speed. lbm_agent_drag > 0 makes agents push
     # the fluid with Stokes drag (two-way coupling); 0 leaves the fluid unaffected.
@@ -87,6 +91,14 @@ class WorldConfig:
     # swimmer, two equal and opposite point forces lbm_dipole_length cells apart along the
     # swim direction (pusher: reaction ahead of the body, thrust behind). Net force is zero.
     lbm_agent_coupling: str = "monopole"
+    # Live channel walls: "auto" (straight channel, plus an obstacle when curvature_regime is
+    # "obstacle") or "serpentine" (meandering lumen, see physics.lbm.serpentine_mask).
+    lbm_geometry: str = "auto"
+    lbm_serpentine_waves: int = 1
+    lbm_serpentine_amplitude: float = 0.15
+    # Agent force landing on a solid cell: "drop" (recorded behaviour; that momentum is lost)
+    # or "redistribute" (moved to the nearest fluid cells, total unchanged).
+    lbm_solid_force: str = "drop"
     # "periodic": wall-free box carrying a uniform law (see LiveLBM.uniform); "channel" default.
     lbm_box: str = "channel"
     # Periodic box only: relaxation time (LBM steps) of the mean flow toward the imposed law.
@@ -101,10 +113,22 @@ class WorldConfig:
             raise ValueError("concentration_channels must be >= 2")
         if self.flow_solver not in ("proxy", "lbm", "lbm_live"):
             raise ValueError(f"unknown flow_solver={self.flow_solver!r} (proxy, lbm or lbm_live)")
+        if self.lbm_frame not in ("legacy", "world"):
+            raise ValueError(f"unknown lbm_frame={self.lbm_frame!r} (legacy or world)")
         if self.lbm_agent_coupling not in ("monopole", "dipole"):
             raise ValueError(
                 f"unknown lbm_agent_coupling={self.lbm_agent_coupling!r} (monopole or dipole)"
             )
+        if self.lbm_geometry not in ("auto", "serpentine"):
+            raise ValueError(f"unknown lbm_geometry={self.lbm_geometry!r} (auto or serpentine)")
+        if self.lbm_solid_force not in ("drop", "redistribute"):
+            raise ValueError(
+                f"unknown lbm_solid_force={self.lbm_solid_force!r} (drop or redistribute)"
+            )
+        if self.lbm_geometry == "serpentine" and (
+            self.flow_solver != "lbm_live" or self.lbm_box != "channel"
+        ):
+            raise ValueError("lbm_geometry=serpentine needs flow_solver=lbm_live, lbm_box=channel")
         if self.flow_solver != "lbm_live":
             return
         if self.lbm_viscosity <= 0.0:
