@@ -5,7 +5,7 @@ import numpy as np
 
 from hybrid_alife.agents.embodied import embodied_observation_dim
 from hybrid_alife.ecosystem import ecosystem_step, initialize_ecosystem, load_ecosystem_config
-from hybrid_alife.ecosystem_study import load_checkpoint, Registry, save_checkpoint
+from hybrid_alife.ecosystem_study import Registry, load_checkpoint, save_checkpoint
 from hybrid_alife.experiments.runner import step_sim
 from hybrid_alife.types import EmbodiedConfig
 from hybrid_alife.world.compact_senses import COMPACT_SENSE_DIM, compact_observation
@@ -105,3 +105,14 @@ def test_births_come_only_from_living_parents_and_events_account_for_everyone(tm
     np.testing.assert_array_equal(
         np.asarray(eco.sim.embodied.positions), np.asarray(restored.sim.embodied.positions)
     )
+
+
+def test_compact_senses_wrap_across_the_toroidal_seam():
+    cfg, params = _small()
+    eco = initialize_ecosystem(cfg, replace(params, initial_food=0))
+    pop = eco.sim.embodied
+    pop.positions = jnp.full_like(pop.positions, 0.5).at[:, 0].set(0.99)  # last row
+    food = jnp.zeros((64, 64, 1)).at[2, 32, 0].set(1.0)  # across the seam
+    world = replace(eco.sim.world, resources=food, hazards=jnp.zeros((64, 64, 1)))
+    obs = np.asarray(compact_observation(pop, world, cfg.embodied, cfg.world))
+    assert obs[0, 0] > 0.4

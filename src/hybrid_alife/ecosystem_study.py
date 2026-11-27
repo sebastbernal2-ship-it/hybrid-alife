@@ -165,9 +165,9 @@ def _resample(genomes: dict, count: int, rng: np.random.Generator) -> dict:
     return {k: v[picks] for k, v in genomes.items()}
 
 
-def _blind_to(genomes: dict, prefix: str) -> dict:
-    """Zero the input weights of the channels starting with ``prefix``."""
-    channels = [i for i, name in enumerate(COMPACT_SENSE_LABELS) if name.startswith(prefix)]
+def _blind_to(genomes: dict, prefixes: tuple[str, ...]) -> dict:
+    """Zero the input weights of the channels starting with any of ``prefixes``."""
+    channels = [i for i, name in enumerate(COMPACT_SENSE_LABELS) if name.startswith(prefixes)]
     out = {k: np.array(v) for k, v in genomes.items()}
     for name in _INPUT_WEIGHTS:
         out[name][:, channels, :] = 0.0
@@ -190,20 +190,26 @@ def garden_trial(
     eaten = 0.0
     agent_steps = 0
     toward: list[float] = []
+    hazard = 0.0
     for _ in range(steps):
         live = np.asarray(eco.sim.embodied.alive)
+        old = np.asarray(eco.sim.embodied.positions)
         events = ecosystem_step(eco, allow_reproduction=False)
         eaten += float(events.eaters.sum())
         agent_steps += int(live.sum())
         food = events.observation[live, 0:2]
-        move = events.actions[live, 0:2]
+        new = np.asarray(eco.sim.embodied.positions)
+        move = (new - old)[live]
+        move -= np.round(move)  # shortest displacement on the torus
+        hazard += float((events.observation[live, 8] > 0.0).sum())
         norm = np.linalg.norm(food, axis=1) * np.linalg.norm(move, axis=1)
-        valid = norm > 1e-6
+        valid = norm > 1e-8
         toward.extend((np.sum(food[valid] * move[valid], axis=1) / norm[valid]).tolist())
     return {
         "food_energy_per_founder": eaten / count,
         "food_energy_per_agent_step": eaten / max(agent_steps, 1),
         "survival_fraction": float(np.asarray(eco.sim.embodied.alive).sum()) / count,
+        "share_of_steps_in_hazard": hazard / max(agent_steps, 1),
         "steering_toward_food": float(np.mean(toward)) if toward else 0.0,
     }
 
@@ -212,8 +218,10 @@ def common_garden(saved: dict, *, eval_seeds: int, steps: int, cohort: int) -> d
     """Founders vs evolved genomes, plus two controls, in paired fresh worlds.
 
     ``mutated_only``: founder genomes mutated as many times as the evolved median
-    generation depth, with no selection. ``evolved_food_blind``: evolved genomes with
-    the three food input channels disconnected.
+    generation depth, with no selection (a depth-matched control, not a replay of each
+    lineage). ``evolved_food_blind``: evolved genomes with the three food input
+    channels disconnected. ``evolved_all_blind``: all nine external channels
+    disconnected (the energy sense stays).
     """
     cfg, params = saved["cfg"], saved["params"]
     rng = np.random.default_rng(12345 + cfg.seed)
@@ -230,7 +238,8 @@ def common_garden(saved: dict, *, eval_seeds: int, steps: int, cohort: int) -> d
         "founders": founders,
         "mutated_only": {k: np.asarray(v) for k, v in drifted.items()},
         "evolved": evolved,
-        "evolved_food_blind": _blind_to(evolved, "food"),
+        "evolved_food_blind": _blind_to(evolved, ("food",)),
+        "evolved_all_blind": _blind_to(evolved, ("food", "other", "hazard")),
     }
     rows: dict[str, dict[str, list[float]]] = {name: {} for name in cohorts}
     worlds = [1000 + i for i in range(eval_seeds)]
