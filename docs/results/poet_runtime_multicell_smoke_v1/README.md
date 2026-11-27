@@ -14,3 +14,8 @@ The two-seed exploratory values were poet mean `7.736` and static mean `3.113`.
 The paired exact sign-permutation p-value was `0.5`.
 This smoke is not a scientific comparison and does not satisfy the preregistered replication criteria.
 It only confirms bounded multi-cell execution after the evaluator optimization.
+
+## Note added later
+
+The poet and static means above are subject to the near-start-goal reward issue described in
+[`../poet_campaign_final_v6/README.md`](../poet_campaign_final_v6/README.md); this smoke was not re-checked.
