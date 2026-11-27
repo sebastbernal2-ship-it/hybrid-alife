@@ -50,6 +50,7 @@
 - The multi-cell timing smoke passed, and the declared 40-cell campaign launched from commit `fa965bd` with a four-hour wall-clock cap.
 - All 40 cells completed; the aggregate analysis and provenance audit are archived in `docs/results/poet_campaign_final_v6/`.
 - POET improved final in-distribution transfer but had a pooled held-out effect of `-0.5101` with 95% bootstrap CI `[-0.9131, -0.1089]`.
+- Later correction: every saved v6 policy is constant under greedy evaluation, and the in-distribution gain coincides with goals drifting next to the start; see `results/poet_campaign_final_v6/README.md`.
 - The archive does not support a POET held-out-transfer success claim.
 - The measured runtime record is archived in `docs/results/poet_runtime_profile_v1/`; the retained compiled evaluator reduced the one-seed twenty-generation smoke to 1:19.47 across both tracks.
 - A two-seed, two-track, 20-generation smoke completed in 98.40 seconds and is archived in `docs/results/poet_runtime_multicell_smoke_v1/`; its p-value was `0.5` and it is not scientific evidence.

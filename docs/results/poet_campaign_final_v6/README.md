@@ -1,5 +1,25 @@
 # PPO-POET final held-out campaign
 
+## Correction added later: final policies are constant
+
+A later check reloaded all 40 checkpoints. The current evaluator reproduces the stored held-out
+matrices (maximum difference 2.4e-7). On the held-out worlds, greedy evaluation of **80 of 80
+final policies (both tracks) takes one action on at least 99% of steps**. The held-out scores
+therefore compare which constant action each cell ended on, not learned behaviour.
+All 4000 candidate worlds in the `poet` cells were admitted; the -10 criterion rejected none.
+
+Do not read the in-distribution 9.0049 versus 2.6448 as better policies. A world whose goal is
+close to the start pays the +1 success bonus repeatedly, because success resets the forager to
+the start. In the final `poet` populations 95% of goals are within 0.2 of the start (median
+distance 0.07), against 22% for `static` (median 0.31). In both tracks, worlds with near goals
+score far higher. This is an association in the saved runs, not a controlled test.
+
+The script behind this check was one-off and is not committed, so its figures are not reproducible from the repo.
+
+Recorded numbers below are unchanged. The cause analysis is in
+[`../poet_physics_envs/README.md`](../poet_physics_envs/README.md#why-final-policies-take-one-action).
+
+
 This archive contains the completed two-replication `poet` versus `static` campaign.
 
 ## Design

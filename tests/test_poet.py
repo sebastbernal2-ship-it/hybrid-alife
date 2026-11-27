@@ -360,3 +360,17 @@ def test_campaign_writes_manifest_analysis_and_figures(tmp_path: Path):
     assert result.generation == 2
     assert payload["environment_mutations"] > 0
     assert payload["replication_metadata"]["replication_id"]
+
+
+def test_advantages_do_not_bootstrap_across_episode_resets():
+    """A success resets the forager, so that step's return is its reward alone."""
+    cfg = tiny_config()
+    env = initialize_poet_state(cfg, seed=0).environments[0]
+    # Goal on the start cell with no external flow: every step succeeds and resets.
+    env = env._replace(params=env.params.at[jnp.array([0, 1, 4, 5])].set(
+        jnp.array([0.5, 0.5, 0.0, 0.0])))
+    batch = collect_rollout(
+        initialize_poet_state(cfg, seed=0).policies[0], env, cfg, jax.random.PRNGKey(0)
+    )
+    assert np.all(np.asarray(batch.rewards) > 0.5)
+    np.testing.assert_allclose(batch.returns, batch.rewards, rtol=1e-6)

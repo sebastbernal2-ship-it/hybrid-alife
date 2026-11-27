@@ -1,5 +1,19 @@
 # PPO-POET held-out replication campaign
 
+## Correction added later: most final policies are constant
+
+A later check reloaded the 40 checkpoints and ran them greedily on their held-out worlds with the
+current evaluator: **72 of 80 final policies take one action on at least 99% of steps** (`poet`
+40 of 40, `static` 32 of 40). All 4000 candidate worlds were admitted. The current evaluator does
+not reproduce this archive's stored held-out matrices (maximum difference 4.95), so this check
+describes the saved policies under current code, not the evaluator that produced the numbers.
+
+The script behind this check was one-off and is not committed, so its figures are not reproducible from the repo.
+
+Recorded numbers below are unchanged. The cause analysis is in
+[`../poet_physics_envs/README.md`](../poet_physics_envs/README.md#why-final-policies-take-one-action).
+
+
 This archive contains two independent poet-versus-static replications.
 
 ## Design

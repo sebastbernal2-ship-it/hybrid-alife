@@ -78,3 +78,8 @@ The timing record is in `docs/results/poet_runtime_profile_v1/` and the bounded 
 The Avida-enabled path retains the reference evaluator.
 
 The legacy runner remains unchanged by this module.
+
+## Known limitation
+
+Greedy evaluation of the saved v6 policies takes one constant action, and the -10 criterion rejected
+no candidate. See [the analysis](results/poet_physics_envs/README.md#why-final-policies-take-one-action).

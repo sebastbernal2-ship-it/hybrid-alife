@@ -813,11 +813,17 @@ def _gae(
     values: list[jax.Array],
     last_value: jax.Array,
     cfg: POETConfig,
+    dones: list[bool],
 ) -> jax.Array:
+    """GAE that stops at episode ends: a done step is followed by a reset."""
     advantages: list[jax.Array] = []
     gae = jnp.asarray(0.0, dtype=jnp.float32)
     next_value = last_value
-    for reward, value in zip(reversed(rewards), reversed(values), strict=True):
+    for reward, value, done in zip(
+        reversed(rewards), reversed(values), reversed(dones), strict=True
+    ):
+        if done:
+            next_value, gae = 0.0, 0.0
         delta = reward + cfg.ppo.gamma * next_value - value
         gae = delta + cfg.ppo.gamma * cfg.ppo.gae_lambda * gae
         advantages.append(gae)
@@ -1157,6 +1163,7 @@ def _collect_rollout(
     old_log_probs: list[jax.Array] = []
     rewards: list[jax.Array] = []
     values: list[jax.Array] = []
+    dones: list[bool] = []
     diagnostics = {
         "resource_gather_events": 0.0,
         "interaction_events": 0.0,
@@ -1202,13 +1209,14 @@ def _collect_rollout(
         old_log_probs.append(log_prob)
         rewards.append(reward)
         values.append(value)
+        dones.append(done)
         if done:
             positions = jnp.asarray([0.5, 0.5], dtype=jnp.float32)
             energy = 1.0
     last_value = policy_forward(
         params, _world_observation(env, state.world, positions, horizon, cfg, horizon, energy)
     )[1]
-    advantages = _gae(rewards, values, last_value, cfg)
+    advantages = _gae(rewards, values, last_value, cfg, dones)
     returns = advantages + jnp.stack(values)
     advantages = (advantages - jnp.mean(advantages)) / (jnp.std(advantages) + 1e-8)
     return _Batch(

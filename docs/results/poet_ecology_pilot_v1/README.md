@@ -15,3 +15,9 @@ All three seeds admitted three candidate environments and rejected none under th
 This is an engineering pilot.
 It does not establish open-ended evolution or consciousness.
 The preregistered 10-seed campaign, calibrated admission threshold, and independent replication remain required.
+
+## Note added later
+
+This pilot's policies were not saved and were not re-checked. Later checks of other POET runs found
+constant-action policies and a -10 criterion that rejects nothing; see
+[`../poet_physics_envs/README.md`](../poet_physics_envs/README.md).

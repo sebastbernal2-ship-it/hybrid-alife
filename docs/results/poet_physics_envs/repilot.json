@@ -1,0 +1,548 @@
+{
+  "status": "pilot",
+  "source_commit": "32306a5df8d995f9235f9d0a601bf53527e19269",
+  "config": "configs/poet_physics_repilot.yaml",
+  "minimal_criterion": 2.8,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "generations": 12,
+  "cells": [
+    {
+      "arm": "legacy",
+      "seed": 0,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 1.1509895324707031,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.43359375,
+              1.0,
+              1.0,
+              0.58203125
+            ],
+            "entropy_nats": [
+              2.0777807235717773,
+              2.0629489421844482,
+              2.050833225250244,
+              2.075432300567627
+            ]
+          },
+          "initial_best_per_env_mean": 2.7784295082092285,
+          "final_mean": 2.891605854034424,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "entropy_nats": [
+              1.9683990478515625,
+              1.967822790145874,
+              1.9560273885726929,
+              1.9644196033477783
+            ]
+          },
+          "final_best_per_env_mean": 2.9087212085723877
+        },
+        "physics": {
+          "initial_mean": 0.7000548243522644,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.6796875,
+              0.99609375,
+              1.0,
+              0.5625
+            ],
+            "entropy_nats": [
+              2.078019142150879,
+              2.0633316040039062,
+              2.050942897796631,
+              2.0753986835479736
+            ]
+          },
+          "initial_best_per_env_mean": 2.174818277359009,
+          "final_mean": 2.9534316062927246,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "entropy_nats": [
+              1.9714770317077637,
+              1.9709036350250244,
+              1.9592223167419434,
+              1.967494249343872
+            ]
+          },
+          "final_best_per_env_mean": 2.998960494995117
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 5,
+      "candidate_score_mean": 7.229552594323953,
+      "ecology": {
+        "resource_gather_events": 185.0,
+        "interaction_events": 158.0,
+        "reproduction_events": 61.0,
+        "success_events": 41.0,
+        "failure_events": 0.0,
+        "energy_cost": 55.88900325811235,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 429.0
+      },
+      "wall_seconds": 25.0
+    },
+    {
+      "arm": "physics",
+      "seed": 0,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 1.1509895324707031,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.43359375,
+              1.0,
+              1.0,
+              0.58203125
+            ],
+            "entropy_nats": [
+              2.0777807235717773,
+              2.0629489421844482,
+              2.050833225250244,
+              2.075432300567627
+            ]
+          },
+          "initial_best_per_env_mean": 2.7784295082092285,
+          "final_mean": 2.184230089187622,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "entropy_nats": [
+              2.026106834411621,
+              2.011671543121338,
+              2.0463929176330566,
+              2.011861801147461
+            ]
+          },
+          "final_best_per_env_mean": 2.4211888313293457
+        },
+        "physics": {
+          "initial_mean": 0.7000548243522644,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.6796875,
+              0.99609375,
+              1.0,
+              0.5625
+            ],
+            "entropy_nats": [
+              2.078019142150879,
+              2.0633316040039062,
+              2.050942897796631,
+              2.0753986835479736
+            ]
+          },
+          "initial_best_per_env_mean": 2.174818277359009,
+          "final_mean": 1.7240545749664307,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              0.99609375,
+              1.0,
+              1.0
+            ],
+            "entropy_nats": [
+              2.0285232067108154,
+              2.014671564102173,
+              2.0477476119995117,
+              2.014894962310791
+            ]
+          },
+          "final_best_per_env_mean": 2.0506439208984375
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 0,
+      "candidate_score_mean": 1.3312875032424927,
+      "ecology": {
+        "resource_gather_events": 182.0,
+        "interaction_events": 101.0,
+        "reproduction_events": 51.0,
+        "success_events": 10.0,
+        "failure_events": 3.0,
+        "energy_cost": 53.13637775610814,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 378.0
+      },
+      "wall_seconds": 18.3
+    },
+    {
+      "arm": "legacy",
+      "seed": 1,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.947577476501465,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.78515625,
+              1.0,
+              1.0,
+              0.7421875
+            ],
+            "entropy_nats": [
+              2.0747885704040527,
+              2.067265510559082,
+              2.0731077194213867,
+              2.076300859451294
+            ]
+          },
+          "initial_best_per_env_mean": 7.190291881561279,
+          "final_mean": 5.664705276489258,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              0.578125,
+              0.9921875,
+              0.6484375,
+              0.9921875
+            ],
+            "entropy_nats": [
+              2.019681930541992,
+              2.022362470626831,
+              2.0183498859405518,
+              2.0228798389434814
+            ]
+          },
+          "final_best_per_env_mean": 8.116975784301758
+        },
+        "physics": {
+          "initial_mean": 2.8335959911346436,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.90625,
+              1.0,
+              1.0,
+              0.6875
+            ],
+            "entropy_nats": [
+              2.0752086639404297,
+              2.067385196685791,
+              2.073397159576416,
+              2.0760974884033203
+            ]
+          },
+          "initial_best_per_env_mean": 6.660728454589844,
+          "final_mean": 5.719029426574707,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              0.80859375,
+              0.96875,
+              0.82421875,
+              0.9921875
+            ],
+            "entropy_nats": [
+              2.023110866546631,
+              2.025454521179199,
+              2.0218849182128906,
+              2.0256214141845703
+            ]
+          },
+          "final_best_per_env_mean": 7.879748344421387
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 11,
+      "candidate_score_mean": 12.99985533952713,
+      "ecology": {
+        "resource_gather_events": 195.0,
+        "interaction_events": 130.0,
+        "reproduction_events": 63.0,
+        "success_events": 68.0,
+        "failure_events": 0.0,
+        "energy_cost": 55.84623590314294,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 394.0
+      },
+      "wall_seconds": 17.3
+    },
+    {
+      "arm": "physics",
+      "seed": 1,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.947577476501465,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.78515625,
+              1.0,
+              1.0,
+              0.7421875
+            ],
+            "entropy_nats": [
+              2.0747885704040527,
+              2.067265510559082,
+              2.0731077194213867,
+              2.076300859451294
+            ]
+          },
+          "initial_best_per_env_mean": 7.190291881561279,
+          "final_mean": 6.121578216552734,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              0.97265625,
+              0.9921875,
+              1.0
+            ],
+            "entropy_nats": [
+              2.0038580894470215,
+              2.0020751953125,
+              2.0051591396331787,
+              2.0032904148101807
+            ]
+          },
+          "final_best_per_env_mean": 6.337875843048096
+        },
+        "physics": {
+          "initial_mean": 2.8335959911346436,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.90625,
+              1.0,
+              1.0,
+              0.6875
+            ],
+            "entropy_nats": [
+              2.0752086639404297,
+              2.067385196685791,
+              2.073397159576416,
+              2.0760974884033203
+            ]
+          },
+          "initial_best_per_env_mean": 6.660728454589844,
+          "final_mean": 6.030161380767822,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              0.95703125,
+              0.9921875,
+              1.0
+            ],
+            "entropy_nats": [
+              2.006742477416992,
+              2.005614995956421,
+              2.0080928802490234,
+              2.006196975708008
+            ]
+          },
+          "final_best_per_env_mean": 6.120943069458008
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 11,
+      "candidate_score_mean": 14.384939432144165,
+      "ecology": {
+        "resource_gather_events": 191.0,
+        "interaction_events": 140.0,
+        "reproduction_events": 55.0,
+        "success_events": 87.0,
+        "failure_events": 2.0,
+        "energy_cost": 53.88407853038597,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 398.0
+      },
+      "wall_seconds": 18.1
+    },
+    {
+      "arm": "legacy",
+      "seed": 2,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.4832894802093506,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.58203125,
+              0.40234375,
+              0.80078125,
+              0.62109375
+            ],
+            "entropy_nats": [
+              2.0764784812927246,
+              2.075244426727295,
+              2.0771217346191406,
+              2.0724895000457764
+            ]
+          },
+          "initial_best_per_env_mean": 5.559226036071777,
+          "final_mean": 3.620849609375,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              0.83984375,
+              1.0,
+              1.0,
+              0.86328125
+            ],
+            "entropy_nats": [
+              2.0210373401641846,
+              2.014451503753662,
+              2.0144007205963135,
+              2.00447678565979
+            ]
+          },
+          "final_best_per_env_mean": 4.051244258880615
+        },
+        "physics": {
+          "initial_mean": 2.1382455825805664,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.4921875,
+              0.390625,
+              0.73828125,
+              0.5703125
+            ],
+            "entropy_nats": [
+              2.0766398906707764,
+              2.0754990577697754,
+              2.0772955417633057,
+              2.073197603225708
+            ]
+          },
+          "initial_best_per_env_mean": 4.355923175811768,
+          "final_mean": 2.7502665519714355,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              0.875,
+              1.0,
+              1.0,
+              0.8984375
+            ],
+            "entropy_nats": [
+              2.024719715118408,
+              2.0166351795196533,
+              2.0165982246398926,
+              2.0088582038879395
+            ]
+          },
+          "final_best_per_env_mean": 2.923582077026367
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 4,
+      "candidate_score_mean": 7.635606388250987,
+      "ecology": {
+        "resource_gather_events": 203.0,
+        "interaction_events": 119.0,
+        "reproduction_events": 72.0,
+        "success_events": 307.0,
+        "failure_events": 1.0,
+        "energy_cost": 56.490550106875595,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 406.0
+      },
+      "wall_seconds": 18.3
+    },
+    {
+      "arm": "physics",
+      "seed": 2,
+      "heldout": {
+        "legacy": {
+          "initial_mean": 2.4832894802093506,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.58203125,
+              0.40234375,
+              0.80078125,
+              0.62109375
+            ],
+            "entropy_nats": [
+              2.0764784812927246,
+              2.075244426727295,
+              2.0771217346191406,
+              2.0724895000457764
+            ]
+          },
+          "initial_best_per_env_mean": 5.559226036071777,
+          "final_mean": 2.91011905670166,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              1.0,
+              0.99609375,
+              1.0
+            ],
+            "entropy_nats": [
+              1.964372158050537,
+              2.039910316467285,
+              2.0115180015563965,
+              1.9644525051116943
+            ]
+          },
+          "final_best_per_env_mean": 3.821277618408203
+        },
+        "physics": {
+          "initial_mean": 2.1382455825805664,
+          "initial_behaviour": {
+            "greedy_modal_action_share": [
+              0.4921875,
+              0.390625,
+              0.73828125,
+              0.5703125
+            ],
+            "entropy_nats": [
+              2.0766398906707764,
+              2.0754990577697754,
+              2.0772955417633057,
+              2.073197603225708
+            ]
+          },
+          "initial_best_per_env_mean": 4.355923175811768,
+          "final_mean": 2.392530918121338,
+          "final_behaviour": {
+            "greedy_modal_action_share": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "entropy_nats": [
+              1.9682120084762573,
+              2.0413942337036133,
+              2.011086940765381,
+              1.968277931213379
+            ]
+          },
+          "final_best_per_env_mean": 3.0517759323120117
+        }
+      },
+      "policy_updates": 48,
+      "environment_candidates": 12,
+      "environment_admissions": 7,
+      "candidate_score_mean": 12.075954387585321,
+      "ecology": {
+        "resource_gather_events": 205.0,
+        "interaction_events": 138.0,
+        "reproduction_events": 67.0,
+        "success_events": 174.0,
+        "failure_events": 1.0,
+        "energy_cost": 56.57647799402868,
+        "avida_feedback": 0.0,
+        "controller_to_avida_events": 427.0
+      },
+      "wall_seconds": 18.1
+    }
+  ]
+}
