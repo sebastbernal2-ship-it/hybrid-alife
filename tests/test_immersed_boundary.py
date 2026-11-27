@@ -222,3 +222,32 @@ def test_unit_map_round_trips_and_numbers():
         998 * units.dx_m**3 / units.dt_s**2)
     with pytest.raises(ValueError):
         UnitMap(dx_m=0.0)
+
+
+def test_default_kernel_is_four_point_and_unknown_kernels_are_rejected():
+    bodies = [ib.swimmer((40.0, 32.21))]
+    default = ib.ImmersedSim.create(ib.Structure.from_bodies(bodies), 64, 96).advance(200)
+    four = ib.ImmersedSim.create(ib.Structure.from_bodies(bodies, kernel=4), 64, 96).advance(200)
+    np.testing.assert_array_equal(default.f, four.f)
+    with pytest.raises(ValueError, match="kernel"):
+        ib.Structure.from_bodies(bodies, kernel=5)
+    with pytest.raises(ValueError, match="invalid"):
+        replace(default, structure=replace(default.structure, kernel=1)).advance(1)
+
+
+@pytest.mark.parametrize("kernel", [2, 3])
+def test_narrow_kernels_conserve_momentum_and_thin_the_cylinder(kernel):
+    s = ib.Structure.from_bodies([ib.swimmer((40.0, 32.21))], ramp_steps=1000, kernel=kernel)
+    sim = ib.ImmersedSim.create(s, 64, 96)
+    out = sim.advance(1500)
+    np.testing.assert_allclose(out.fluid_momentum(), sim.fluid_momentum(), atol=1e-10)
+    assert not np.array_equal(out.X, replace(sim, structure=replace(s, kernel=4)).advance(1500).X)
+
+    def drag_per_speed(width):
+        ring = ib.cylinder((16.13, 16.29), 32 * np.sqrt(0.05 / np.pi), spacing=1.0)
+        c = ib.Structure.from_bodies([ring], tether_k=0.05, kernel=width)
+        run = ib.ImmersedSim.create(c, 32, 32, body_force=(2e-6, 0.0)).advance(5000)
+        return -run.report["tether_fx"] / run.u.mean()
+
+    # The 4-point kernel overpredicts drag by about 18 % here; narrower support, less.
+    assert drag_per_speed(kernel) < 0.97 * drag_per_speed(4)

@@ -41,6 +41,7 @@ struct IbStructure {
   double contact_radius;  // 0 disables contact
   double contact_k;
   double ramp_steps;  // actuation amplitude rises linearly over this many steps
+  int32_t kernel;     // delta support in cells: 4 (Peskin, default), 3 (Roma) or 2 (hat)
 };
 
 struct IbReport {
@@ -65,20 +66,33 @@ inline double phi4(double r) {
   return 0.0;
 }
 
+// Opt-in narrower kernels. Both keep zeroth and first moments (total force and torque).
+// 3-point: Roma, Peskin & Berger (1999), J. Comput. Phys. 153:509.
+inline double phi3(double r) {
+  r = std::fabs(r);
+  if (r <= 0.5) return (1.0 + std::sqrt(1.0 - 3.0 * r * r)) / 3.0;
+  if (r < 1.5)
+    return (5.0 - 3.0 * r - std::sqrt(std::fmax(0.0, 1.0 - 3.0 * (1.0 - r) * (1.0 - r)))) / 6.0;
+  return 0.0;
+}
+
+inline double phi2(double r) { return std::fmax(0.0, 1.0 - std::fabs(r)); }
+
 struct Stencil {
   int node[16];
   double w[16];
 };
 
-inline void make_stencil(double x, double y, int nx, int ny, Stencil& s) {
+inline void make_stencil(double x, double y, int nx, int ny, Stencil& s, int kernel = 4) {
+  double (*const phi)(double) = kernel == 2 ? phi2 : kernel == 3 ? phi3 : phi4;
   const int x0 = static_cast<int>(std::floor(x)) - 1, y0 = static_cast<int>(std::floor(y)) - 1;
   for (int b = 0; b < 4; ++b) {
     const int gy = ((y0 + b) % ny + ny) % ny;
-    const double wy = phi4(y - (y0 + b));
+    const double wy = phi(y - (y0 + b));
     for (int a = 0; a < 4; ++a) {
       const int gx = ((x0 + a) % nx + nx) % nx;
       s.node[b * 4 + a] = gy * nx + gx;
-      s.w[b * 4 + a] = wy * phi4(x - (x0 + a));
+      s.w[b * 4 + a] = wy * phi(x - (x0 + a));
     }
   }
 }
@@ -130,6 +144,7 @@ double internal_forces(const IbStructure& s, const double* X, double t, double* 
 
 bool valid(const IbStructure& s) {
   const int n = s.n_points;
+  if (s.kernel < 2 || s.kernel > 4) return false;
   if (n < 0 || s.n_edges < 0 || s.n_angles < 0 || s.n_tethers < 0) return false;
   for (int e = 0; e < 2 * s.n_edges; ++e)
     if (s.edges[e] < 0 || s.edges[e] >= n) return false;
@@ -226,7 +241,7 @@ int ib_advance(int ny, int nx, const uint8_t* mask, double nu, double bx, double
     touched.clear();
     for (int p = 0; p < n; ++p) {
       if (!std::isfinite(X[2 * p]) || !std::isfinite(X[2 * p + 1])) return -3;
-      make_stencil(X[2 * p], X[2 * p + 1], nx, ny, st[p]);
+      make_stencil(X[2 * p], X[2 * p + 1], nx, ny, st[p], s.kernel);
       for (int q = 0; q < 16; ++q) {
         const int node = st[p].node[q];
         if (mask[node] && st[p].w[q] > 0) return -2;

@@ -52,8 +52,10 @@ channel body force, not the periodic box's mean-flow relaxation.
 ## Validation
 
 All numbers are lattice units, `nu = 1/6` unless stated. Tests in
-`tests/test_immersed_boundary.py` repeat the coarse cases; the finer rows were run once
-with throwaway drivers built on the public API and are not rechecked by CI.
+`tests/test_immersed_boundary.py` repeat the coarse cases. The sheet and swimmer
+refinement rows come from `scripts/run_ib_convergence.py` (raw JSON in
+`docs/results/ib_convergence/raw`, fits in `summary.json`) and are not rechecked by CI.
+The cylinder table and the other single-run numbers were run once with throwaway drivers.
 
 ### Drag on a square array of cylinders
 
@@ -83,47 +85,123 @@ inextensible formula). `b` is the measured amplitude, not the prescribed one; `U
 relative to the fluid half a box away. `bk = 0.2`, `R = 0.24`. The sheet swims against
 the wave, as it should.
 
-Speed error against theory (cells per wavelength; box height H):
+Speed error against theory (cells per wavelength; box height H; 8 beats, the first two
+dropped; +/- is the standard error over the other six, which are not independent):
 
 | cells | H = 1 wavelength | H = 2 wavelengths |
 |---|---|---|
-| 32 | -30 % | not run |
-| 48 | -22 % | -18 % |
-| 64 | -20 % | -15 % |
-| 96 | -14 % | -9.0 % |
-| 128 | -11 % | -6.7 % |
+| 32 | -29.8 +/- 0.04 % | -25.6 +/- 0.04 % |
+| 48 | -22.2 +/- 0.2 % | -18.0 +/- 0.2 % |
+| 64 | -17.3 +/- 1.0 % | -12.7 +/- 0.8 % |
+| 96 | -13.5 +/- 0.2 % | -9.0 +/- 0.2 % |
+| 128 | -11.2 +/- 0.1 % | -6.6 +/- 0.1 % |
 
-In the taller box a first-order fit through 96 and 128 (or 48 and 128) extrapolates to
-within 1 % of theory. That is an extrapolation; no run itself is closer than 6.7 %.
-A 192-cell run went unstable because its `bend_k = 12` is past the explicit limit below.
+- **H = 2 is consistent with first order toward Taylor's value.** The observed order of
+  the error is 0.98 from 32 to 128, 1.07 +/- 0.10 from 96 to 128, and 0.9 to 1.2
+  (+/- 0.2) for the pairs through 64. A first-order line through 96 and 128 gives +0.5 %.
+  This is still an extrapolation; the closest run is 6.6 % low.
+- **H = 1 does not tend to the same value:** the same line gives -4.3 %. The theory is
+  for an unbounded fluid and the periodic images are not negligible at H = 1.
+- Longitudinal material motion of the elastic sheet is not the cause: its measured
+  leading-order effect on the speed is below 0.03 % in every run.
+- The 64-cell speed varies by about 10 % from beat to beat (amplitude 1.05 of
+  prescribed). The cause is not known. Averaging three beats, as before, was too short there.
+- A single earlier set of runs also found the error did not come from inertia, `bk` or
+  stiffness. A 192-cell run is unstable: its `bend_k = 12` is past the explicit limit.
 
-The error does not come from inertia (at 48 cells, `R = 0.06`: -21.6 %), from `bk`
-(0.1: -23 %; 0.4: -18 %), or from stiffness (-22 %). It falls with resolution and with
-box height. **At the resolutions a swimmer would use, expect speeds 15 to 30 % low.**
-The 64-cell realised amplitude differs from the others (1.04 of prescribed), so that row
-is a less clean point in the sequence.
+**At the resolutions a swimmer would use, expect speeds 15 to 30 % low.**
 
-### Free swimmer: resolution is the main error
+### Free swimmer: not grid-converged
 
-Same physical swimmer at fixed elastoviscous number (`bend_k` proportional to
-`r/period`, `stretch_k` to `1/(r period)`), with `R` fixed, geometry and box times `r`,
-period times `r^2`, point spacing 1 cell. Stride is per beat in `r = 1` cells.
+Refinement by `r`: all lengths times `r` (including the box, 64r x 96r), period `2000 r^2`
+(fixed wave Reynolds number at fixed `nu`), point spacing 1 cell. To keep the physical
+stiffness fixed, **`bend_k = 0.2 r` and `stretch_k = 0.05 / r`**. In 2-D per unit depth a
+force scales as `mu U ~ 1/r`, so `B = force x length^2 ~ r` and the joint constant is
+`B/ds` with `ds` one cell; `EA ~ 1/r` likewise. An earlier version of this page gave
+`bend_k ~ r/period` and `stretch_k ~ 1/(r period)`. Read literally that is softer by
+`1/r^2` and gives stride 0.103 at r = 2 and a realised amplitude that falls steadily; it
+is not what produced the old table, which the formulas above reproduce to within 0.002.
 
-| r | stride | against the extrapolated 0.52 |
+Stride is per beat in r = 1 cells, mean from beat 3 on (beats 3 to 6; 3 and 4 at r = 6).
+Tip amplitude is the first harmonic of the tail tip's offset from the head axis, over `r`.
+
+| r | stride | beat-to-beat s.d. | tip amplitude |
+|---|---|---|---|
+| 1 | 0.2119 | 0.004 | 1.91 |
+| 1.5 | 0.2999 | 0.002 | 1.78 |
+| 2 | 0.3509 | 0.001 | 1.71 |
+| 3 | 0.4057 | 0.0003 | 1.62 |
+| 4 | 0.4352 | 0.0007 | 1.57 |
+| 6 | 0.4681 | 0.0004 (2 beats) | 1.52 |
+
+**The swimmer is not converged at any resolution run, and the order is not pinned down.**
+
+| fit | observed order | limit |
 |---|---|---|
-| 1 | 0.214 | -59 % |
-| 2 | 0.351 | -33 % |
-| 3 | 0.406 | -22 % |
-| 4 (2 beats averaged, others 4) | 0.435 | -17 % |
+| `L - c r^-p`, all 20 triples of the six rows | 0.59 to 0.79 (0.68 to 0.77 for triples with r = 6) | 0.55 to 0.63 (0.556 to 0.573 with r = 6) |
+| `L - a/r - b/r^2`, triples from r >= 1.5 | 1 assumed | 0.527 to 0.544 |
+| `L - a/r`, r = 4 and 6 | 1 assumed | 0.534 |
 
-The differences shrink (0.137, 0.055, 0.029), consistent with first order in cell size.
-The limit 0.52 is a first-order extrapolation from r = 3 and 4, not a computed value.
+The apparent order rose with resolution up to r = 4 (0.79 from r = 2, 3, 4), then the
+triple 3, 4, 6 gave 0.68. So asymptotic first order is plausible but **not shown**. Both
+fit forms through r = 2, 3, 4 predicted 0.466 to 0.467 at r = 6, against 0.468 measured. Taking
+0.53 to 0.57 as the range of the limit, r = 6 is 12 to 18 % low, r = 4 is 18 to 24 % low
+and r = 1 is 60 to 63 % low. These ranges are spreads between fit forms, not statistical
+confidence intervals.
+
+What was checked, changing one thing at a time (stride; baseline r = 1: 0.212, r = 2: 0.351):
+
+| change | r = 1 | r = 2 | reading |
+|---|---|---|---|
+| 10 beats | 0.213 | 0.351 | averaging window: negligible at r >= 2, about 2 % scatter at r = 1 |
+| box x1.5 / x2 | 0.201 / 0.197 | 0.343 / 0.340 | periodic images add 3 % (r = 2) to 8 % (r = 1) |
+| period x4 | 0.207 | 0.332 | inertia: a few percent |
+| point spacing 0.5 cell | 0.20 (erratic) | 0.351 | stride unchanged at r = 2, though tip amplitude rises to 1.95 |
+| stiffness x0.5 / x4 | 0.120 / 0.471 | 0.209 / 0.702 | the gait is stiffness limited: scaling errors matter a lot |
+
+Compressibility is not it: the largest density range falls from 0.0022 (r = 1) to
+0.0002 (r = 6). The remaining resolution error behaves like a boundary error whose size
+is set in cells: the kernel support makes thin bodies hydrodynamically thicker than drawn
+(see the cylinder), and a narrower kernel moves each coarse result toward the fine ones.
+That is an interpretation consistent with the data, not a proof; the slower-than-first
+apparent order and the drift of the realised amplitude are not explained.
 
 **The default swimmer (r = 1: head 8 x 5 cells, tail 20 cells, wave amplitude 1.5) is
 not grid-converged. Do not quote its speed.** The qualitative behaviour (direction, no
 motion without actuation) holds. A standing-wave actuation still drifts, because a
 flexible tail does not follow a reciprocal rest shape reciprocally; this is therefore not
 a scallop-theorem test, and no rigid-kinematics scallop test was done.
+
+### Narrower kernels (opt-in, limited use)
+
+`Structure.from_bodies(..., kernel=3)` uses the Roma, Peskin and Berger 3-point delta in
+the time loop and `kernel=2` the linear hat; `spread()` stays 4-point. The default is 4
+and is unchanged. Both conserve total force and first moment, and both lower cylinder drag.
+
+| r | 4-point | 3-point | 2-point |
+|---|---|---|---|
+| 1 | 0.212 | 0.271 | 0.303 (noisier) |
+| 1.5 | 0.300 | 0.344 | 0.369 (noisier) |
+| 2 | 0.351 | 0.386 | unstable |
+| 3 | 0.406 | 0.431 | unstable |
+| 4 | 0.435 | 0.456 | unstable |
+
+For this swimmer the 3-point kernel at `r` is roughly the 4-point one at 1.3 `r`. It does
+**not** change the order (0.72 from r = 2, 3, 4; limit 0.564, or 0.541 with the two-term
+form, close to the 4-point values). **It is not a general fix:** on the sheet it ran only
+at 32 cells (-20.7 % against -25.6 %) and went unstable at 48 to 128; the 2-point kernel
+failed every sheet run. Smaller stiffness or spacing for those cases was not explored.
+Do not use `kernel=2` or `3` without checking stability and resolution.
+
+Reproduce (finished cases are skipped, so delete a raw file to rerun it; r = 6 takes
+over an hour):
+
+```
+for s in swimmer controls sheet kernel; do
+  python scripts/run_ib_convergence.py --study $s --jobs 4 --output /tmp/ib_raw
+done   # sheet includes 192 cells, which is recorded as failed (unstable)
+python scripts/analyze_ib_convergence.py   # reads docs/results/ib_convergence/raw
+```
 
 ### Viscosity and kinetic stability
 
@@ -221,17 +299,16 @@ The fluid step dominates. The kernel is single threaded and is not optimised.
 
 ## Sanitizers
 
-`libib.so` and `libcontact.so` were built with
-`-fsanitize=address,undefined -fno-sanitize-recover=all`, and
-`tests/test_immersed_boundary.py` passed with ASan preloaded and no reports (leak check
-off, as CPython leaks by design). A deliberately undersized `ib_spread` buffer produced a
-heap-buffer-overflow report, so the instrumentation was live. This is a manual run:
-this change does not add it to CI.
+`make sanitize-build sanitize-test` (also a CI job) runs the native tests, including the
+narrow kernels, under AddressSanitizer and UndefinedBehaviorSanitizer; restore the normal
+build with `make -B -C native`.
 
 ## Not done
 
-- A free-swimmer run close to its grid limit (r = 4 is still about 17 % below the
-  extrapolation).
-- IB accuracy away from `nu = 1/6`; no multiple-relaxation-time or direct-forcing variant.
+- A grid-converged free swimmer, or an established asymptotic order for it.
+- IB accuracy away from `nu = 1/6`. TRT or MRT collision, implicit coupling and
+  sharp-interface schemes were not tried. Multi-direct forcing was not tried either: it
+  reduces slip in direct-forcing schemes, whereas here points already move with the
+  interpolated velocity.
 - Wall contact, self-contact, hard non-overlap constraint, scalar transport, Brownian
   motion, 3-D, threading, and any coupling to agents or evolution.

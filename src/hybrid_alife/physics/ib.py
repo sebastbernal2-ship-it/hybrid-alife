@@ -56,6 +56,7 @@ class _Structure(ctypes.Structure):
         ("contact_radius", ctypes.c_double),
         ("contact_k", ctypes.c_double),
         ("ramp_steps", ctypes.c_double),
+        ("kernel", ctypes.c_int32),
     ]
 
 
@@ -244,6 +245,7 @@ class Structure:
     contact_radius: float = 0.0
     contact_k: float = 0.0
     ramp_steps: float = 0.0
+    kernel: int = 4  # delta support in cells used by the time loop: 4 (default), 3 or 2
 
     @classmethod
     def from_bodies(
@@ -253,7 +255,10 @@ class Structure:
         contact_radius: float = 0.0,
         contact_k: float = 0.0,
         ramp_steps: float = 0.0,
+        kernel: int = 4,
     ) -> Structure:
+        if kernel not in (2, 3, 4):
+            raise ValueError("kernel must be 2, 3 or 4")
         if not bodies:
             raise ValueError("a structure needs at least one body")
         cols: dict[str, list] = {k: [] for k in (
@@ -302,7 +307,7 @@ class Structure:
         }
         return cls(kinds=tuple(b.kind for b in bodies), tether_k=tether_k,
                    contact_radius=contact_radius, contact_k=contact_k, ramp_steps=ramp_steps,
-                   **joined)
+                   kernel=kernel, **joined)
 
     def _c(self) -> _Structure:
         # The arrays are owned by self, which outlives every call that uses the pointers.
@@ -315,7 +320,7 @@ class Structure:
             n_points=len(self.points), n_edges=len(self.edges), n_angles=len(self.angles),
             n_tethers=len(self.tethers), tether_k=self.tether_k,
             contact_radius=self.contact_radius, contact_k=self.contact_k,
-            ramp_steps=self.ramp_steps, **values,
+            ramp_steps=self.ramp_steps, kernel=self.kernel, **values,
         )
 
     def forces(self, X: np.ndarray, t: float) -> tuple[float, np.ndarray]:
