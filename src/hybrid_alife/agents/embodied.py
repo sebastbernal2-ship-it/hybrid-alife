@@ -46,6 +46,7 @@ from hybrid_alife.types import (
     WorldConfig,
     WorldState,
 )
+from hybrid_alife.world.compact_senses import COMPACT_SENSE_DIM, compact_observation
 from hybrid_alife.world.env import (
     gather_patch,
     hazard_damage,
@@ -86,6 +87,8 @@ def patch_channels(world_cfg: WorldConfig) -> int:
 
 
 def embodied_observation_dim(embodied_cfg: EmbodiedConfig, world_cfg: WorldConfig) -> int:
+    if embodied_cfg.compact_senses:
+        return COMPACT_SENSE_DIM
     patch_side = 2 * embodied_cfg.obs_radius + 1
     patch_size = patch_side * patch_side * patch_channels(world_cfg)
     sense = sixth_sense_dim(world_cfg)
@@ -222,16 +225,16 @@ def initialize_embodied_genomes(
             "b_linear": jnp.zeros((cfg.population_size, action_dim)),
             **body,
         }
-    return {
-        **init_controller_params(
-            n=cfg.population_size,
-            obs_dim=embodied_observation_dim(cfg, world_cfg),
-            action_dim=embodied_action_dim(cfg),
-            hidden=cfg.hidden_size,
-            key=key,
-        ),
-        **body,
-    }
+    controller = init_controller_params(
+        n=cfg.population_size,
+        obs_dim=embodied_observation_dim(cfg, world_cfg),
+        action_dim=embodied_action_dim(cfg),
+        hidden=cfg.hidden_size,
+        key=key,
+    )
+    if cfg.controller_init_scale != 1.0:
+        controller = {k: v * cfg.controller_init_scale for k, v in controller.items()}
+    return {**controller, **body}
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +309,8 @@ def observe_embodied(
     key: PRNGKey,
 ) -> jax.Array:
     """Build observation tensor [N, obs_dim]."""
+    if embodied_cfg.compact_senses:
+        return compact_observation(pop, world, embodied_cfg, world_cfg)
     h, w = world_cfg.height, world_cfg.width
     hidden = _hidden_field_groups(embodied_cfg)
     field = build_world_field(
@@ -489,7 +494,7 @@ def apply_embodied_actions(
         body_radius = jnp.ones_like(pop.energy)
         body_factor = jnp.ones_like(pop.energy)
 
-    move = actions[..., 0:2] * 0.05  # max 5% of world per step
+    move = actions[..., 0:2] * embodied_cfg.move_scale  # default: 5% of world per step
     flow_grid = positions_to_grid(pop.positions, h, w)
     local_flow = world.flow[flow_grid[:, 0], flow_grid[:, 1]]
     probe = (
@@ -713,12 +718,17 @@ def apply_embodied_actions(
             else 0.0
         )
     )
+    basal = embodied_cfg.basal_metabolic_cost * body_factor
+    if embodied_cfg.senescence_cost > 0.0:
+        basal = basal + embodied_cfg.senescence_cost * jnp.maximum(
+            pop.age - embodied_cfg.senescence_age, 0
+        )
     new_energy = (
         pop.energy
         + energy_gained
         - damage
         - move_cost
-        - embodied_cfg.basal_metabolic_cost * body_factor
+        - basal
         - action_cost
     ) * alive_f + pop.energy * (1.0 - alive_f)
     ledger = pop.ledger
@@ -732,8 +742,7 @@ def apply_embodied_actions(
             predation_loss=predation_loss,
             discarded=pop.energy * (1.0 - alive_f),  # empty slots are reset to zero below
             damage=damage * alive_f,
-            costs=(move_cost + embodied_cfg.basal_metabolic_cost * body_factor + action_cost)
-            * alive_f,
+            costs=(move_cost + basal + action_cost) * alive_f,
         )
     if embodied_cfg.max_energy > 0.0:
         if embodied_cfg.energy_ledger:  # empty slots are already counted as discarded
@@ -800,6 +809,8 @@ def apply_embodied_actions(
     )
 
     pop.body_axis = body_axis
+    if embodied_cfg.compact_senses:
+        pop.last_intake = intake * alive_f
     pop.positions = new_pos
     pop.energy = new_energy
     pop.alive = new_alive

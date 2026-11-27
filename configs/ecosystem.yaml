@@ -1,0 +1,83 @@
+# Opt-in continuous ecosystem (hybrid_alife.ecosystem, scripts/run_ecosystem.py).
+# No generations, selection, or reseeding. The evolution block is unused by that runner.
+seed: 0
+run_name: ecosystem
+output_dir: outputs/runs
+world:
+  width: 64
+  height: 64
+  toroidal: true
+  resource_channels: 1
+  hazard_channels: 1
+  max_agents: 400
+  max_digital_organisms: 0
+  flow_noise_std: 0.0
+  concentration_decay: 0.97
+  concentration_diffusion: 0.08
+  resource_regen: 0.0
+  hazard_decay: 1.0
+  flow_advection_strength: 0.0
+  sensory_noise_std: 0.0
+embodied:
+  enabled: true
+  population_size: 400
+  initial_alive_fraction: 0.5
+  obs_radius: 1
+  hidden_size: 8
+  message_size: 0
+  use_comms: false
+  compact_senses: true
+  compact_sense_radius: 6
+  controller_init_scale: 8.0
+  genome_mutation_std: 0.12
+  genome_mutation_prob: 0.08
+  initial_energy: 24.0
+  max_energy: 40.0
+  reproduce_energy_threshold: 30.0
+  reproduction_energy_cost: 12.0
+  repro_gate_threshold: 0.4
+  energy_ledger: true
+  basal_metabolic_cost: 0.1
+  senescence_age: 500
+  senescence_cost: 0.0006
+  body_morphology: true
+  stokes_mechanics: true
+  aspect_drag: true
+  move_scale: 0.012
+  cost_move_scale: 30.0
+  cost_eat: 0.01
+  cost_attack: 0.06
+  cost_reproduce: 0.0
+  cost_terraform: 0.0
+  cost_emit: 0.0
+  hazard_deposit_scale: 0.0
+  metabolite_deposit_scale: 0.0
+  predation_rate: 0.12
+  predation_radius: 0.022
+  predation_efficiency: 0.6
+avida:
+  enabled: false
+  population_size: 0
+  genome_length: 24
+  max_genome_length: 64
+  registers: 4
+  memory_size: 8
+  cycles_per_update: 8
+  point_mutation_prob: 0.0
+  insertion_prob: 0.0
+  deletion_prob: 0.0
+evolution:
+  generations: 1
+  steps_per_generation: 1
+  elite_fraction: 0.1
+  tournament_size: 3
+  extinction_min_population: 0
+  novelty_enabled: false
+  reseed_on_extinction: false
+logging:
+  metrics_every: 100
+  checkpoint_every_generations: 1000
+  replay_every_generations: 1000
+ecosystem:
+  food_per_step: 10.0
+  initial_food: 900

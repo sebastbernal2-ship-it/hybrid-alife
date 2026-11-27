@@ -273,8 +273,25 @@ class EmbodiedConfig:
     # Reproduce-gate threshold (sigmoid output must exceed this to trigger a
     # birth). Lower it for "births-friendly" tiny CPU configs.
     repro_gate_threshold: float = 0.5
+    # ---- opt-in ecosystem knobs (hybrid_alife.ecosystem); defaults keep legacy behaviour ----
+    # Replace the whole observation with 10 egocentric channels (world.compact_senses).
+    compact_senses: bool = False
+    compact_sense_radius: int = 6  # cells searched for food and hazards
+    # Multiplies the initial GRU/MLP weights (and action biases) of founder genomes.
+    controller_init_scale: float = 1.0
+    # Largest commanded displacement per step, as a fraction of the world.
+    move_scale: float = 0.05
+    # Extra metabolic cost per step of age beyond senescence_age (0 disables ageing).
+    senescence_age: int = 0
+    senescence_cost: float = 0.0
 
     def __post_init__(self) -> None:
+        if self.move_scale <= 0.0 or self.controller_init_scale <= 0.0:
+            raise ValueError("move_scale and controller_init_scale must be > 0")
+        if self.senescence_cost < 0.0 or self.senescence_age < 0:
+            raise ValueError("senescence_age and senescence_cost must be >= 0")
+        if self.compact_senses and (self.flow_head or self.linear_policy):
+            raise ValueError("compact_senses supports the GRU/MLP controller only")
         if self.aspect_drag and not (self.stokes_mechanics and self.body_morphology):
             raise ValueError("aspect_drag needs stokes_mechanics and body_morphology")
         if not 0.0 <= self.predation_efficiency <= 1.0:
@@ -439,6 +456,8 @@ class EmbodiedPopulationState:
     ledger: dict[str, Array] | None = None
     # [N, 2] body symmetry axis (unit, or zero before the first thrust) under aspect_drag.
     body_axis: Array | None = None
+    # [N] food energy eaten in the last step; recorded only under compact_senses.
+    last_intake: Array | None = None
 
 
 @dataclass
