@@ -44,7 +44,8 @@ step 2,000). Viewer family colours are therefore sub-families of that line.
 ## Common garden
 
 100 genomes per group, no reproduction, 300 steps, 8 fresh worlds (1000-1007) shared by all
-groups (`seed_*/garden.json`). Evolved genomes are sampled from those alive at step 80,000.
+groups (`seed_*/garden.json`). Evolved genomes are sampled from those alive at step 80,000, with replacement when fewer than
+100 are alive (so some groups contain duplicates; see `population_end`).
 Trial worlds start food-rich with no rot, so they are easier than the late-run world.
 "Mutation only" applies the median generation depth of mutations without selection (not a
 per-lineage replay). Worlds are repeated measures; the independent replicate is the training
@@ -92,8 +93,9 @@ seed (n = 5). No significance test was run.
 
 In all 5 seeds evolved genomes eat several times more and survive far more often than
 founders and the mutation-only control, and they steer toward food. Cutting the three food
-channels removes the steering and much of the gain. Evolved body genes alone give a small
-part of the gain.
+channels removes the steering and much of the gain. Founder brains in evolved bodies
+recover only a small part of the gain. These are condition comparisons, not an additive
+decomposition of causes.
 
 ## Limits
 
