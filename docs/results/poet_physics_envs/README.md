@@ -103,8 +103,9 @@ The numbers in this section were measured before the GAE fix below and are left 
 
 ## Why final policies take one action
 
-Measured on this pilot's legacy-space configuration unless stated. The ablation and search scripts
-behind items 4 to 6 were one-off and are not committed.
+Measured on this pilot's legacy-space configuration unless stated. The diagnostic, ablation and search
+scripts behind items 1 to 6 were one-off and are not committed, so those figures are not reproducible
+from the repo.
 
 1. **Greedy evaluation of a near-uniform policy.** After 12 generations, mean action entropy on
    visited states is 1.84 to 2.05 nats (uniform over 8 actions is 2.08). Across states, each logit

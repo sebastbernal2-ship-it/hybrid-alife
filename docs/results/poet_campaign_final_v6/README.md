@@ -14,6 +14,8 @@ the start. In the final `poet` populations 95% of goals are within 0.2 of the st
 distance 0.07), against 22% for `static` (median 0.31). In both tracks, worlds with near goals
 score far higher. This is an association in the saved runs, not a controlled test.
 
+The script behind this check was one-off and is not committed, so its figures are not reproducible from the repo.
+
 Recorded numbers below are unchanged. The cause analysis is in
 [`../poet_physics_envs/README.md`](../poet_physics_envs/README.md#why-final-policies-take-one-action).
 

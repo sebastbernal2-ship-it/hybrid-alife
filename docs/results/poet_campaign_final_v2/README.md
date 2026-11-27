@@ -7,6 +7,8 @@ current evaluator, on four held-out worlds generated for the check (this campaig
 **40 of 40 final policies take one action on at least 99% of steps**. The scores below do not show
 learned state-dependent behaviour. The Avida-enabled path itself was not re-run.
 
+The script behind this check was one-off and is not committed, so its figures are not reproducible from the repo.
+
 Recorded numbers below are unchanged. The cause analysis is in
 [`../poet_physics_envs/README.md`](../poet_physics_envs/README.md#why-final-policies-take-one-action).
 
