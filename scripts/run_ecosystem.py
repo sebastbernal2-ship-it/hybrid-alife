@@ -57,6 +57,9 @@ def main() -> int:
                 "founder_lineages")
         history = {k: [w[k] for w in summary["windows"]] for k in keys}
         history["founders"] = summary["founders"]
+        garden = args.run / "garden.json"
+        if garden.exists():
+            history["evidence"] = study.evidence_card(json.loads(garden.read_text("utf-8")))
         replay = record.record(eco, registry, args.steps, history)
         record.standalone(replay, args.out)
         args.out.with_suffix(".eco").write_bytes(replay)

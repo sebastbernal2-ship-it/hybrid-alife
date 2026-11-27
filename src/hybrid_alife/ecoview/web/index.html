@@ -30,7 +30,7 @@
         <li><i class="k toxin"></i>toxic patch, drains energy</li>
         <li><i class="k eat"></i>feeding</li>
         <li><i class="k attack"></i>attack: drains the target</li>
-        <li><i class="k birth"></i>birth, tied to its parent</li>
+        <li><i class="k birth"></i>birth bloom, tied to its parent</li>
         <li><i class="k death"></i>death</li>
       </ul>
     </section>
@@ -56,6 +56,9 @@
       <p>Click any creature to open its energy, genes, brain and family.</p>
       <button id="pick-old">Open the oldest creature</button>
       <button id="pick-kin">Open the one with most children</button>
+      <div id="evidence" hidden><h2>Did behaviour evolve?</h2>
+        <p class="note">Same fresh worlds, no breeding: genomes from this run against their
+        random founders.</p></div>
     </div>
     <div id="card" hidden>
       <div class="id-row">
@@ -74,7 +77,7 @@
       <h3>Body genes <small>against those alive now</small></h3>
       <canvas id="genes" width="660" height="116"></canvas>
       <h3>Brain, this step <small>senses → 8 memory units → actions</small></h3>
-      <canvas id="brain" width="660" height="560"></canvas>
+      <canvas id="brain" width="660" height="524"></canvas>
       <p class="note">Line = weight × current value (warm positive, cool negative). The
       memory gate weights also act but are not drawn.</p>
       <h3>Family</h3>

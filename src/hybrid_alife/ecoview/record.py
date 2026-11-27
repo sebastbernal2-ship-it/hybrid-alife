@@ -186,8 +186,11 @@ def record(eco: Ecosystem, registry: Registry, steps: int, history: dict | None 
         ],
         np.int32,
     )
+    # 1-based birth order over the whole run, founders first: the name shown on screen.
+    order = {ident: n + 1 for n, ident in enumerate(sorted(rows))}
     arrays = stream.arrays()
     arrays["person"] = table.reshape(-1)
+    arrays["person_serial"] = np.array([order[i] for i in people], np.int32)
     arrays["body_id"] = np.array(window_ids, np.int32)
     arrays["body_gene"] = np.array([genes[i][:2] for i in window_ids], np.float32).reshape(-1)
     arrays["body_depth"] = np.array([genes[i][2] for i in window_ids], np.int32)

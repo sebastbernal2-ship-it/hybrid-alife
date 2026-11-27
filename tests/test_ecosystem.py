@@ -6,6 +6,7 @@ import numpy as np
 from hybrid_alife.agents.embodied import embodied_observation_dim
 from hybrid_alife.ecosystem import ecosystem_step, initialize_ecosystem, load_ecosystem_config
 from hybrid_alife.ecosystem_study import Registry, load_checkpoint, save_checkpoint
+from hybrid_alife.ecoview import record
 from hybrid_alife.experiments.runner import step_sim
 from hybrid_alife.types import EmbodiedConfig
 from hybrid_alife.world.compact_senses import COMPACT_SENSE_DIM, compact_observation
@@ -116,3 +117,32 @@ def test_compact_senses_wrap_across_the_toroidal_seam():
     world = replace(eco.sim.world, resources=food, hazards=jnp.zeros((64, 64, 1)))
     obs = np.asarray(compact_observation(pop, world, cfg.embodied, cfg.world))
     assert obs[0, 0] > 0.4
+
+
+def test_replay_round_trips_the_recorded_run(tmp_path):
+    cfg, params = _small(seed=3)
+    cfg = replace(cfg, embodied=replace(cfg.embodied, reproduce_energy_threshold=20.0))
+    eco = initialize_ecosystem(cfg, params)
+    blob = record.record(eco, Registry(eco), 30)
+    meta, arrays = record.decode(blob)
+    alive = np.asarray(eco.sim.embodied.alive)
+    last = int(arrays["n_agent"][-1])
+    assert meta["frames"] == 31 and last == alive.sum()
+    assert arrays["agent_id"][-last:].tolist() == (
+        np.asarray(eco.sim.embodied.lineage_id)[alive].tolist()
+    )
+    np.testing.assert_allclose(
+        arrays["agent_pos"][-2 * last :].reshape(-1, 2) / 65535.0,
+        np.asarray(eco.sim.embodied.positions)[alive],
+        atol=1e-4,
+    )
+    change = arrays["n_birth"].sum() - arrays["n_death"].sum()
+    assert last == arrays["n_agent"][0] + change
+    food = arrays["food_first"].copy()
+    for cell, level in zip(arrays["food_cell"], arrays["food_level"], strict=True):
+        food[cell] = level
+    np.testing.assert_array_equal(
+        food, np.rint(np.asarray(eco.sim.world.resources[..., 0]).ravel() * 255)
+    )
+    html = record.standalone(blob, tmp_path / "r.html").read_text(encoding="utf-8")
+    assert "REPLAY_B64" in html and "<!--SCRIPT-->" not in html

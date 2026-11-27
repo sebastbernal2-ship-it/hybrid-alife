@@ -221,7 +221,8 @@ def common_garden(saved: dict, *, eval_seeds: int, steps: int, cohort: int) -> d
     generation depth, with no selection (a depth-matched control, not a replay of each
     lineage). ``evolved_food_blind``: evolved genomes with the three food input
     channels disconnected. ``evolved_all_blind``: all nine external channels
-    disconnected (the energy sense stays).
+    disconnected (the energy sense stays). ``founder_brains_evolved_bodies`` separates
+    what the evolved body genes contribute by themselves (eating rate scales with size).
     """
     cfg, params = saved["cfg"], saved["params"]
     rng = np.random.default_rng(12345 + cfg.seed)
@@ -234,8 +235,10 @@ def common_garden(saved: dict, *, eval_seeds: int, steps: int, cohort: int) -> d
     for _ in range(generations):
         key, sub = jax.random.split(key)
         drifted = mutate(drifted, sub)
+    body = ("body_radius", "body_aspect")
     cohorts = {
         "founders": founders,
+        "founder_brains_evolved_bodies": founders | {k: evolved[k] for k in body},
         "mutated_only": {k: np.asarray(v) for k, v in drifted.items()},
         "evolved": evolved,
         "evolved_food_blind": _blind_to(evolved, ("food",)),
@@ -255,4 +258,32 @@ def common_garden(saved: dict, *, eval_seeds: int, steps: int, cohort: int) -> d
         "cohort": cohort,
         "mutated_only_generations": generations,
         "cohorts": rows,
+    }
+
+
+_CARD_LABELS = {
+    "founders": "random founders",
+    "mutated_only": "mutation, no selection",
+    "founder_brains_evolved_bodies": "evolved body only",
+    "evolved": "evolved",
+    "evolved_food_blind": "evolved, food sense cut",
+    "evolved_all_blind": "evolved, all senses cut",
+}
+
+
+def evidence_card(garden: dict) -> dict:
+    """Means of a common-garden result, in the shape the viewer shows."""
+    rows = [
+        {"label": label}
+        | {
+            key: float(np.mean(garden["cohorts"][name][key]))
+            for key in ("food_energy_per_founder", "survival_fraction")
+        }
+        for name, label in _CARD_LABELS.items()
+    ]
+    worlds = len(garden["eval_world_seeds"])
+    return {
+        "rows": rows,
+        "note": f"{garden['cohort']} genomes per group, {garden['steps']} steps, mean of "
+        f"{worlds} worlds. Bars are from training seed {garden['train_seed']} only.",
     }

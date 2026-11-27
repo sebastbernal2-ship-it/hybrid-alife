@@ -15,7 +15,7 @@ const SENSE_TEXT = { food_row: 'food, down(+) / up', food_col: 'food, right(+) /
   other_col: 'neighbour, right(+) / left', other_size: 'neighbour bigger(+)',
   hazard_row: 'toxin, down(+) / up', hazard_col: 'toxin, right(+) / left',
   hazard_here: 'toxin underfoot', energy: 'own energy' };
-const OUTPUT_TEXT = ['move down / up', 'move right / left', 'eat', 'attack', 'breed'];
+const OUTPUT_TEXT = ['move down(+) / up', 'move right(+) / left', 'eat', 'attack', 'breed'];
 
 let R = null;               // decoded replay
 let t = 0, playing = params.get('paused') !== '1', speed = Number(params.get('speed') || 8);
@@ -59,7 +59,8 @@ function prepare(meta, a) {
   r.person = new Map();
   for (let i = 0; i < a.person.length; i += 6) {
     r.person.set(a.person[i], { id: a.person[i], parent: a.person[i + 1], born: a.person[i + 2],
-      died: a.person[i + 3], cause: a.person[i + 4], founder: a.person[i + 5], kids: [] });
+      died: a.person[i + 3], cause: a.person[i + 4], founder: a.person[i + 5], kids: [],
+      no: a.person_serial[i / 6] });
   }
   for (const p of r.person.values()) if (r.person.has(p.parent)) r.person.get(p.parent).kids.push(p.id);
   /* row of each individual in each frame, and heading from recorded movement */
@@ -113,6 +114,7 @@ function prepare(meta, a) {
   return r;
 }
 
+const tag = (id) => `#${R.person.get(id).no}`;
 const wrapDelta = (d) => d - Math.round(d);
 const mod = (v, m) => ((v % m) + m) % m;
 
@@ -135,7 +137,7 @@ function bodyOf(id) {
   const i = R.body.get(id);
   const radius = R.a.body_gene[2 * i], aspect = R.a.body_gene[2 * i + 1];
   const clade = R.a.body_clade[i];
-  const base = 0.78 * radius;
+  const base = 0.62 * radius;
   return { i, radius, aspect, clade, depth: R.a.body_depth[i],
     len: base * 1.35 * Math.pow(aspect, 0.9), wid: base * 0.9 / Math.pow(aspect, 0.9) };
 }
@@ -173,11 +175,20 @@ function sprite(clade) {
     g.beginPath(); g.ellipse(x, y, rad * 1.3, rad, 0.4, 0, 7); g.fill();
   }
   g.globalAlpha = 1;
-  for (const side of [-1, 1]) {
-    g.fillStyle = '#f4fbf7';
-    g.beginPath(); g.ellipse(0.56, 0.36 * side, 0.2, 0.2, 0, 0, 7); g.fill();
-    g.fillStyle = '#081012';
-    g.beginPath(); g.ellipse(0.63, 0.36 * side, 0.11, 0.11, 0, 0, 7); g.fill();
+  g.save();                      // inner membrane
+  g.scale(0.78, 0.74);
+  path();
+  g.strokeStyle = 'rgba(255,255,255,0.22)';
+  g.lineWidth = 0.05;
+  g.stroke();
+  g.restore();
+  g.fillStyle = 'rgba(255,255,255,0.78)';
+  g.beginPath(); g.ellipse(-0.2, 0.05, 0.2, 0.16, 0.3, 0, 7); g.fill();
+  for (const side of [-1, 1]) {  // eyespots
+    g.fillStyle = '#0a1417';
+    g.beginPath(); g.ellipse(0.62, 0.34 * side, 0.13, 0.12, 0, 0, 7); g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.ellipse(0.66, 0.34 * side - 0.04, 0.045, 0.045, 0, 0, 7); g.fill();
   }
   sprites.set(clade, c);
   return c;
@@ -193,13 +204,29 @@ function drawCreature(g, x, y, heading, body, scale, energy, phase, speed, alpha
     const swing = Math.sin(phase) * Wd * (0.3 + Math.min(speed, 0.6));
     g.strokeStyle = colour;
     g.lineCap = 'round';
-    g.lineWidth = Math.max(1, Wd * 0.17);
+    let px = -L * 0.95, py = 0;
+    for (let i = 1; i <= 8; i++) {          // thinning whip
+      const q = i / 8;
+      const nx = -L * (0.95 + 0.95 * q), ny = swing * Math.sin(q * 4.2) * q;
+      g.lineWidth = Math.max(0.6, Wd * 0.15 * (1 - 0.82 * q));
+      g.beginPath(); g.moveTo(px, py); g.lineTo(nx, ny); g.stroke();
+      px = nx; py = ny;
+    }
+  }
+  if (L > 22) {                  // cilia fringe, only visible up close
+    g.strokeStyle = colour;
+    g.lineWidth = Math.max(0.7, Wd * 0.03);
+    g.globalAlpha = alpha * 0.55;
     g.beginPath();
-    g.moveTo(-L * 0.92, 0);
-    g.quadraticCurveTo(-L * 1.35, swing, -L * 1.8, -swing * 0.7);
+    for (let i = 0; i < 26; i++) {
+      const a = -2.5 + i * 0.2, wave = Math.sin(phase * 1.7 + i * 0.9) * 0.1;
+      const cx = Math.cos(a) * L * (Math.cos(a) > 0 ? 0.98 : 0.8), cy = Math.sin(a) * Wd * 0.96;
+      g.moveTo(cx, cy);
+      g.lineTo(cx * 1.1 - L * wave, cy * 1.2);
+    }
     g.stroke();
   }
-  g.globalAlpha = alpha * (0.5 + 0.5 * Math.min(1, energy / 20));  // pale when starving
+  g.globalAlpha = alpha * (0.72 + 0.28 * Math.min(1, energy / 20));  // fades when starving
   g.drawImage(sprite(body.clade), -L * 1.25, -Wd * 1.25, L * 2.5, Wd * 2.5);
   g.restore();
 }
@@ -251,18 +278,20 @@ let pelletSprite = null;
 function pellet() {
   if (pelletSprite) return pelletSprite;
   const c = document.createElement('canvas');
-  c.width = c.height = 48;
+  c.width = c.height = 128;
   const g = c.getContext('2d');
+  g.scale(128 / 48, 128 / 48);
   const glow = g.createRadialGradient(24, 24, 2, 24, 24, 23);
-  glow.addColorStop(0, 'rgba(150,215,90,0.35)');
+  glow.addColorStop(0, 'rgba(130,190,90,0.20)');
   glow.addColorStop(1, 'rgba(150,215,90,0)');
   g.fillStyle = glow;
   g.fillRect(0, 0, 48, 48);
-  for (const [x, y, rad] of [[21, 22, 7], [30, 26, 5.5], [24, 31, 4.5]]) {
-    g.fillStyle = '#83bd4f';
-    g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
-    g.fillStyle = '#d3f59b';
-    g.beginPath(); g.arc(x - rad * 0.3, y - rad * 0.3, rad * 0.4, 0, 7); g.fill();
+  for (const [x, y, rad] of [[20, 21, 4.4], [27.5, 20, 2.6], [28, 27, 3.8], [21, 29.5, 3], [15.5, 25.5, 2]]) {
+    g.fillStyle = 'rgba(105,150,66,0.82)';
+    g.beginPath(); g.ellipse(x, y, rad, rad * 0.86, x, 0, 7); g.fill();
+    g.strokeStyle = '#b5da7e'; g.lineWidth = 0.7; g.stroke();
+    g.fillStyle = '#d8f3a4';
+    g.beginPath(); g.arc(x + rad * 0.2, y + rad * 0.1, rad * 0.28, 0, 7); g.fill();
   }
   return (pelletSprite = c);
 }
@@ -392,7 +421,7 @@ function drawWorld(now) {
         ctx.setLineDash([3 * dpr, 3 * dpr]);
         ctx.strokeStyle = ctx.fillStyle;
         ctx.lineWidth = 1.2 * dpr;
-        ctx.beginPath(); ctx.arc(x, y, s * (0.9 + age), 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, Math.max(s, 10 * dpr) * (0.9 + age), 0, 7); ctx.stroke();
         ctx.setLineDash([]);
         if (s > 22 * dpr) {
           ctx.font = `${11 * dpr}px Segoe UI, sans-serif`;
@@ -419,8 +448,15 @@ function drawWorld(now) {
         const [qx, qy] = near(c.x, c.y, p.x, p.y);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (qx - c.x) * s, y + (qy - c.y) * s); ctx.stroke();
       }
-      ctx.lineWidth = Math.max(1, s * 0.16 * fade);
-      ctx.beginPath(); ctx.arc(x, y, s * (0.7 + 2.2 * b.age), 0, 7); ctx.stroke();
+      const bloom = Math.max(s, 12 * dpr) * (1.4 + 2.4 * b.age);
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, bloom);
+      grad.addColorStop(0, `rgba(255,240,180,${0.55 * fade})`);
+      grad.addColorStop(1, 'rgba(255,240,180,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, bloom, 0, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(255,246,205,${fade})`;
+      ctx.lineWidth = Math.max(1.8 * dpr, s * 0.16 * fade);
+      ctx.beginPath(); ctx.arc(x, y, Math.max(s, 11 * dpr) * (0.7 + 2.2 * b.age), 0, 7); ctx.stroke();
     });
   }
   /* creatures */
@@ -458,18 +494,23 @@ function drawWorld(now) {
     each(a.x, a.y, 5 * s, (x, y) => {
       const [bx, by] = near(a.x, a.y, b.x, b.y);
       const tx = x + (bx - a.x) * s, ty = y + (by - a.y) * s;
-      ctx.strokeStyle = '#ff4d4d';
-      ctx.lineWidth = Math.max(1.5 * dpr, s * 0.17);
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
-      const spin = now * 0.006 + i;
-      ctx.lineWidth = Math.max(1, s * 0.1);
-      for (let j = 0; j < 4; j++) {
-        const ang = spin + j * Math.PI / 2;
-        ctx.beginPath();
-        ctx.moveTo(tx + Math.cos(ang) * s * 0.55, ty + Math.sin(ang) * s * 0.55);
-        ctx.lineTo(tx + Math.cos(ang) * s * 1.05, ty + Math.sin(ang) * s * 1.05);
-        ctx.stroke();
-      }
+      /* a thin dashed strike running from attacker to target, ending in a barb */
+      const len = Math.hypot(tx - x, ty - y), ang = len > 1 ? Math.atan2(ty - y, tx - x) : a.heading;
+      const ux = Math.cos(ang), uy = Math.sin(ang);
+      const barb = Math.min(Math.max(6 * dpr, s * 0.45), 16 * dpr);
+      const ex = tx + ux * barb * 0.3, ey = ty + uy * barb * 0.3;
+      ctx.strokeStyle = 'rgba(255,92,76,0.95)';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.min(Math.max(1.8 * dpr, s * 0.09), 3.2 * dpr);
+      ctx.setLineDash([5 * dpr, 4 * dpr]);
+      ctx.lineDashOffset = -now * 0.04;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(ex - barb * Math.cos(ang - 0.65), ey - barb * Math.sin(ang - 0.65));
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(ex - barb * Math.cos(ang + 0.65), ey - barb * Math.sin(ang + 0.65));
+      ctx.stroke();
     });
   }
   /* the selected creature: what it senses right now */
@@ -477,9 +518,12 @@ function drawWorld(now) {
   if (p) {
     const body = bodyOf(selected);
     each(p.x, p.y, 8 * s, (x, y) => {
-      ctx.strokeStyle = 'rgba(232,217,168,0.95)';
-      ctx.lineWidth = 1.6 * dpr;
-      ctx.beginPath(); ctx.arc(x, y, s * (body.len + 0.65), 0, 7); ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 * dpr;
+      const q = Math.max(9 * dpr, s * (body.len * 1.25 + 0.3));
+      for (const [i, j] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        ctx.beginPath(); ctx.moveTo(x + i * q, y + j * q * 0.55); ctx.lineTo(x + i * q, y + j * q); ctx.lineTo(x + i * q * 0.55, y + j * q); ctx.stroke();
+      }
       ctx.setLineDash([3 * dpr, 6 * dpr]);
       ctx.strokeStyle = 'rgba(232,217,168,0.4)';
       ctx.beginPath(); ctx.arc(x, y, s * 6, 0, 7); ctx.stroke();
@@ -600,61 +644,46 @@ function chip(id, extra) {
   const dot = document.createElement('i');
   dot.style.background = bi === undefined ? '#566' : CLADE_COLOURS[R.a.body_clade[bi]];
   const fate = alive ? '' : p.born > R.meta.start_step + t ? ' not yet born' : p.died >= 0 && p.died <= R.meta.start_step + t ? ' †' : '';
-  el.append(dot, `#${id}${fate}`);
+  el.append(dot, `${tag(id)}${fate}`);
   el.title = `born step ${p.born}` + (p.died >= 0 ? `, ${CAUSE_TEXT[R.meta.causes[p.cause]]} at step ${p.died}` : ', alive at the end of the replay');
   if (bi !== undefined && extra !== 'me') el.onclick = () => select(id, true);
   return el;
 }
 function buildTree() {
   const root = $('tree'), me = R.person.get(selected);
+  const now = R.meta.start_step + Math.floor(t);
   const chain = [];
   for (let p = R.person.get(me.parent); p; p = R.person.get(p.parent)) chain.push(p.id);
   root.textContent = '';
-  const line = (parent, ...nodes) => { const d = document.createElement('div'); d.append(...nodes); parent.append(d); return d; };
+  const row = (label, nodes) => {
+    const d = document.createElement('div'), l = document.createElement('span');
+    d.className = 'gen'; l.textContent = label; d.append(l);
+    const box = document.createElement('div'); box.append(...nodes); d.append(box); root.append(d);
+  };
+  const arrow = (nodes) => nodes.flatMap((n, i) => (i ? ['→ ', n] : [n]));
   if (chain.length) {
-    const shown = chain.slice(0, 4).reverse();
-    if (chain.length > 4) line(root, `↑ ${chain.length - 4} earlier ancestors, back to founder #${chain[chain.length - 1]}`);
-    let host = root;
-    for (const id of shown) {
-      line(host, chip(id), host === root ? '' : '');
-      const next = document.createElement('div'); next.className = 'trunk'; host.append(next); host = next;
-    }
-    line(host, chip(selected, 'me'), ' this one');
-    appendKids(host, me, chain);
-  } else {
-    line(root, chip(selected, 'me'), ' a founder');
-    appendKids(root, me, chain);
-  }
-}
-function appendKids(host, me) {
-  const trunk = document.createElement('div'); trunk.className = 'trunk'; host.append(trunk);
-  const now = R.meta.start_step + Math.floor(t);
-  const kids = me.kids.filter((id) => R.person.get(id).born <= now);
-  const d = document.createElement('div');
-  if (!kids.length) d.append('no children recorded yet');
-  else {
-    d.append(`${kids.length} ${kids.length > 1 ? 'children' : 'child'} with a living line or seen here: `);
-    kids.slice(-14).forEach((id) => d.append(chip(id)));
-  }
-  trunk.append(d);
+    const shown = chain.slice(0, 3).reverse().map((id) => chip(id));
+    const nodes = arrow(shown);
+    if (chain.length > 3) nodes.unshift(chip(chain[chain.length - 1]), `… ${chain.length - 4} more … `);
+    row('ancestors', nodes);
+  } else row('ancestors', ['none: a random founder']);
+  row('this one', [chip(selected, 'me')]);
+  const born = (id) => R.person.get(id).born <= now;
+  const kids = me.kids.filter(born);
+  row('children', kids.length ? kids.slice(-10).map((id) => chip(id)) : ['none shown yet']);
   const parent = R.person.get(me.parent);
-  if (parent) {
-    const sibs = parent.kids.filter((id) => id !== me.id && R.person.get(id).born <= now);
-    if (sibs.length) {
-      const s = document.createElement('div'); s.style.marginTop = '5px';
-      s.append(`siblings: `); sibs.slice(-10).forEach((id) => s.append(chip(id))); host.parentElement.append(s);
-    }
-  }
+  const sibs = parent ? parent.kids.filter((id) => id !== me.id && born(id)) : [];
+  if (sibs.length) row('siblings', sibs.slice(-8).map((id) => chip(id)));
 }
 
 const diverge = (v, a = 1) => (v >= 0 ? `rgba(255,170,92,${a})` : `rgba(92,176,255,${a})`);
 function drawBrain(k) {
   const c = $('brain'), g = c.getContext('2d'), a = R.a, H = R.meta.hidden, no = OUTPUT_TEXT.length;
   g.setTransform(2, 0, 0, 2, 0, 0);
-  g.clearRect(0, 0, 330, 280);
+  g.clearRect(0, 0, 330, 262);
   const bi = R.body.get(selected);
-  const inY = (i) => 14 + i * 28, hidY = (i) => 30 + i * 31.5, outY = (i) => 32 + i * 54;
-  const xi = 128, xh = 190, xo = 248;
+  const inY = (i) => 12 + i * 26, hidY = (i) => 28 + i * 29, outY = (i) => 28 + i * 51;
+  const xi = 126, xh = 178, xo = 228;
   const sense = (i) => a.agent_sense[k * 10 + i] / 63, hid = (i) => a.agent_hidden[k * H + i] / 127;
   const out = (i) => a.agent_output[k * no + i] / 127;
   g.lineCap = 'round';
@@ -745,7 +774,7 @@ function updatePanels(now) {
     $('clock').textContent = `step ${(R.meta.start_step + f).toLocaleString()}  ·  ${f + 1} / ${R.F}  ·  seed ${R.meta.seed}`;
     if (selected >= 0) {
       const body = bodyOf(selected), p = R.person.get(selected), k = R.rows[f].get(selected);
-      $('who').textContent = `Creature #${selected}`;
+      $('who').textContent = `Creature ${tag(selected)}`;
       $('who').style.color = CLADE_COLOURS[body.clade];
       const now_ = R.meta.start_step + f;
       let status = `${CLADE_NAMES[body.clade]} family · generation ${body.depth}`;
@@ -762,10 +791,11 @@ function updatePanels(now) {
       $('m-old').style.left = '50%';
       const pc = $('portrait').getContext('2d');
       pc.clearRect(0, 0, 192, 128);
-      drawCreature(pc, 108, 64, 0, body, 54 / 1.2, k === undefined ? 4 : energy, f * 0.5, 0.3, k === undefined ? 0.4 : 1);
+      drawCreature(pc, 112, 64, 0, body, 52, k === undefined ? 4 : energy, f * 0.5, 0.3, k === undefined ? 0.4 : 1);
       drawGenes(f);
       if (k === undefined) $('brain').getContext('2d').clearRect(0, 0, 660, 560);
       else drawBrain(k);
+
       const living = p.kids.filter((i) => R.person.get(i).born <= now_);
       const key = `${selected}:${living.length}:${living.filter((i) => R.rows[f].has(i)).length}:${k === undefined}`;
       if (key !== treeFor) { treeFor = key; buildTree(); }
@@ -778,8 +808,8 @@ function updatePanels(now) {
     let shown = 0;
     for (let g = f; g >= Math.max(1, f - 80) && shown < 6; g--) {
       const add = (text, id) => { if (shown++ < 6) { const li = document.createElement('li'); li.textContent = `${R.meta.start_step + g}  ${text}`; li.onclick = () => { t = Math.max(0, g - 2); select(id, false); }; feed.append(li); } };
-      for (let i = R.off.birth[g]; i < R.off.birth[g + 1]; i++) add(`#${R.a.birth[2 * i + 1]} bred #${R.a.birth[2 * i]}`, R.a.birth[2 * i + 1]);
-      for (let i = R.off.death[g]; i < R.off.death[g + 1]; i++) add(`#${R.a.death[2 * i]} ${CAUSE_TEXT[R.meta.causes[R.a.death[2 * i + 1]]]}`, R.a.death[2 * i]);
+      for (let i = R.off.birth[g]; i < R.off.birth[g + 1]; i++) add(`${tag(R.a.birth[2 * i + 1])} bred ${tag(R.a.birth[2 * i])}`, R.a.birth[2 * i + 1]);
+      for (let i = R.off.death[g]; i < R.off.death[g + 1]; i++) add(`${tag(R.a.death[2 * i])} ${CAUSE_TEXT[R.meta.causes[R.a.death[2 * i + 1]]]}`, R.a.death[2 * i]);
     }
   }
 }
@@ -813,7 +843,26 @@ function setFollow(on) {
 function fitView() { setFollow(false); view.z = 1; view.x = 32; view.y = 32; }
 function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; }
 
+function buildEvidence() {
+  const e = R.meta.history && R.meta.history.evidence;
+  if (!e) return;
+  const box = $('evidence');
+  box.hidden = false;
+  for (const [title, key, digits] of [['Food eaten per creature', 'food_energy_per_founder', 0], ['Still alive after the trial', 'survival_fraction', 2]]) {
+    const h = document.createElement('h3'); h.textContent = title; box.append(h);
+    const top = Math.max(...e.rows.map((r) => r[key]));
+    for (const r of e.rows) {
+      const d = document.createElement('div'); d.className = 'ev';
+      const label = document.createElement('span'), bar = document.createElement('i'), value = document.createElement('em'), track = document.createElement('b');
+      label.textContent = r.label; bar.style.width = `${100 * r[key] / top}%`; value.textContent = r[key].toFixed(digits);
+      track.append(bar); d.append(label, track, value); box.append(d);
+    }
+  }
+  const p = document.createElement('p'); p.className = 'note'; p.textContent = e.note; box.append(p);
+}
+
 function wire() {
+  buildEvidence();
   let drag = null;
   world.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, moved: false }; world.setPointerCapture(e.pointerId); });
   world.addEventListener('pointermove', (e) => {
@@ -844,7 +893,7 @@ function wire() {
     if (x >= L.x0 - 8 * dpr) t = Math.min(R.F - 1, Math.max(0, (x - L.x0) / (L.x1 - L.x0) * (R.F - 1)));
     panelFrame = -1;
   };
-  strip.addEventListener('pointerdown', (e) => { strip.setPointerCapture(e.pointerId); scrub(e); });
+  strip.addEventListener('pointerdown', (e) => { scrub(e); strip.setPointerCapture(e.pointerId); });
   strip.addEventListener('pointermove', (e) => { if (e.buttons) scrub(e); });
   $('play').onclick = () => setPlaying(!playing);
   $('fit').onclick = fitView;
@@ -867,7 +916,7 @@ function wire() {
   R.meta.clade_roots.forEach((root, k) => {
     const li = document.createElement('li'), dot = document.createElement('i'), name = document.createElement('span'), n = document.createElement('span');
     dot.style.background = CLADE_COLOURS[k];
-    name.textContent = `${CLADE_NAMES[k]} · from #${root}`;
+    name.textContent = `${CLADE_NAMES[k]} · from ${tag(root)}`;
     li.append(dot, name, n);
     li.onclick = () => { hiddenClade = hiddenClade === k ? -1 : k; [...$('clades').children].forEach((o, j) => o.classList.toggle('off', hiddenClade >= 0 && j !== hiddenClade)); };
     $('clades').append(li);
