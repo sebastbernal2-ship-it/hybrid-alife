@@ -70,7 +70,8 @@ def swimmer_case(r: float, scaling: str, beats: int = 6, box: float = 1.0,
         headings.append(float(np.mean(angle)))
         phase = np.exp(-2j * np.pi * np.arange(SAMPLES) / SAMPLES)
         tips.append(float(2 * abs(np.mean(np.asarray(lateral) * phase))))
-    return {"study": "swimmer", "kernel": kernel, "spacing": spacing, "r": r, "scaling": scaling, "beats": beats, "box": box,
+    return {"study": "swimmer", "kernel": kernel, "spacing": spacing, "r": r,
+            "scaling": scaling, "beats": beats, "box": box,
             "period": period, "period0": period0, "stiff": stiff, "bend_k": bend,
             "stretch_k": stretch, "ny": ny, "nx": nx, "n_points": len(s.points),
             "stride_xy_per_beat": strides, "heading_per_beat": headings,
@@ -99,9 +100,9 @@ def sheet_case(n: int, height: int = 2, scaling: str = "consistent", spacing: fl
     sim = ib.ImmersedSim.create(s, ny, n, nu=NU)
     label = s.points[:, 0]  # material coordinate
     speeds, theories, modes = [], [], []
-    for beat in range(beats):
+    for _beat in range(beats):
         x0, far, modes = sim.X[:, 0].mean(), [], []
-        for j in range(SAMPLES):
+        for _j in range(SAMPLES):
             sim = sim.advance(period // SAMPLES)
             far.append(sim.u[int(round(sim.X[:, 1].mean() + ny / 2)) % ny].mean())
             wave = np.exp(-1j * k * label)
@@ -171,7 +172,10 @@ def cases(study: str) -> dict:
 
 
 def run(name: str, fn, kwargs: dict, out: Path) -> str:
-    result = fn(**kwargs)
+    try:
+        result = fn(**kwargs)
+    except ValueError as exc:  # an unstable run is a result too
+        result = {"study": "failed", "kwargs": kwargs, "error_message": str(exc)}
     (out / f"{name}.json").write_text(json.dumps(result, indent=1) + "\n")
     return name
 
