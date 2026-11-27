@@ -29,7 +29,8 @@ SAMPLES = 40  # per beat
 
 
 def swimmer_case(r: float, scaling: str, beats: int = 6, box: float = 1.0,
-                 period0: float = 2000.0, stiff: float = 1.0) -> dict:
+                 period0: float = 2000.0, stiff: float = 1.0, kernel: int = 4,
+                 spacing: float = 1.0) -> dict:
     period = int(round(period0 * r * r / SAMPLES)) * SAMPLES
     speed_factor = 2000.0 / period0  # forces are proportional to the beat frequency
     if scaling == "consistent":
@@ -43,11 +44,12 @@ def swimmer_case(r: float, scaling: str, beats: int = 6, box: float = 1.0,
     body = ib.swimmer(
         (40.0 * r, ny / 2 + 0.21), head_axes=(4.0 * r, 2.5 * r), tail_length=20.0 * r,
         wave_amplitude=1.5 * r, wavelength=20.0 * r, period=period,
-        stretch_k=stretch, bend_k=bend)
-    s = ib.Structure.from_bodies([body], ramp_steps=period)
+        spacing=spacing, stretch_k=stretch / spacing, bend_k=bend / spacing)
+    s = ib.Structure.from_bodies([body], ramp_steps=period, kernel=kernel)
     sim = ib.ImmersedSim.create(s, ny, nx, nu=NU)
     tip = len(s.points) - 1
-    rear = 1 + (tip - int(round(20.0 * r)) - 1) // 2 + 1
+    n_tail = int(round(20.0 * r / spacing))
+    rear = 1 + (tip - n_tail) // 2
     strides, headings, tips, strains, speeds, drho = [], [], [], [], [], []
     for _ in range(beats):
         x0 = sim.centroid()
@@ -68,7 +70,7 @@ def swimmer_case(r: float, scaling: str, beats: int = 6, box: float = 1.0,
         headings.append(float(np.mean(angle)))
         phase = np.exp(-2j * np.pi * np.arange(SAMPLES) / SAMPLES)
         tips.append(float(2 * abs(np.mean(np.asarray(lateral) * phase))))
-    return {"study": "swimmer", "r": r, "scaling": scaling, "beats": beats, "box": box,
+    return {"study": "swimmer", "kernel": kernel, "spacing": spacing, "r": r, "scaling": scaling, "beats": beats, "box": box,
             "period": period, "period0": period0, "stiff": stiff, "bend_k": bend,
             "stretch_k": stretch, "ny": ny, "nx": nx, "n_points": len(s.points),
             "stride_xy_per_beat": strides, "heading_per_beat": headings,
@@ -76,8 +78,14 @@ def swimmer_case(r: float, scaling: str, beats: int = 6, box: float = 1.0,
             "max_speed": max(speeds), "max_density_range": max(drho)}
 
 
+def tuck(omega: float, k: float) -> float:
+    """Tuck's (1968) finite-inertia factor on Taylor's speed."""
+    f = np.sqrt((1 + np.sqrt(1 + (omega / (NU * k**2)) ** 2)) / 2)
+    return (1 + f) / (2 * f)
+
+
 def sheet_case(n: int, height: int = 2, scaling: str = "consistent", spacing: float = 0.5,
-               beats: int = 3, stiff: float = 1.0) -> dict:
+               beats: int = 8, stiff: float = 1.0, kernel: int = 4) -> dict:
     """Taylor sheet, `n` cells per wavelength, box `height` wavelengths tall."""
     r = n / 48
     period = int(round(9000 * r * r / SAMPLES)) * SAMPLES
@@ -87,34 +95,41 @@ def sheet_case(n: int, height: int = 2, scaling: str = "consistent", spacing: fl
     ny, k, omega = n * height, 2 * np.pi / n, 2 * np.pi / period
     body = ib.sheet(n, ny / 2 + 0.17, 0.2 / k, period=period, spacing=spacing,
                     bend_k=bend * 0.5 / spacing, stretch_k=stretch * 0.5 / spacing)
-    s = ib.Structure.from_bodies([body], ramp_steps=period)
+    s = ib.Structure.from_bodies([body], ramp_steps=period, kernel=kernel)
     sim = ib.ImmersedSim.create(s, ny, n, nu=NU)
     label = s.points[:, 0]  # material coordinate
-    speeds = []
-    modes = []
+    speeds, theories, modes = [], [], []
     for beat in range(beats):
-        x0, far = sim.X[:, 0].mean(), []
+        x0, far, modes = sim.X[:, 0].mean(), [], []
         for j in range(SAMPLES):
             sim = sim.advance(period // SAMPLES)
             far.append(sim.u[int(round(sim.X[:, 1].mean() + ny / 2)) % ny].mean())
-            if beat == beats - 1:
-                wave = np.exp(-1j * k * label)
-                x = sim.X[:, 0] - label
-                y = sim.X[:, 1] - sim.X[:, 1].mean()
-                modes.append((2 * np.mean((x - x.mean()) * wave), 2 * np.mean(y * wave),
-                              2 * abs(np.mean(y * np.exp(-1j * k * sim.X[:, 0])))))
+            wave = np.exp(-1j * k * label)
+            x = sim.X[:, 0] - label
+            y = sim.X[:, 1] - sim.X[:, 1].mean()
+            modes.append((2 * np.mean((x - x.mean()) * wave), 2 * np.mean(y * wave),
+                          2 * abs(np.mean(y * np.exp(-1j * k * sim.X[:, 0])))))
         speeds.append(float((sim.X[:, 0].mean() - x0) / period - np.mean(far)))
-    ax, by, amp = (np.array(c) for c in zip(*modes, strict=True))
-    amp = float(np.mean(amp.real))
-    tuck = np.sqrt((1 + np.sqrt(1 + (omega / (NU * k**2)) ** 2)) / 2)
-    tuck = (1 + tuck) / (2 * tuck)
-    theory = 0.5 * omega * k * amp**2 * (1 - 19 / 16 * (amp * k) ** 2) * tuck
-    return {"study": "sheet", "n": n, "height": height, "scaling": scaling,
+        ax, by, amps = (np.array(c) for c in zip(*modes, strict=True))
+        amp = float(np.mean(amps.real))
+        theories.append((amp, float(0.5 * omega * k * amp**2
+                                    * (1 - 19 / 16 * (amp * k) ** 2) * tuck(omega, k))))
+    # Leading-order speed of a sheet with material motion x ~ a, y ~ b (complex Fourier
+    # amplitudes of the same wave) is proportional to |b|^2 + 2 Im(a conj(b)) - |a|^2 with
+    # the sign such that a = 0 is Taylor. This is the correction relative to a = 0.
+    cross = np.mean(np.imag(ax * np.conj(by)))
+    extensible = float((2 * cross - np.mean(abs(ax) ** 2)) / np.mean(abs(by) ** 2))
+    # The first two beats are the ramp and the transient.
+    errors = np.array([-v / t - 1 for v, (_, t) in zip(speeds, theories, strict=True)])[2:]
+    return {"study": "sheet", "kernel": kernel, "n": n, "height": height, "scaling": scaling,
             "spacing": spacing, "beats": beats, "stiff": stiff, "period": period,
             "bend_k": bend, "stretch_k": stretch, "speed_per_beat": speeds,
-            "amplitude": amp, "amplitude_over_prescribed": amp * k / 0.2,
+            "amplitude_over_prescribed_per_beat": [t[0] * k / 0.2 for t in theories],
             "longitudinal_over_transverse": float(np.mean(abs(ax)) / np.mean(abs(by))),
-            "theory": float(theory), "error": float(-speeds[-1] / theory - 1)}
+            "longitudinal_correction": extensible,
+            "theory_per_beat": [t[1] for t in theories],
+            "error": float(errors.mean()),
+            "error_standard_error": float(errors.std(ddof=1) / np.sqrt(len(errors)))}
 
 
 def cases(study: str) -> dict:
@@ -131,6 +146,27 @@ def cases(study: str) -> dict:
         for n in (32, 48, 64, 96, 128, 192):
             for h in (1, 2):
                 out[f"sheet_n{n}_h{h}"] = (sheet_case, dict(n=n, height=h))
+    elif study == "controls":
+        # One change at a time from the consistent r = 2 swimmer (and r = 1 for the cheap ones).
+        for r in (1, 2):
+            for label, kw in {
+                "box2": dict(box=2.0), "box1.5": dict(box=1.5),
+                "stiff4": dict(stiff=4.0), "stiff0.5": dict(stiff=0.5),
+                "spacing0.5": dict(spacing=0.5), "period8000": dict(period0=8000.0),
+                "beats10": dict(beats=10),
+            }.items():
+                out[f"control_r{r}_{label}"] = (
+                    swimmer_case, dict(r=r, scaling="consistent", **kw))
+    elif study == "kernel":
+        for kernel in (2, 3):
+            for r in (1, 1.5, 2, 3, 4):
+                out[f"kernel{kernel}_swimmer_r{r}"] = (
+                    swimmer_case, dict(r=r, scaling="consistent", kernel=kernel))
+            for n in (32, 48, 64, 96, 128):
+                out[f"kernel{kernel}_sheet_n{n}_h2"] = (
+                    sheet_case, dict(n=n, kernel=kernel))
+    else:
+        raise ValueError(study)
     return out
 
 
