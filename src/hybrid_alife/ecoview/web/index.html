@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living window: an evolving ecosystem, replayed</title>
+<!--STYLE-->
+</head>
+<body>
+<div id="app">
+  <aside id="left">
+    <header>
+      <h1>Living window</h1>
+      <p id="subtitle"></p>
+    </header>
+    <section class="counts">
+      <div><b id="c-pop">0</b><span>alive</span></div>
+      <div><b id="c-births">0</b><span>born in replay</span></div>
+      <div><b id="c-deaths">0</b><span>died in replay</span></div>
+    </section>
+    <section>
+      <h2>Families alive now</h2>
+      <ul id="clades"></ul>
+      <p class="note" id="clade-note"></p>
+    </section>
+    <section>
+      <h2>On the plate</h2>
+      <ul class="legend">
+        <li><i class="k food"></i>algae pellet (food)</li>
+        <li><i class="k toxin"></i>toxic patch, drains energy</li>
+        <li><i class="k eat"></i>feeding</li>
+        <li><i class="k attack"></i>attack: drains the target</li>
+        <li><i class="k birth"></i>birth, tied to its parent</li>
+        <li><i class="k death"></i>death</li>
+      </ul>
+    </section>
+    <section class="feed"><h2>Events</h2><ol id="feed"></ol></section>
+    <details>
+      <summary>What is real, what is drawn</summary>
+      <p><b>From the simulator:</b> positions, energy, age, food, toxins, births, deaths and
+      their cause, attacks, feeding, parentage, body size and elongation genes (both change
+      the physics), and every brain value.</p>
+      <p><b>Illustrative:</b> membranes, eyes, tail beat, heading (taken from movement),
+      motion between steps, and the event animations. Hue marks family, not a gene.
+      Reproduction is asexual. There is no fluid in this world.</p>
+    </details>
+  </aside>
+  <main id="stage">
+    <canvas id="world"></canvas>
+    <div id="hint">click a creature · drag to pan · scroll to zoom</div>
+    <div id="loading">unpacking the recording…</div>
+  </main>
+  <aside id="right">
+    <div id="empty">
+      <h2>Inspector</h2>
+      <p>Click any creature to open its energy, genes, brain and family.</p>
+      <button id="pick-old">Open the oldest creature</button>
+      <button id="pick-kin">Open the one with most children</button>
+    </div>
+    <div id="card" hidden>
+      <div class="id-row">
+        <canvas id="portrait" width="192" height="128"></canvas>
+        <div>
+          <h2 id="who"></h2>
+          <p id="status"></p>
+          <button id="follow">Follow (F)</button>
+          <button id="close" title="Close (Esc)">Close</button>
+        </div>
+      </div>
+      <div class="meter"><label>energy <em id="v-energy"></em></label>
+        <div class="bar"><i id="b-energy"></i><s id="m-breed" title="can breed above"></s></div></div>
+      <div class="meter"><label>age <em id="v-age"></em></label>
+        <div class="bar"><i id="b-age"></i><s id="m-old" title="ageing starts"></s></div></div>
+      <h3>Body genes <small>against those alive now</small></h3>
+      <canvas id="genes" width="660" height="116"></canvas>
+      <h3>Brain, this step <small>senses → 8 memory units → actions</small></h3>
+      <canvas id="brain" width="660" height="560"></canvas>
+      <p class="note">Line = weight × current value (warm positive, cool negative). The
+      memory gate weights also act but are not drawn.</p>
+      <h3>Family</h3>
+      <div id="tree"></div>
+    </div>
+  </aside>
+  <footer>
+    <div class="controls">
+      <button id="play" title="Space">Pause</button>
+      <div id="speeds"></div>
+      <span id="clock"></span>
+      <button id="fit" title="0">Whole plate</button>
+    </div>
+    <canvas id="strip"></canvas>
+  </footer>
+</div>
+<!--SCRIPT-->
+</body>
+</html>

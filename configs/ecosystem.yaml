@@ -79,5 +79,8 @@ logging:
   checkpoint_every_generations: 1000
   replay_every_generations: 1000
 ecosystem:
-  food_per_step: 10.0
+  food_per_step: 11.0
+  food_rot: 0.006
+  rot_start: 3000
+  rot_ramp: 10000
   initial_food: 900

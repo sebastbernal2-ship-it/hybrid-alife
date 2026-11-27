@@ -2,6 +2,8 @@
 
     python scripts/run_ecosystem.py run --seed 0 --steps 60000 --out outputs/ecosystem
     python scripts/run_ecosystem.py garden --run outputs/ecosystem/seed_0
+    python scripts/run_ecosystem.py record --run outputs/ecosystem/seed_0 \\
+        --checkpoint 77000 --out outputs/ecosystem/replay.html
 """
 
 from __future__ import annotations
@@ -39,9 +41,27 @@ def main() -> int:
     garden.add_argument("--eval-seeds", type=int, default=8)
     garden.add_argument("--steps", type=int, default=300)
     garden.add_argument("--cohort", type=int, default=100)
+    rec = commands.add_parser("record", help="record a window from a checkpoint")
+    rec.add_argument("--run", type=Path, required=True)
+    rec.add_argument("--checkpoint", type=int, required=True)
+    rec.add_argument("--steps", type=int, default=3000)
+    rec.add_argument("--out", type=Path, required=True, help="standalone HTML to write")
     args = parser.parse_args()
 
-    if args.command == "run":
+    if args.command == "record":
+        from hybrid_alife.ecoview import record
+
+        eco, registry = study.load_checkpoint(args.run / f"checkpoint_{args.checkpoint}.pkl")
+        summary = json.loads((args.run / "summary.json").read_text(encoding="utf-8"))
+        keys = ("step", "population_mean", "population_min", "population_max",
+                "founder_lineages")
+        history = {k: [w[k] for w in summary["windows"]] for k in keys}
+        history["founders"] = summary["founders"]
+        replay = record.record(eco, registry, args.steps, history)
+        record.standalone(replay, args.out)
+        args.out.with_suffix(".eco").write_bytes(replay)
+        print(f"wrote {args.out} ({args.out.stat().st_size / 1e6:.1f} MB)")
+    elif args.command == "run":
         cfg, params = load_ecosystem_config(args.config)
         cfg = replace(cfg, seed=args.seed)
         out = args.out / f"seed_{args.seed}"

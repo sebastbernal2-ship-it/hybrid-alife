@@ -33,6 +33,9 @@ dev = [
   "ipykernel>=6.29",
 ]
 
+[tool.setuptools.package-data]
+"hybrid_alife.ecoview" = ["web/*"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

@@ -52,6 +52,11 @@ class EcoParams:
     hazard_strength: float = 0.6  # energy per step at a patch centre
     hazard_drift: float = 0.0002
     pellet_floor: float = 0.15  # smaller leftovers vanish
+    food_rot: float = 0.0  # chance per step that an uneaten pellet rots away
+    # The world gets harsher on a fixed schedule that ignores the population: rot is 0
+    # until rot_start, then rises linearly to food_rot over rot_ramp steps.
+    rot_start: int = 0
+    rot_ramp: int = 0
 
 
 @dataclass
@@ -242,6 +247,9 @@ def ecosystem_step(eco: Ecosystem, *, allow_reproduction: bool = True) -> StepEv
     # Environment: remove crumbs, drift the patches, sprout new pellets.
     resources = np.array(new_world.resources[..., 0])
     resources[resources < p.pellet_floor] = 0.0
+    rot = p.food_rot * float(np.clip((eco.step - p.rot_start) / max(p.rot_ramp, 1), 0.0, 1.0))
+    if rot > 0.0:
+        resources[eco.rng.random(resources.shape) < rot] = 0.0
     eco.patch_pos = (eco.patch_pos + eco.patch_vel) % 1.0
     eco.hazard_pos = (eco.hazard_pos + eco.hazard_vel) % 1.0
     sprouts = int(eco.rng.poisson(p.food_per_step))
